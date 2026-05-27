@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rintis.ai/schema/cycle-note.schema.json",
+  "title": "cycle-note source (kebab-case)",
+  "description": "Schema for projects/<name>/docs/cycles/<X.Y>.yaml — the per-cycle execution record filed at the end of each TDD cycle (cycle-orchestration.md §Cycle notes format). Execution-only: read by the orchestrator/reviewer and reviewed by the human at commit-time via diff; NOT rendered into the docs HTML site. additionalProperties:false everywhere so typo'd / unknown keys fail validation loudly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["project", "cycle", "outcome", "reviewer-findings"],
+  "properties": {
+    "project": { "type": "string", "minLength": 1 },
+    "cycle": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+[a-z]?$" },
+    "title": { "type": "string" },
+    "security-tier": { "type": "boolean" },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "gate"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "gate": { "type": "string", "minLength": 1 },
+        "command": { "type": "string" }
+      }
+    },
+    "architect-verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict"],
+      "properties": {
+        "verdict": { "type": "string", "enum": ["GO", "NO-GO"] },
+        "tier": { "type": "string", "enum": ["opus", "sonnet", "haiku"] },
+        "reviewer": { "type": "string" },
+        "summary": { "type": "string" },
+        "locked-decisions": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "reviewer-findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tag", "finding", "resolution", "pass", "reviewer-agent-id"],
+        "properties": {
+          "tag": { "type": "string", "enum": ["BLOCKER", "REFACTOR", "NIT"] },
+          "finding": { "type": "string", "minLength": 1 },
+          "resolution": { "type": "string", "minLength": 1 },
+          "pass": { "type": "integer", "minimum": 1 },
+          "reviewer-agent-id": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["change", "rationale"],
+        "properties": {
+          "change": { "type": "string", "minLength": 1 },
+          "rationale": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "hallucinations-rejected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "evidence"],
+        "properties": {
+          "claim": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "string", "minLength": 1 },
+          "mitigation": { "type": "string" }
+        }
+      }
+    },
+    "follow-ups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["item", "tracked-in"],
+        "properties": {
+          "item": { "type": "string", "minLength": 1 },
+          "tracked-in": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "threat-model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attacker-can", "mitigation-blocks", "residual-risk"],
+      "properties": {
+        "attacker-can": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "mitigation-blocks": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "residual-risk": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "security-tier": { "const": true } }, "required": ["security-tier"] },
+      "then": { "required": ["threat-model"] }
+    }
+  ]
+}

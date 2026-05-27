@@ -49,6 +49,6 @@ See `.claude/rules/`:
 
 **Ingest** — read a changed source doc, update affected concept/project pages, append an entry to [`log.md`](log.md). Trigger on: cycle complete, ADR added, plan revised, stakeholder fact landed.
 
-**Lint** — weekly sweep for stale `[[refs]]`, orphan pages, contradictions across concepts, project cards out of sync with the project's `docs/progress.md`.
+**Lint** — weekly sweep for stale `[[refs]]`, orphan pages, contradictions across concepts, project cards out of sync with the per-cycle `status:` field in the project's `plan-NNN.yaml`.
 
 **Schema** — see `/CLAUDE.md` §"Wiki schema" for page templates + conventions.

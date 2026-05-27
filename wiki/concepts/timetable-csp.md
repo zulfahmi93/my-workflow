@@ -19,7 +19,7 @@ A school timetable is a **Constraint Satisfaction Problem (CSP)**: assign a `(su
 
 For each tuple `(class, day, period)`, choose a `(subject, teacher)` pair — or `null` (free slot).
 
-Encoding (architect locks per cycle in `plan-001.md §"Open questions" #2`):
+Encoding (architect locks per cycle in `plan-001.yaml` `open-questions` #2):
 - Boolean `assigned[class, day, period, subject, teacher] ∈ {0,1}` with exactly-one constraints, **OR**
 - Integer `subject_at[class, day, period]` + `teacher_at[class, day, period]` with channelling.
 
@@ -92,7 +92,7 @@ Infeasibility is not an error — it is a user-actionable result. When CP-SAT re
 ## Authoritative spec
 
 - `projects/susun-jadual/docs/research-report.md §2–§3` — full taxonomy + solver feasibility benchmarks.
-- `projects/susun-jadual/docs/plan-001.md §"Phase 2"` — cycles 2.1–2.4 that implement the model.
+- `projects/susun-jadual/docs/plan-001.yaml` — cycles 2.1–2.4 (`solver` phase) that implement the model.
 - Furst et al. 2018, "XHSTT-2014 archive results," International Timetabling Competition.
 - Google OR-Tools docs, https://developers.google.com/optimization/cp/cp_solver.
 

@@ -83,6 +83,6 @@ PM Finding #7 captured the framing tightening: lead with "Battle-tested solver â
 
 - Verdict: `projects/susun-jadual/docs/roundtable/joint-verdict.md`
 - Individual POVs: `projects/susun-jadual/docs/roundtable/{architect,pm,ux}.md`
-- Resulting plan: `projects/susun-jadual/docs/plan-001.md` (v2)
+- Resulting plan: `projects/susun-jadual/docs/plan-001.yaml` (v2)
 - Parent project card: [[susun-jadual]]
 - Core concept: [[timetable-csp]]

@@ -45,7 +45,7 @@ projects/susun-jadual/
 ├── apps/web/              Next.js 16 (Phase 3 cycles)
 ├── apps/api/              .NET 10 + Hangfire (Phase 4 cycles)
 ├── services/solver/       Python 3.13 + OR-Tools CP-SAT (Phase 2 cycles)
-├── docs/                  plan-001.md, progress.md, research-report.md, cycles/
+├── docs/                  plan-001.yaml, research-report.md, cycles/, html/ (generated)
 ├── infra/                 docker-compose.yml, Caddyfile (Phase 0 + 6.1)
 ├── supabase/migrations/   schema (Phase 1)
 └── CLAUDE.md              project-specific operational rules
@@ -55,7 +55,7 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5060 (host; cont
 
 ## Plan-001 v2 status
 
-**Plan:** `projects/susun-jadual/docs/plan-001.md`. 25 TDD cycles + Phase 0 scaffold + Phase 0.5 Discovery + Phase 7 Pilot launch. Web-only MVP. **Estimated ~64h** (vs ~26h in v1 — +38h from roundtable amendments + D1–D5 decisions).
+**Plan:** `projects/susun-jadual/docs/plan-001.yaml` (single-source YAML). 25 TDD cycles + Phase 0 scaffold + Phase 0.5 Discovery + Phase 7 Pilot launch. Web-only MVP. **Estimated ~64h** (vs ~26h in v1 — +38h from roundtable amendments + D1–D5 decisions).
 
 | Cycle | Description | Status |
 |---|---|---|
@@ -100,7 +100,7 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5060 (host; cont
 
 ## Authoritative sources
 
-- Plan: `projects/susun-jadual/docs/plan-001.md`
-- Progress tracker: `projects/susun-jadual/docs/progress.md`
+- Plan: `projects/susun-jadual/docs/plan-001.yaml` (single source of truth; per-cycle `status:` lives in the plan YAML — no separate progress tracker)
+- Cycle notes: `projects/susun-jadual/docs/cycles/<X.Y>.yaml`
 - Research: `projects/susun-jadual/docs/research-report.md`
 - Project operational rules: `projects/susun-jadual/CLAUDE.md`

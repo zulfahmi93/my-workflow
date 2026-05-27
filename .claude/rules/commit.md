@@ -52,7 +52,7 @@ BREAKING CHANGE: <description>   [omit unless applicable]
 Co-Authored-By: <name> <email>
 ```
 
-Subject is mandatory. Body is optional for trivial commits (typo, log tweak), required for anything that introduces or changes behavior. For TDD-cycle commits the `Why:` line points at the cycle: e.g. `Why: Cycle 002.1 — navigation glue (plan-002.md §"CYCLE 002.1")`.
+Subject is mandatory. Body is optional for trivial commits (typo, log tweak), required for anything that introduces or changes behavior. For TDD-cycle commits the `Why:` line points at the cycle: e.g. `Why: Cycle 002.1 — navigation glue (plan-002.yaml cycle 002.1)`.
 
 Wrap body lines at ~72 characters.
 

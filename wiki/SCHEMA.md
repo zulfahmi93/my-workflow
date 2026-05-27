@@ -32,7 +32,7 @@ Maintenance reference for the Karpathy-style LLM wiki at `/wiki/`. Loaded on-dem
 4. Core domain concept (link to `[[concept-slug]]`)
 5. Stack (table)
 6. Layout (tree + local-dev one-liner)
-7. Plan status (table mirroring the project's `progress.md`)
+7. Plan status (table mirroring the per-cycle `status:` field in the project's `plan-NNN.yaml`)
 8. Authoritative sources (links to raw docs)
 
 **`wiki/concepts/<topic>.md`** sections:
@@ -62,5 +62,5 @@ Sweep for:
 - Orphan pages (no inbound `[[link]]`)
 - Stale `[[refs]]` (target page no longer exists)
 - Contradictions across concept pages
-- Project cards whose plan-status table is out of sync with the project's `docs/progress.md`
+- Project cards whose plan-status table is out of sync with the per-cycle `status:` field in the project's `plan-NNN.yaml`
 - Missing frontmatter or missing "Authoritative spec / sources" section

@@ -43,7 +43,7 @@ projects/ballot-counter/
 ├── apps/web/              Next.js 16
 ├── apps/api/              .NET 10
 ├── services/ocr/          Python 3.13 FastAPI
-├── docs/                  plan-002.md, progress.md, research-report.md, cycles/, archive/plan-001/
+├── docs/                  plan-{002..005}.yaml, research-report.md, cycles/, html/ (generated), archive/plan-001/
 ├── infra/                 docker-compose.yml, Caddyfile (later)
 ├── supabase/migrations/   schema
 └── CLAUDE.md              project-specific operational rules
@@ -53,7 +53,7 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5050 (host; cont
 
 ## Plan-002 status
 
-**Plan:** `projects/ballot-counter/docs/plan-002.md`. Six cycles, all post-MVP follow-ups + navigation glue plan-001 never specced.
+**Plan:** `projects/ballot-counter/docs/plan-002.yaml` (single-source YAML; plans 003–005 also filed as `plan-00N.yaml`). Six cycles, all post-MVP follow-ups + navigation glue plan-001 never specced.
 
 | Cycle | Description | Status |
 |---|---|---|
@@ -68,8 +68,8 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5050 (host; cont
 
 ## Authoritative sources
 
-- Plan: `projects/ballot-counter/docs/plan-002.md`
-- Progress tracker: `projects/ballot-counter/docs/progress.md`
+- Plans: `projects/ballot-counter/docs/plan-{002,003,004,005}.yaml` (single source of truth; per-cycle `status:` lives in each plan YAML — no separate progress tracker)
+- Cycle notes: `projects/ballot-counter/docs/cycles/<X.Y>.yaml`
 - Research: `projects/ballot-counter/docs/research-report.md`
 - Plan-001 (frozen MVP): `projects/ballot-counter/docs/archive/plan-001/plan-001.md`
 - Project operational rules: `projects/ballot-counter/CLAUDE.md`

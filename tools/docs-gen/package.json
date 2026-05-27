@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Shared config-driven static-HTML generator for Rintis project build-plan docs (plan-NNN.md + progress + parallel-batches → offline per-project docs sites).",
+  "description": "Shared config-driven static-HTML generator for Rintis project build-plan docs (single-file plan-NNN.yaml → offline per-project docs sites).",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "build": "node generate.mjs",
     "watch": "node generate.mjs --watch",
-    "validate": "node generate.mjs --validate"
+    "validate": "node generate.mjs --validate",
+    "validate-cycle-note": "node scripts/validate-cycle-note.mjs"
   },
   "dependencies": {
     "ajv": "^8.20.0",

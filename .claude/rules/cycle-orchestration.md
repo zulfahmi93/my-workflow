@@ -9,7 +9,7 @@ The manual for running a TDD cycle end-to-end. Pairs with [tdd.md](tdd.md) (phas
 3. This file + [tdd.md](tdd.md) + [commit.md](commit.md).
 4. Project plan source — `<project>/docs/plan-NNN.yaml` carries the cycle's spec, status, and session prompt in one file (read the relevant cycle entry). See [docs-site.md](docs-site.md).
 5. Cycle status — the YAML cycle's `status:` field.
-6. `<project>/docs/cycles/<X.Y>.md` for any prior cycle the current cycle depends on. Read only what matters.
+6. `<project>/docs/cycles/<X.Y>.yaml` for any prior cycle the current cycle depends on. Read only what matters.
 7. Schema / contract / code files the current cycle touches (migrations, prior test files).
 
 TaskList: one task per phase (architect-gate if required, RED, GREEN, REVIEW, REFACTOR, progress-update). Mark `in_progress` on start, `completed` on done.
@@ -21,7 +21,7 @@ TaskList: one task per phase (architect-gate if required, RED, GREEN, REVIEW, RE
 Every cycle in the project's plan file carries an `**Architecture review:**` field on its primary line. Three values:
 
 - **`required (<reviewer>, <one-line reason>)`** — opus gate BEFORE RED. Invoke `software-architect` (or named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
-- **`deferred to Cycle <X.Y>`** — sibling cycle inherits the prior verdict. Read the referenced cycle's architect verdict from `<project>/docs/cycles/<X.Y>.md` before RED; do not call architect again.
+- **`deferred to Cycle <X.Y>`** — sibling cycle inherits the prior verdict. Read the referenced cycle's `architect-verdict` from `<project>/docs/cycles/<X.Y>.yaml` before RED; do not call architect again.
 - **`none — <reason>`** — explicitly trivial. Skip the architect call. Reason MUST be in the plan (e.g. "single pure-function regex normalizer").
 
 **If the field is missing → STOP. Ask the user to mark the cycle in the plan before proceeding.** No orchestrator-side judgment. No silent skip path.
@@ -52,7 +52,7 @@ These are not self-review; do not confuse with the rule above:
 
 If a reviewer's findings appear wrong, the next pass goes to a fresh `code-reviewer` (with the anti-hallucination guard injected) — never to the orchestrator's own judgment.
 
-Cycle notes file (§"Reviewer findings + resolution") records reviewer agent ID per pass. If a cycle's notes show "self-review" anywhere in that table, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md.
+The cycle-note YAML's `reviewer-findings[].reviewer-agent-id` records the reviewer agent ID per pass. If a cycle's notes show "self-review" as a reviewer-agent-id anywhere, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md.
 
 ## REVIEW checklist
 
@@ -82,7 +82,7 @@ For security-tier cycles:
 Every RED / GREEN / REVIEW / REFACTOR prompt MUST include:
 
 1. **Paths to read** — root `/CLAUDE.md`, project `CLAUDE.md`, this file, [tdd.md](tdd.md), the plan's §cycle, schema / contract / current-state files. Subagent auto-loads CLAUDE.md from working dir — point at it rather than restate.
-2. **Locked decisions** — architect verdict (paste verbatim or reference `<project>/docs/cycles/<X.Y>.md`), prior GREEN report, prior REVIEW findings.
+2. **Locked decisions** — architect verdict (paste verbatim or reference `<project>/docs/cycles/<X.Y>.yaml`), prior GREEN report, prior REVIEW findings.
 3. **Gate criteria** — what passes, what fails. Concrete (test count, exit code, file paths).
 4. **NO-DEFER reminder** — every `[BLOCKER]` / `[REFACTOR]` resolved this cycle. See [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up).
 5. **Tone boundary** — caveman is chat-only; subagent writes idiomatic code / tests / commits.
@@ -119,19 +119,22 @@ Spawn a fresh agent when:
 
 ## Cycle notes format
 
-Cycle notes live one-file-per-cycle at `<project>/docs/cycles/<X.Y>.md`. The project's `docs/progress.md` stays as a status table + 1-line summary per cycle — no inline notes.
+Cycle notes live one-file-per-cycle at `<project>/docs/cycles/<X.Y>.yaml` — a structured, kebab-case YAML record validated against [`tools/docs-gen/schema/cycle-note.schema.json`](../../tools/docs-gen/schema/cycle-note.schema.json). They are **execution-only**: read by the orchestrator/reviewer during the cycle and reviewed by the human at commit-time via the diff; they are NOT rendered into the docs HTML site (the plan YAML's `status:` already drives the progress dashboard). Per-cycle status lives in the plan YAML's cycle `status:` field — there is no separate `progress.md`.
 
-Each cycle file covers:
+Top-level keys (full schema in `cycle-note.schema.json`):
 
-- **Outcome** — one sentence + gate result (test count, command).
-- **Architect verdict** (when applicable) — verbatim or summarized, with the decisions that were locked.
-- **Reviewer findings + how resolved** — `[BLOCKER]` / `[REFACTOR]` / `[NIT]` table, resolution per row, reviewer agent ID per pass.
-- **Deviations from plan sketch** — signature changes, scope adds, with one-line rationale each.
-- **Reviewer hallucinations rejected** — paths the reviewer claimed were broken, evidence they weren't, prompt-side mitigation applied to the next pass.
-- **Follow-ups** — items deferred to a later cycle (must already be tracked in the plan §"Cycle follow-ups" — link).
-- **Threat model** — required for [Security tier](#security-tier) cycles only. Lists what an attacker can do, what the mitigation blocks, what residual risk remains.
+- `project`, `cycle` (`<X.Y>`, must match the filename), `title`, `security-tier` (bool).
+- `outcome` — `{ summary (one sentence), gate (e.g. "Passed: 12 / Failed: 0"), command }`.
+- `architect-verdict` (when applicable) — `{ verdict: GO|NO-GO, tier, reviewer, summary, locked-decisions[] }`.
+- `reviewer-findings[]` — one row per finding: `{ tag: BLOCKER|REFACTOR|NIT, finding, resolution, pass, reviewer-agent-id }`. The `reviewer-agent-id` per pass is the self-review guard (see [Reviewer separation](#reviewer-separation--never-self-review)).
+- `deviations[]` — `{ change, rationale }`: signature changes, scope adds.
+- `hallucinations-rejected[]` — `{ claim, evidence, mitigation }`: what the reviewer claimed was broken, proof it wasn't, the next-pass prompt mitigation.
+- `follow-ups[]` — `{ item, tracked-in }`: deferred items, each already tracked in the plan §"Cycle follow-ups" (`cycle-followups:`).
+- `threat-model` — `{ attacker-can[], mitigation-blocks[], residual-risk[] }`. **Required** for [Security tier](#security-tier) cycles (schema enforces it when `security-tier: true`).
 
-Commit cost: one cycle = one commit touching `<project>/docs/cycles/<X.Y>.md` + `<project>/docs/progress.md` + the cycle's code. Diff is bounded.
+Validate before commit: `npm run validate-cycle-note -- <project>/docs/cycles/<X.Y>.yaml` from `tools/docs-gen/` (exits 1 on a bad enum, unknown key, missing required field, or a security-tier note without a threat model).
+
+Commit cost: one cycle = one commit touching `<project>/docs/cycles/<X.Y>.yaml` + the plan YAML (cycle `status:` update) + the cycle's code. Diff is bounded.
 
 ## Definition of done
 
@@ -141,10 +144,10 @@ A cycle is **done** only when ALL of the following hold. If any fails, do not in
 2. **GREEN gate satisfied** — no new warnings, no debug residue, manual smoke pass for UI cycles, real-request smoke for API cycles.
 3. **`code-reviewer` returns `APPROVED`** with no `[BLOCKER]` or `[REFACTOR]` items open. If the cycle is in [Security tier](#security-tier), `security-reviewer` ALSO returns `APPROVED`.
 4. **Cycle status updated** to reflect the outcome — the cycle's `status:` field in the plan's `plan-NNN.yaml`.
-5. **`<project>/docs/cycles/<X.Y>.md`** filed per [Cycle notes format](#cycle-notes-format), including reviewer agent IDs per pass and any rejected hallucinations.
+5. **`<project>/docs/cycles/<X.Y>.yaml`** filed per [Cycle notes format](#cycle-notes-format) and passing `npm run validate-cycle-note`, including reviewer agent IDs per pass and any rejected hallucinations.
 6. **All deferred items tracked** — every `[NIT]` deferred and every follow-up appears in the plan §"Cycle follow-ups". Silent skips are non-compliant.
 7. **ADR filed** if the cycle changed architecture (per [review-checklist.md §Documentation](review-checklist.md#documentation)).
-8. **Docs HTML regenerated** — after the `progress.md` row update (step 4), run `npm run build -- <project>` from `tools/docs-gen/` so the generated site reflects the new status. See [docs-site.md §When to regenerate](docs-site.md#when-to-regenerate). No-op for projects not yet onboarded to the generator.
+8. **Docs HTML regenerated** — after the cycle `status:` update in the plan YAML (step 4), run `npm run build -- <project>` from `tools/docs-gen/` so the generated site reflects the new status. See [docs-site.md §When to regenerate](docs-site.md#when-to-regenerate). No-op for projects not yet onboarded to the generator.
 
 The orchestrator confirms (1)–(8) as a post-APPROVED sanity check (this is commit-precondition verification, NOT REVIEW — see [Reviewer separation §Permitted orchestrator-side reads](#permitted-orchestrator-side-reads-not-review)). If any fails, the orchestrator drops back to the appropriate phase (GREEN if a test broke, REFACTOR if a NIT was silently dropped, etc.) rather than proceeding to COMMIT.
 
@@ -152,7 +155,7 @@ The orchestrator confirms (1)–(8) as a post-APPROVED sanity check (this is com
 
 1. User pastes a cycle prompt (e.g. "Begin Cycle 002.1").
 2. Claude reads the project's plan cycle spec; orchestrates RED → GREEN → REVIEW → (REFACTOR → REVIEW)* via the right agents until reviewer returns `APPROVED`.
-3. Claude updates the project's `progress.md`, creates `docs/cycles/<X.Y>.md`, and regenerates the docs HTML (`npm run build -- <project>`) when the cycle gate is met. Stops.
+3. Claude updates the cycle `status:` in the plan YAML, files `docs/cycles/<X.Y>.yaml` (validated via `npm run validate-cycle-note`), and regenerates the docs HTML (`npm run build -- <project>`) when the cycle gate is met. Stops.
 4. User reviews diffs.
 5. User says "commit" → Claude runs the commit protocol (one cycle = one commit). See [commit.md](commit.md).
 6. Claude writes the next-cycle prompt; user clears context and pastes it to restart.
