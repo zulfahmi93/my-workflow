@@ -26,9 +26,9 @@ Centralized repo for all Rintis AI projects. Each project under `projects/<name>
     commit.md             # commit policy + Conventional Commits prefixes
     cycle-orchestration.md  # full cycle manual (architect gate, reviewer separation, subagent skeleton, hallucination guard, cycle notes, session protocol)
     review-checklist.md   # REVIEW phase categories the code-reviewer evaluates against
-    docs-site.md          # plan-triad → HTML generator: when/how to regenerate, onboarding checklist
+    docs-site.md          # plan-NNN.yaml → HTML generator: when/how to regenerate, onboarding checklist
 /tools/
-  docs-gen/               # config-driven static-docs generator (plan/progress/batches MD → offline html/ site per project)
+  docs-gen/               # config-driven static-docs generator (single-source plan-NNN.yaml → offline html/ site per project)
 /docs/
   templates/              # canonical reusable artifacts (PRD, ADR, decision matrices, bet canvas, GTM, model card) — agents point here
 /secrets/                 # git-ignored creds
@@ -47,7 +47,7 @@ Claude auto-loads BOTH this file and the project's `projects/<name>/CLAUDE.md` w
 
 For "how do we work" questions (TDD, commit, cycle orchestration) → read `.claude/rules/`.
 
-The planning docs render to a browsable HTML site via the repo-root [`tools/docs-gen/`](tools/docs-gen/) generator. The Markdown triad stays the source of truth; `html/` is generated output. When/how to regenerate + the new-plan onboarding checklist → [`.claude/rules/docs-site.md`](.claude/rules/docs-site.md).
+The planning docs render to a browsable HTML site via the repo-root [`tools/docs-gen/`](tools/docs-gen/) generator. Each plan's single-source `plan-NNN.yaml` stays the source of truth; `html/` is generated output. When/how to regenerate + the new-plan onboarding checklist → [`.claude/rules/docs-site.md`](.claude/rules/docs-site.md).
 
 The `.claude/agents/` are one coordinated operating system, not isolated prompts. The shared frame — the 7-phase product lifecycle, per-phase ownership map, the binding Mandatory Research Standard and Commercial Viability Standard, and the agent-file schema — lives in [`.claude/rules/lifecycle.md`](.claude/rules/lifecycle.md). Each agent references it rather than restating it; canonical artifacts they fill in live in `/docs/templates/`. Change the lifecycle once in `lifecycle.md`, not across every agent.
 

@@ -20,15 +20,19 @@ This tool is the **source of truth** for the docs sites. Do not hand-edit any
 tools/docs-gen/                      ← THIS TOOL (repo-root, self-contained Node project)
   generate.mjs                         entry point (repo root resolved relatively)
   projects.config.json                 the project registry (what to build)
-  schema/plan.schema.json              JSON Schema (draft 2020-12) the YAML is validated against
+  schema/
+    plan.schema.json                   JSON Schema (draft 2020-12) the plan YAML is validated against
+    cycle-note.schema.json             JSON Schema for execution-only cycle notes (docs/cycles/<X.Y>.yaml)
   sites/
     ballot-counter.site.json           per-project identity (brand/accent/theme/landing)
     susun-jadual.site.json
   lib/
     load-yaml-source.mjs               plan-NNN.yaml → internal model (the ONLY source loader)
     validate-source.mjs                ajv schema + referential-integrity validation
-    render-svg.mjs                     DAG, batch timeline, file-ownership matrix from meta; static TDD loop
+    render-svg.mjs                     DAG, batch timeline, file-ownership matrix from the plan YAML graph fields; static TDD loop
     templates.mjs                      page templates (shell, cycle cards, code blocks, tables, badges)
+  scripts/
+    validate-cycle-note.mjs            standalone ajv gate for cycle notes (not part of the build)
   assets/style.css                     ← edit shared CSS HERE (copied into each project's html/assets/)
   assets/app.js                        ← edit shared JS HERE (theme key read from the DOM, project-agnostic)
   package.json + package-lock.json     deps: yaml, ajv, markdown-it, markdown-it-anchor, chokidar (committed lockfile)
@@ -145,15 +149,6 @@ No generator code changes are needed for a project that follows the schema.
 - **chokidar** (MIT, dev-only) — cross-platform file watcher for `--watch`. v4 dropped glob
   support, so we watch each `docsRoot` at depth 0 and filter to `*.yaml`, mapping a changed
   file back to the single affected project + plan.
-- **yaml** (eemeli/yaml, ISC) — the single-source-of-truth YAML loader (see below). Chosen
-  over JSON for readable literal block scalars (`|`) on multi-line prompts / code / prose;
-  its lossless round-trip is what lets verbatim fields stay byte-exact.
-- **ajv** (MIT) — JSON Schema (draft 2020-12) validator for the single-file YAML source. A
-  hand-edited single source needs a declarative safety net: ajv catches typo'd / unknown keys
-  (`additionalProperties:false`), bad enums, and type errors from a misindented block scalar
-  *before* render, so the build fails loudly instead of mis-rendering. (Cross-reference
-  integrity — deps / critical-path / batch cycles pointing at real cycle ids — is checked in
-  code, which ajv can't express.) Uses `ajv/dist/2020` for the 2020-12 meta-schema.
 
 Everything else (SVG diagrams, code-token styling, theming) is hand-rolled and
 dependency-free, per the offline / no-CDN constraint.
@@ -195,6 +190,24 @@ Failure prints the JSON-path + a human message per violation, e.g.:
 Schema/integrity validation FAILED for ballot-counter/plan-002.yaml (1 error):
   ✗ /cycles/2 (002.3) /deps/0 → unknown cycle id "002.99" (not in cycles[])
 ```
+
+### Cycle notes (execution-only)
+
+Per-cycle execution records live at `projects/<name>/docs/cycles/<X.Y>.yaml`, validated against
+`schema/cycle-note.schema.json`. They are **not part of this build** — `generate.mjs` never reads
+them and they are **not rendered into the HTML site** (the plan YAML's cycle `status:` already
+drives the progress dashboard). They are read by the TDD orchestrator/reviewer and reviewed by a
+human at commit-time via the diff.
+
+```bash
+npm run validate-cycle-note                                            # all projects/*/docs/cycles/*.yaml
+npm run validate-cycle-note -- projects/<name>/docs/cycles/<X.Y>.yaml  # one file (path relative to repo root)
+```
+
+Same ajv-2020 net as the plan schema (required fields, enums, `additionalProperties:false`), plus:
+a `security-tier: true` note must carry a `threat-model`, and the filename `<X.Y>` must match the
+`cycle:` field. Exits non-zero on violation so it can gate a commit. Convention + field reference:
+`.claude/rules/cycle-orchestration.md` §Cycle notes format.
 
 ### Kebab-case YAML schema (per plan)
 
