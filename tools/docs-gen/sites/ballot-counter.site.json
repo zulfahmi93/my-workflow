@@ -1,0 +1,11 @@
+{
+  "productName": "UNDI",
+  "accent": "#c0392b",
+  "themeKey": "undi-docs-theme",
+  "footerTagline": "Handwritten ballot scanning · Rintis AI",
+  "landing": {
+    "eyebrow": "UNDI · build documentation",
+    "title": "Build plans for UNDI ballot counting",
+    "lede": "UNDI scans handwritten paper ballots into auditable digital tallies. Each plan below is a sequence of disciplined TDD cycles, runnable across parallel sessions. Pick a plan to read its cycles and parallel runbook."
+  }
+}

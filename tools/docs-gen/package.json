@@ -1,0 +1,22 @@
+{
+  "name": "rintis-docs-gen",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared config-driven static-HTML generator for Rintis project build-plan docs (plan-NNN.md + progress + parallel-batches → offline per-project docs sites).",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node generate.mjs",
+    "watch": "node generate.mjs --watch",
+    "validate": "node generate.mjs --validate"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "chokidar": "^4.0.3",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "yaml": "^2.9.0"
+  }
+}

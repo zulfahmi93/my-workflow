@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rintis.ai/schema/plan.schema.json",
+  "title": "docs-gen single-file plan source (kebab-case)",
+  "description": "Schema for projects/<name>/docs/plan-<id>.yaml — the deduplicated single source of truth. additionalProperties:false everywhere so typo'd / unknown keys fail the build loudly.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "project", "title", "cycles"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[0-9]{3}$" },
+    "project": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "one-liner": { "type": "string" },
+    "overview": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context": { "type": "string" },
+        "stack": { "type": "string" },
+        "tdd-cycle-format": { "type": "string" },
+        "plan-003-note": { "type": "string" },
+        "extra-sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["heading", "body"],
+            "properties": {
+              "id": { "type": "string" },
+              "heading": { "type": "string" },
+              "body": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "links": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "critical-path": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "wall-time-saved": { "type": "string" },
+    "batches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "cycles"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "cycles": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "wall-time": { "type": "string" },
+          "notes": { "type": "string" },
+          "heading": { "type": "string" },
+          "intro": { "type": "string" }
+        }
+      }
+    },
+    "cycles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/cycle" }
+    },
+    "runbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "h1": { "type": "string" },
+        "final-state-heading": { "type": "string" },
+        "intro": { "type": "string" },
+        "how-to-use": { "type": "string" },
+        "common-contract": { "type": "string" },
+        "worktree-convention": { "type": "string" },
+        "merge-protocol": { "type": "string" },
+        "batch-summary-note": { "type": "string" },
+        "file-ownership-notes": { "type": "string" },
+        "inter-batch-verification": { "type": "string" },
+        "stop-conditions": { "type": "string" },
+        "final-state": { "type": "string" }
+      }
+    },
+    "open-questions": { "$ref": "#/$defs/table" },
+    "cycle-followups": { "$ref": "#/$defs/table" }
+  },
+  "$defs": {
+    "cycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "primary", "arch-review", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+[a-z]?$" },
+        "title": { "type": "string", "minLength": 1 },
+        "primary": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "deps": { "type": "array", "items": { "type": "string" } },
+        "batch": { "type": ["string", "null"] },
+        "arch-review": { "$ref": "#/$defs/arch-review" },
+        "security-tier": { "type": "boolean" },
+        "no-tdd": { "type": "boolean" },
+        "closes": { "type": "string" },
+        "status": { "type": "string", "enum": ["idle", "wip", "ok"] },
+        "shipped": { "type": ["string", "null"] },
+        "notes": { "type": "string" },
+        "scope": { "type": "string" },
+        "file-ownership": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "dirs": { "type": "array", "items": { "type": "string" } },
+            "new-files": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "phases": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "red": { "$ref": "#/$defs/phase" },
+            "green": { "$ref": "#/$defs/phase" },
+            "review": { "$ref": "#/$defs/phase" },
+            "refactor": { "$ref": "#/$defs/phase" },
+            "security-review": { "$ref": "#/$defs/phase" }
+          }
+        },
+        "session": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "title": { "type": "string" },
+            "before": { "type": "string" },
+            "prompt": { "type": "string" },
+            "after": { "type": "string" }
+          }
+        }
+      }
+    },
+    "arch-review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "type": "string", "enum": ["required", "none", "deferred"] },
+        "tier": { "type": "string", "enum": ["opus", "sonnet"] },
+        "reviewer": { "type": "string" },
+        "reason": { "type": "string" },
+        "deferred-to": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "state": { "const": "required" } } },
+          "then": { "required": ["tier"] }
+        }
+      ]
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "string", "enum": ["opus", "sonnet", "haiku"] },
+        "agent": { "type": "string" },
+        "meta-raw": { "type": "string" },
+        "body": { "type": "string" },
+        "code": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["lang", "src"],
+            "properties": {
+              "lang": { "type": "string" },
+              "src": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "table": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "headers": { "type": "array", "items": { "type": "string" } },
+        "placeholder": { "type": "string" },
+        "rows": { "type": "array" }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+# Per-project repos are versioned independently (each projects/<name> is its own git repo).
+# The root repo tracks only the shared infra: tools/, .claude/, wiki/, docs/, CLAUDE.md.
+/projects/
+
+# Secrets — never commit
+/secrets/
+.env
+.env.*
+*.key
+*.pem
+
+# Dependencies
+node_modules/
+
+# Claude local / runtime (user-specific, per .claude/rules/commit.md)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Large binary assets (version via Git LFS if needed)
+/docs/profiles/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini

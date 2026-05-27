@@ -1,0 +1,11 @@
+{
+  "productName": "Susun Jadual",
+  "accent": "#0f766e",
+  "themeKey": "susun-docs-theme",
+  "footerTagline": "AI-assisted school timetabling · Rintis AI",
+  "landing": {
+    "eyebrow": "Susun Jadual · build documentation",
+    "title": "Build plans for the Susun Jadual timetable generator",
+    "lede": "Susun Jadual is an AI-assisted school-timetable generator for Malaysian schools — a natural-language rule editor feeding a deterministic OR-Tools CP-SAT solver. Each plan below is a sequence of disciplined TDD cycles, runnable across parallel sessions. Pick a plan to read its cycles and parallel runbook."
+  }
+}

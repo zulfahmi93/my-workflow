@@ -1,0 +1,25 @@
+{
+  "projects": [
+    {
+      "name": "ballot-counter",
+      "docsRoot": "projects/ballot-counter/docs",
+      "outDir": "projects/ballot-counter/docs/html",
+      "site": "ballot-counter.site.json",
+      "plans": [
+        { "id": "002" },
+        { "id": "003" },
+        { "id": "004" },
+        { "id": "005" }
+      ]
+    },
+    {
+      "name": "susun-jadual",
+      "docsRoot": "projects/susun-jadual/docs",
+      "outDir": "projects/susun-jadual/docs/html",
+      "site": "susun-jadual.site.json",
+      "plans": [
+        { "id": "001" }
+      ]
+    }
+  ]
+}
