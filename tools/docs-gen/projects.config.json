@@ -2,8 +2,8 @@
   "projects": [
     {
       "name": "ballot-counter",
-      "docsRoot": "projects/ballot-counter/docs",
-      "outDir": "projects/ballot-counter/docs/html",
+      "docsRoot": "projects/personal/ballot-counter/docs",
+      "outDir": "projects/personal/ballot-counter/docs/html",
       "site": "ballot-counter.site.json",
       "plans": [
         { "id": "002" },
@@ -14,9 +14,18 @@
     },
     {
       "name": "susun-jadual",
-      "docsRoot": "projects/susun-jadual/docs",
-      "outDir": "projects/susun-jadual/docs/html",
+      "docsRoot": "projects/personal/susun-jadual/docs",
+      "outDir": "projects/personal/susun-jadual/docs/html",
       "site": "susun-jadual.site.json",
+      "plans": [
+        { "id": "001" }
+      ]
+    },
+    {
+      "name": "isc-workflow-web",
+      "docsRoot": "projects/rintis/isc-workflow-web/docs",
+      "outDir": "projects/rintis/isc-workflow-web/docs/html",
+      "site": "isc-workflow-web.site.json",
       "plans": [
         { "id": "001" }
       ]

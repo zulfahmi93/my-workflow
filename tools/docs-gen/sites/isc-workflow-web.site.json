@@ -1,0 +1,11 @@
+{
+  "productName": "iSC Workflow Web",
+  "accent": "#009999",
+  "themeKey": "isc-workflow-docs-theme",
+  "footerTagline": "Sarawak government workflow portal · Rintis",
+  "landing": {
+    "eyebrow": "iSC Workflow Web · build documentation",
+    "title": "Build plans for the iSC Workflow web migration",
+    "lede": "iSC Workflow Web is the Next.js port of the iSarawak Care workflow portal — a multi-role government initiative + form-builder platform (admin CMS + public applicant portal) migrating off Flutter onto a typed, server-rendered web stack against the existing SOCOE backend. Each plan below is a sequence of disciplined TDD cycles, runnable across parallel sessions. Pick a plan to read its cycles and parallel runbook."
+  }
+}
