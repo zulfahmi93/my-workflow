@@ -27,7 +27,30 @@
       "outDir": "projects/rintis/isc-workflow-web/docs/html",
       "site": "isc-workflow-web.site.json",
       "plans": [
+        { "id": "001" },
+        { "id": "002" },
+        { "id": "003" },
+        { "id": "004" }
+      ]
+    },
+    {
+      "name": "whatsapp-bot",
+      "docsRoot": "projects/rintis/whatsapp-bot/docs",
+      "outDir": "projects/rintis/whatsapp-bot/docs/html",
+      "site": "whatsapp-bot.site.json",
+      "plans": [
         { "id": "001" }
+      ]
+    },
+    {
+      "name": "kobu-bot",
+      "docsRoot": "projects/rintis/kobu-bot/docs",
+      "outDir": "projects/rintis/kobu-bot/docs/html",
+      "site": "kobu-bot.site.json",
+      "plans": [
+        { "id": "001" },
+        { "id": "002" },
+        { "id": "003" }
       ]
     }
   ]
