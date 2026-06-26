@@ -1,0 +1,11 @@
+{
+  "productName": "u60-monitor",
+  "accent": "#2563eb",
+  "themeKey": "u60-monitor-docs-theme",
+  "footerTagline": "Live ZTE U60 Pro speed · Flutter · zulfahmi.dev",
+  "landing": {
+    "eyebrow": "u60-monitor · build documentation",
+    "title": "Build plans for u60-monitor",
+    "lede": "u60-monitor is a lightweight Flutter app (Android + iOS) showing live cellular upload / download speed from a ZTE U60 Pro 5G modem — a thin client over the on-modem zte-agent. Each plan below is a sequence of disciplined TDD cycles. Pick a plan to read its cycles and parallel runbook."
+  }
+}

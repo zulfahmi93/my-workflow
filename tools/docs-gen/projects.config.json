@@ -22,6 +22,15 @@
       ]
     },
     {
+      "name": "u60-monitor",
+      "docsRoot": "projects/personal/u60-monitor/docs",
+      "outDir": "projects/personal/u60-monitor/docs/html",
+      "site": "u60-monitor.site.json",
+      "plans": [
+        { "id": "001" }
+      ]
+    },
+    {
       "name": "isc-workflow-web",
       "docsRoot": "projects/rintis/isc-workflow-web/docs",
       "outDir": "projects/rintis/isc-workflow-web/docs/html",
