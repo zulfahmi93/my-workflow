@@ -27,7 +27,8 @@
       "outDir": "projects/personal/u60-monitor/docs/html",
       "site": "u60-monitor.site.json",
       "plans": [
-        { "id": "001" }
+        { "id": "001" },
+        { "id": "002" }
       ]
     },
     {
