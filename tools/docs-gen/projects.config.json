@@ -6,10 +6,18 @@
       "outDir": "projects/personal/ballot-counter/docs/html",
       "site": "ballot-counter.site.json",
       "plans": [
-        { "id": "002" },
-        { "id": "003" },
-        { "id": "004" },
-        { "id": "005" }
+        {
+          "id": "002"
+        },
+        {
+          "id": "003"
+        },
+        {
+          "id": "004"
+        },
+        {
+          "id": "005"
+        }
       ]
     },
     {
@@ -18,7 +26,9 @@
       "outDir": "projects/personal/susun-jadual/docs/html",
       "site": "susun-jadual.site.json",
       "plans": [
-        { "id": "001" }
+        {
+          "id": "001"
+        }
       ]
     },
     {
@@ -27,10 +37,21 @@
       "outDir": "projects/personal/u60-monitor/docs/html",
       "site": "u60-monitor.site.json",
       "plans": [
-        { "id": "001" },
-        { "id": "002" },
-        { "id": "003" },
-        { "id": "004" }
+        {
+          "id": "001"
+        },
+        {
+          "id": "002"
+        },
+        {
+          "id": "003"
+        },
+        {
+          "id": "004"
+        },
+        {
+          "id": "005"
+        }
       ]
     },
     {
@@ -39,10 +60,18 @@
       "outDir": "projects/rintis/isc-workflow-web/docs/html",
       "site": "isc-workflow-web.site.json",
       "plans": [
-        { "id": "001" },
-        { "id": "002" },
-        { "id": "003" },
-        { "id": "004" }
+        {
+          "id": "001"
+        },
+        {
+          "id": "002"
+        },
+        {
+          "id": "003"
+        },
+        {
+          "id": "004"
+        }
       ]
     },
     {
@@ -51,7 +80,9 @@
       "outDir": "projects/rintis/whatsapp-bot/docs/html",
       "site": "whatsapp-bot.site.json",
       "plans": [
-        { "id": "001" }
+        {
+          "id": "001"
+        }
       ]
     },
     {
@@ -60,12 +91,27 @@
       "outDir": "projects/rintis/kobu-bot/docs/html",
       "site": "kobu-bot.site.json",
       "plans": [
-        { "id": "001" },
-        { "id": "002" },
-        { "id": "003" },
-        { "id": "004" },
-        { "id": "005" },
-        { "id": "006" }
+        {
+          "id": "001"
+        },
+        {
+          "id": "002"
+        },
+        {
+          "id": "003"
+        },
+        {
+          "id": "004"
+        },
+        {
+          "id": "005"
+        },
+        {
+          "id": "006"
+        },
+        {
+          "id": "007"
+        }
       ]
     }
   ]
