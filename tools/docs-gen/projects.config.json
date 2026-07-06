@@ -89,6 +89,17 @@
       ]
     },
     {
+      "name": "landing-website",
+      "docsRoot": "projects/rintis/landing-website/docs",
+      "outDir": "projects/rintis/landing-website/docs/html",
+      "site": "landing-website.site.json",
+      "plans": [
+        {
+          "id": "001"
+        }
+      ]
+    },
+    {
       "name": "kobu-bot",
       "docsRoot": "projects/rintis/kobu-bot/docs",
       "outDir": "projects/rintis/kobu-bot/docs/html",

@@ -1,0 +1,11 @@
+{
+  "productName": "Berdua.AI",
+  "accent": "#1f6bff",
+  "themeKey": "berdua-landing-docs-theme",
+  "footerTagline": "Berdua.AI marketing landing · berdua.ai",
+  "landing": {
+    "eyebrow": "landing-website · build documentation",
+    "title": "Build plans for the Berdua.AI landing page",
+    "lede": "landing-website is the Berdua.AI marketing site (Next.js 16 + Tailwind 4 on Cloudflare Workers). Each plan below is a sequence of disciplined cycles. Pick a plan to read its cycles, chapter script, gate contract, and runbook."
+  }
+}
