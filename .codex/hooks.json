@@ -1,0 +1,41 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/block-commit-flags.sh\"",
+            "timeout": 30,
+            "statusMessage": "Checking commit policy"
+          }
+        ]
+      },
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/dispatch-file-policy.py\" block-generated",
+            "timeout": 30,
+            "statusMessage": "Checking generated-file policy"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/dispatch-file-policy.py\" validate-yaml",
+            "timeout": 600,
+            "statusMessage": "Validating documentation YAML"
+          }
+        ]
+      }
+    ]
+  }
+}
