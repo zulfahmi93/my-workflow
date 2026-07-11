@@ -1,0 +1,269 @@
+export const meta = {
+  name: 'tdd-cycle',
+  description: 'One plan-driven TDD cycle: architect gate → RED → GREEN → REVIEW/(verify→REFACTOR→REVIEW)* with schema-validated verdicts',
+  whenToUse: 'User opts into workflow execution of a plan cycle (e.g. "run cycle 4.2 with the workflow"). Returns a structured record the orchestrator files into the cycle note + plan status. Commits stay outside the workflow.',
+  phases: [
+    { title: 'Gate', detail: 'read plan cycle entry; architect verdict if required' },
+    { title: 'RED', detail: 'failing test that fails for the right reason' },
+    { title: 'GREEN', detail: 'minimal implementation to pass' },
+    { title: 'REVIEW', detail: 'independent verdict + adversarial verification of findings' },
+    { title: 'REFACTOR', detail: 'resolve confirmed findings; loop to REVIEW' },
+  ],
+}
+
+// Required args: { project, projectPath, plan, cycle, greenAgent }
+// Optional: redAgent (default 'Test Engineer'), securityTier (bool), models ({top, mid} override)
+const A = args || {}
+for (const k of ['project', 'projectPath', 'plan', 'cycle', 'greenAgent']) {
+  if (!A[k]) throw new Error(`args.${k} is required — e.g. { project: "isc-workflow-web", projectPath: "projects/rintis/isc-workflow-web", plan: "004", cycle: "4.2", greenAgent: "React Expert" }`)
+}
+
+// Tier→model binding mirrors .claude/rules/lifecycle.md §Model tier map. Change there first, then here.
+const MODELS = { top: 'opus', mid: 'sonnet', ...(A.models || {}) }
+const RED_AGENT = A.redAgent || 'Test Engineer'
+const PLAN_PATH = `${A.projectPath}/docs/plan-${A.plan}.yaml`
+const RULES = '.claude/rules'
+const MAX_REVIEW_PASSES = 4
+
+const COMMON = `Project: ${A.project}. Working dir is the repo root.
+Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), ${A.projectPath}/CLAUDE.md, ${RULES}/tdd.md, ${RULES}/cycle-orchestration.md §Subagent prompt skeleton.
+Tone: write idiomatic code/tests/docs (caveman is chat-only and does not apply to subagents).
+NO-DEFER: every [BLOCKER]/[REFACTOR] finding is resolved this cycle (${RULES}/tdd.md §Deferral policy).
+Out of bounds unless the cycle spec says otherwise: package additions, schema edits, API-contract changes, editing tests during GREEN.`
+
+const GATE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['mode', 'specSummary', 'securityTier', 'lockedDecisions'],
+  properties: {
+    mode: { type: 'string', enum: ['required', 'deferred', 'none', 'missing'] },
+    reason: { type: 'string' },
+    reviewer: { type: 'string' },
+    specSummary: { type: 'string' },
+    securityTier: { type: 'boolean' },
+    lockedDecisions: { type: 'array', items: { type: 'string' } },
+  },
+}
+
+const ARCH_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['verdict', 'summary', 'lockedDecisions'],
+  properties: {
+    verdict: { type: 'string', enum: ['GO', 'NO-GO'] },
+    summary: { type: 'string' },
+    lockedDecisions: { type: 'array', items: { type: 'string' } },
+  },
+}
+
+const RED_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['testFiles', 'failingCommand', 'failureLine', 'gateResult'],
+  properties: {
+    testFiles: { type: 'array', items: { type: 'string' } },
+    failingCommand: { type: 'string' },
+    failureLine: { type: 'string' },
+    gateResult: { type: 'string' },
+  },
+}
+
+const IMPL_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['filesTouched', 'gateResult', 'command', 'deviations'],
+  properties: {
+    filesTouched: { type: 'array', items: { type: 'string' } },
+    gateResult: { type: 'string' },
+    command: { type: 'string' },
+    deviations: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['change', 'rationale'], properties: { change: { type: 'string' }, rationale: { type: 'string' } } } },
+    notes: { type: 'string' },
+  },
+}
+
+const REFACTOR_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['filesTouched', 'gateResult', 'command', 'deviations', 'resolutions'],
+  properties: {
+    ...IMPL_SCHEMA.properties,
+    resolutions: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['finding', 'resolution'], properties: { finding: { type: 'string' }, resolution: { type: 'string' } } } },
+  },
+}
+
+const VERDICT_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['verdict', 'findings', 'skippedCategories'],
+  properties: {
+    verdict: { type: 'string', enum: ['APPROVED', 'NEEDS_FIX'] },
+    findings: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['tag', 'finding'], properties: {
+      tag: { type: 'string', enum: ['BLOCKER', 'REFACTOR', 'NIT'] },
+      finding: { type: 'string' },
+      file: { type: 'string' },
+      line: { type: 'number' },
+      expectedRemediation: { type: 'string' },
+    } } },
+    skippedCategories: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['category', 'reason'], properties: { category: { type: 'string' }, reason: { type: 'string' } } } },
+  },
+}
+
+const REFUTE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['refuted', 'evidence'],
+  properties: { refuted: { type: 'boolean' }, evidence: { type: 'string' } },
+}
+
+// ---- Gate ----
+phase('Gate')
+const gate = await agent(`${COMMON}
+
+Task: read ${PLAN_PATH} and extract cycle ${A.cycle}.
+1. Find the cycle's "Architecture review:" field. Map to mode: required / deferred / none; if the field is absent, mode = "missing".
+2. If deferred to a sibling cycle, read that cycle's architect-verdict from ${A.projectPath}/docs/cycles/<X.Y>.yaml and return its locked-decisions as lockedDecisions (otherwise lockedDecisions = []).
+3. specSummary: the cycle's spec in ≤ 200 words (title, phase steps, gate criteria, files in scope).
+4. securityTier: true if the plan marks it OR the spec touches any item in ${RULES}/cycle-orchestration.md §Security tier.
+Return data only.`, { label: 'gate:read-plan', phase: 'Gate', schema: GATE_SCHEMA })
+if (!gate) throw new Error('gate reader died')
+
+if (gate.mode === 'missing') {
+  return { halted: 'architecture-review-field-missing', detail: `Cycle ${A.cycle} has no "Architecture review:" field in ${PLAN_PATH}. Per cycle-orchestration.md §Architect gate: STOP and ask the user to mark the cycle in the plan.` }
+}
+
+const securityTier = Boolean(A.securityTier || gate.securityTier)
+if (securityTier && gate.mode === 'none') {
+  return { halted: 'security-tier-plan-mismatch', detail: 'Cycle is security-tier but the plan marks architecture review "none". Per §Security tier the plan field must be upgraded — ask the user.', gate }
+}
+
+let architectVerdict = null
+if (gate.mode === 'required' || (securityTier && gate.mode !== 'deferred')) {
+  const arch = await agent(`${COMMON}
+
+You are the architecture gate for cycle ${A.cycle}.${securityTier ? ' SECURITY-TIER cycle — apply §Security tier scrutiny (threat surface, trust boundaries, secret handling).' : ''}
+Cycle spec: ${gate.specSummary}
+Verdict ≤ 400 words. GO or NO-GO. lockedDecisions: the decisions RED/GREEN must honor verbatim.`,
+    { label: 'gate:architect', phase: 'Gate', schema: ARCH_SCHEMA, agentType: 'Software Architect', model: MODELS.top })
+  if (!arch) throw new Error('architect died')
+  architectVerdict = { verdict: arch.verdict, summary: arch.summary, lockedDecisions: arch.lockedDecisions, tier: 'top', mode: gate.mode }
+  if (arch.verdict === 'NO-GO') return { halted: 'architect-no-go', architectVerdict, gate }
+}
+
+const locked = [...(gate.lockedDecisions || []), ...((architectVerdict && architectVerdict.lockedDecisions) || [])]
+const lockedBlock = locked.length ? locked.map(d => `- ${d}`).join('\n') : '- none'
+
+// ---- RED ----
+phase('RED')
+const red = await agent(`${COMMON}
+Locked decisions:
+${lockedBlock}
+Cycle spec: ${gate.specSummary}
+
+RED phase per ${RULES}/tdd.md: author the failing test(s) for this cycle. The test must fail for the RIGHT reason (missing/incorrect behavior — not a typo, import error, or broken infra), with a failure message naming the expectation. Run it and quote the exact failure line.`,
+  { label: 'red', phase: 'RED', schema: RED_SCHEMA, agentType: RED_AGENT, model: MODELS.mid })
+if (!red) throw new Error('RED author died')
+log(`RED: ${red.failureLine}`)
+
+// ---- GREEN ----
+phase('GREEN')
+const green = await agent(`${COMMON}
+Locked decisions:
+${lockedBlock}
+Cycle spec: ${gate.specSummary}
+RED report: tests ${JSON.stringify(red.testFiles)}; failing with: ${red.failureLine}; command: ${red.failingCommand}
+
+GREEN phase per ${RULES}/tdd.md: minimal code to flip the failing test(s) green. Do NOT edit the tests. Satisfy the full GREEN gate (whole suite green, zero new warnings, no debug residue, no untested branches) before returning. gateResult format: "Passed: N / Failed: 0".`,
+  { label: 'green', phase: 'GREEN', schema: IMPL_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
+if (!green) throw new Error('GREEN implementer died')
+log(`GREEN: ${green.gateResult}`)
+
+// ---- REVIEW ⇄ REFACTOR ----
+const reviewLog = []
+const hallucinationsRejected = []
+const refactors = []
+let lastReport = green
+let approved = false
+
+for (let pass = 1; pass <= MAX_REVIEW_PASSES && !approved; pass++) {
+  const guard = hallucinationsRejected.length
+    ? `\nHallucination guard (${RULES}/cycle-orchestration.md §Reviewer hallucination guard): earlier passes produced findings that contradicted verified state. Verify paths with ls/grep and run the gate command BEFORE asserting anything is missing. Rejected claims + evidence:\n${hallucinationsRejected.map(h => `- "${h.claim}" — refuted: ${h.evidence}`).join('\n')}\nPrior gate result stands: ${lastReport.gateResult}.`
+    : ''
+
+  const review = await agent(`${COMMON}
+You are the independent REVIEW gate (pass ${pass}) for cycle ${A.cycle}. Apply ${RULES}/review-checklist.md to the diff.
+Files to review: ${JSON.stringify(lastReport.filesTouched)} plus tests ${JSON.stringify(red.testFiles)}
+Cycle spec: ${gate.specSummary}
+Locked decisions:
+${lockedBlock}
+Implementer gate result: ${lastReport.gateResult} (command: ${lastReport.command})${guard}
+Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.`,
+    { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.mid })
+  if (!review) throw new Error(`reviewer pass ${pass} died`)
+  reviewLog.push({ pass, verdict: review.verdict, findings: review.findings, skippedCategories: review.skippedCategories })
+  if (review.verdict === 'APPROVED') { approved = true; break }
+
+  const blocking = review.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
+
+  // Adversarial verification — the hallucination guard, systematized.
+  const checked = (await parallel(blocking.map(f => () =>
+    agent(`Adversarially verify a code-review finding against ACTUAL repo state (cwd = repo root).
+Finding [${f.tag}] on ${f.file || 'unknown file'}: ${f.finding}
+Use ls / grep / file reads, and run the gate command (${lastReport.command}) if relevant. refuted=true ONLY with hard evidence the finding misstates repo state (the file exists, the branch is covered, the import is used). Plausible-but-unverified stays refuted=false. evidence: the exact command + output line that decides it.`,
+      { label: `verify:p${pass}`, phase: 'REVIEW', schema: REFUTE_SCHEMA, model: MODELS.mid })
+      .then(v => ({ f, v }))
+  ))).filter(Boolean)
+
+  const confirmed = checked.filter(x => x.v && !x.v.refuted).map(x => x.f)
+  for (const x of checked.filter(x => x.v && x.v.refuted)) {
+    hallucinationsRejected.push({ claim: `[${x.f.tag}] ${x.f.finding}`, evidence: x.v.evidence, pass })
+  }
+  log(`REVIEW pass ${pass}: ${blocking.length} blocking — ${confirmed.length} confirmed, ${blocking.length - confirmed.length} refuted`)
+  if (!confirmed.length) continue // every finding refuted → fresh pass with the guard inlined
+
+  phase('REFACTOR')
+  const refactor = await agent(`${COMMON}
+REFACTOR phase for cycle ${A.cycle}: resolve EVERY confirmed finding below (NO-DEFER). Tests stay green; no new public API; never weaken a test to fit the fix.
+Prior implementation report: files ${JSON.stringify(lastReport.filesTouched)}, gate ${lastReport.gateResult}.
+Confirmed findings:
+${confirmed.map(f => `- [${f.tag}] ${f.file || ''}: ${f.finding}${f.expectedRemediation ? ` → ${f.expectedRemediation}` : ''}`).join('\n')}
+Return resolutions: one entry per finding stating exactly how it was resolved. gateResult format "Passed: N / Failed: 0".`,
+    { label: `refactor:p${pass}`, phase: 'REFACTOR', schema: REFACTOR_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
+  if (!refactor) throw new Error(`REFACTOR pass ${pass} died`)
+  refactors.push({ pass, filesTouched: refactor.filesTouched, gateResult: refactor.gateResult, resolutions: refactor.resolutions, deviations: refactor.deviations })
+  lastReport = refactor
+}
+
+if (!approved) {
+  return { halted: 'review-not-approved', detail: `NEEDS FIX after ${MAX_REVIEW_PASSES} passes — autonomous stop condition 5.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+}
+
+// ---- Security tier second pass ----
+let securityReview = null
+if (securityTier) {
+  for (let spass = 1; spass <= 2; spass++) {
+    const sec = await agent(`${COMMON}
+SECURITY-TIER second-pass review (pass ${spass}) for cycle ${A.cycle} per ${RULES}/cycle-orchestration.md §Security tier. Review the diff against ${RULES}/review-checklist.md §Security plus threat-model completeness (attacker-can / mitigation-blocks / residual-risk).
+Files: ${JSON.stringify(lastReport.filesTouched)}; tests: ${JSON.stringify(red.testFiles)}; gate: ${lastReport.gateResult}.
+verdict=APPROVED only with zero BLOCKER/REFACTOR findings. You never edit files.`,
+      { label: `security:pass-${spass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Security Reviewer', model: MODELS.top })
+    if (!sec) throw new Error('security reviewer died')
+    securityReview = { pass: spass, verdict: sec.verdict, findings: sec.findings }
+    if (sec.verdict === 'APPROVED') break
+
+    const sblock = sec.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
+    if (spass === 2 || !sblock.length) {
+      return { halted: 'security-review-not-approved', gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview }
+    }
+    phase('REFACTOR')
+    const fix = await agent(`${COMMON}
+Resolve EVERY security finding below (NO-DEFER; security-tier — idiomatic, fully-explained security code, normal tone):
+${sblock.map(f => `- [${f.tag}] ${f.file || ''}: ${f.finding}`).join('\n')}
+Tests stay green. Return resolutions per finding. gateResult format "Passed: N / Failed: 0".`,
+      { label: 'refactor:security', phase: 'REFACTOR', schema: REFACTOR_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
+    if (!fix) throw new Error('security refactor died')
+    refactors.push({ pass: `security-${spass}`, filesTouched: fix.filesTouched, gateResult: fix.gateResult, resolutions: fix.resolutions, deviations: fix.deviations })
+    lastReport = fix
+  }
+}
+
+return {
+  approved: true,
+  cycle: A.cycle, project: A.project, plan: A.plan, securityTier,
+  gate: { mode: gate.mode, specSummary: gate.specSummary },
+  architectVerdict, red, green, refactors, reviewLog, hallucinationsRejected, securityReview,
+  reviewerIdConvention: 'record reviewer-agent-id as wf:<runId>/review-pass-<N> (runId is in the Workflow tool result)',
+  next: `Orchestrator: walk cycle-orchestration.md §Definition of done (1)-(8) — update plan status, file ${A.projectPath}/docs/cycles/${A.cycle}.yaml (npm run validate-cycle-note), regenerate docs (npm run build -- ${A.project}). Commit stays with the user / autonomous-run protocol.`,
+}

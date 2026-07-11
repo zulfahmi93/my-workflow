@@ -30,11 +30,14 @@ Format: `<type>(<scope>)`. Type describes the kind of change. Scope describes th
 - `api` — .NET / DbContext / endpoints
 - `ocr` — Python / Gemini / FastAPI
 - `web` — Next.js / shadcn / React
+- `app` — Flutter / mobile screens, state, platform integrations
 - `infra` — docker / Caddy / hosting / scripts
 - `plan` — plan / progress edits
 - `wiki` — wiki page ingest / lint
 - `rules` — `.claude/rules/` edits
 - `agents` — `.claude/agents/` edits
+
+Projects may define additional scopes in their own `CLAUDE.md` (e.g. `bot` in the WhatsApp repos); `ocr` above is ballot-counter-specific and grandfathered.
 
 Examples: `feat(api): add mark_rosak PATCH endpoint`, `fix(web): redirect loop on /elections`, `refactor(ocr): extract cell-cropping helper`, `docs(wiki): ingest plan-002 cycle 002.1`.
 

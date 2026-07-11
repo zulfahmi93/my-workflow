@@ -4,9 +4,9 @@ The manual for running a TDD cycle end-to-end. Pairs with [tdd.md](tdd.md) (phas
 
 ## Pre-cycle reads (always)
 
-1. Repo root `/CLAUDE.md` — auto-loaded; covers layout + wiki schema.
-2. Project's `CLAUDE.md` (auto-loaded too) — project-specific data rules, local-dev quirks.
-3. This file + [tdd.md](tdd.md) + [commit.md](commit.md).
+1. Repo root `/CLAUDE.md` — **auto-loaded; don't re-read.** Covers layout + wiki schema.
+2. Project's `CLAUDE.md` — **auto-loaded in its subtree; don't re-read.** Project-specific data rules, local-dev quirks.
+3. This file + [tdd.md](tdd.md) + [commit.md](commit.md) — read on demand; once per session is enough.
 4. Project plan source — `<project>/docs/plan-NNN.yaml` carries the cycle's spec, status, and session prompt in one file (read the relevant cycle entry). See [docs-site.md](docs-site.md).
 5. Cycle status — the YAML cycle's `status:` field.
 6. `<project>/docs/cycles/<X.Y>.yaml` for any prior cycle the current cycle depends on. Read only what matters.
@@ -20,7 +20,7 @@ TaskList: one task per phase (architect-gate if required, RED, GREEN, REVIEW, RE
 
 Every cycle in the project's plan file carries an `**Architecture review:**` field on its primary line. Three values:
 
-- **`required (<reviewer>, <one-line reason>)`** — opus gate BEFORE RED. Invoke `software-architect` (or named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
+- **`required (<reviewer>, <one-line reason>)`** — top-tier gate BEFORE RED (tier→model binding: [lifecycle.md §Model tier map](lifecycle.md#model-tier-map)). Invoke `software-architect` (or named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
 - **`deferred to Cycle <X.Y>`** — sibling cycle inherits the prior verdict. Read the referenced cycle's `architect-verdict` from `<project>/docs/cycles/<X.Y>.yaml` before RED; do not call architect again.
 - **`none — <reason>`** — explicitly trivial. Skip the architect call. Reason MUST be in the plan (e.g. "single pure-function regex normalizer").
 
@@ -28,7 +28,7 @@ Every cycle in the project's plan file carries an `**Architecture review:**` fie
 
 This rule trades a small one-time plan-editing cost for permanent immunity to "I thought this cycle was trivial" drift.
 
-**[Security tier](#security-tier) override:** if the cycle touches any security-tier item, the architect tier is **opus**, regardless of what the plan field says. The plan field should already reflect this; if it doesn't, STOP and ask the user to upgrade it.
+**[Security tier](#security-tier) override:** if the cycle touches any security-tier item, the architect tier is **top**, regardless of what the plan field says. The plan field should already reflect this; if it doesn't, STOP and ask the user to upgrade it.
 
 ## Reviewer separation — never self-review
 
@@ -54,9 +54,11 @@ If a reviewer's findings appear wrong, the next pass goes to a fresh `code-revie
 
 The cycle-note YAML's `reviewer-findings[].reviewer-agent-id` records the reviewer agent ID per pass. If a cycle's notes show "self-review" as a reviewer-agent-id anywhere, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md.
 
+When the cycle runs via the `tdd-cycle` workflow (`.claude/workflows/tdd-cycle.js`), reviewer verdicts return as schema-validated structured output — findings land in the cycle note mechanically, no hand transcription. Record `wf:<runId>/review-pass-<N>` as the `reviewer-agent-id` (the run id is in the Workflow tool result).
+
 ## REVIEW checklist
 
-`code-reviewer` evaluates every cycle's GREEN diff against 9 categories: **correctness + test coverage**, **security**, **error handling**, **clarity + maintainability**, **performance**, **dependencies**, **UI cycles** (any `(web)` scope), **API cycles** (any `(api)` scope), and **documentation**. Per-category bullets + the security-tier hook live in [`review-checklist.md`](review-checklist.md) — loaded by the reviewer subagent on demand. Findings tagged per [tdd.md §Reviewer issue tags](tdd.md#reviewer-issue-tags). Categories irrelevant to the cycle are skipped + the reviewer notes it + reason in the verdict.
+`code-reviewer` evaluates every cycle's GREEN diff against 9 categories: **correctness + test coverage**, **security**, **error handling**, **clarity + maintainability**, **performance**, **dependencies**, **UI cycles** (any `(web)` or `(app)` scope), **API cycles** (any `(api)` scope), and **documentation**. Per-category bullets + the security-tier hook live in [`review-checklist.md`](review-checklist.md) — loaded by the reviewer subagent on demand. Findings tagged per [tdd.md §Reviewer issue tags](tdd.md#reviewer-issue-tags). Categories irrelevant to the cycle are skipped + the reviewer notes it + reason in the verdict.
 
 ## Security tier
 
@@ -69,10 +71,12 @@ A cycle is in the security tier if it touches any of:
 - File upload + storage permissions
 - Multi-tenant data isolation
 - Webhook signature verification
+- Prompt-injection surface — untrusted text (user messages, retrieved documents, file contents, scraped pages) entering LLM context
+- LLM tool-use authorization — model-triggered side effects, tool permission boundaries, model output driving actions without validation
 
 For security-tier cycles:
 
-- **Architecture review tier: opus** (not haiku, not sonnet).
+- **Architecture review tier: top** per [lifecycle.md §Model tier map](lifecycle.md#model-tier-map) (never mid, never cheap).
 - **Second-pass review: `security-reviewer` agent** in addition to `code-reviewer`. Both must return `APPROVED` before COMMIT.
 - **Caveman tone does NOT apply** to security code or to security-tier commit messages. Code stays idiomatic; commit body explains the threat + mitigation.
 - **No silent assumptions.** Threat model spelled out in the cycle notes under §"Threat model": what the attacker can do, what the mitigation blocks, what residual risk remains.
@@ -92,7 +96,7 @@ Subagent returns a concise report: files touched, gate result (`Passed: N / Fail
 
 ## Reviewer hallucination guard
 
-Reviewers (haiku especially) sometimes fabricate findings — e.g. "tests missing" when files exist in a subdirectory the reviewer skipped, or "import X is unused" when it's transitively required.
+Reviewers (cheap-tier especially) sometimes fabricate findings — e.g. "tests missing" when files exist in a subdirectory the reviewer skipped, or "import X is unused" when it's transitively required.
 
 Rule: if a reviewer finding contradicts independently-verified state, reject it. The next REVIEW pass prompt MUST inline:
 
@@ -159,3 +163,42 @@ The orchestrator confirms (1)–(8) as a post-APPROVED sanity check (this is com
 4. User reviews diffs.
 5. User says "commit" → Claude runs the commit protocol (one cycle = one commit). See [commit.md](commit.md).
 6. Claude writes the next-cycle prompt; user clears context and pastes it to restart.
+
+## Autonomous run protocol
+
+An autonomous run executes a contiguous range of plan cycles without per-cycle user check-ins, committing once per completed cycle. It is the **only** sanctioned exception to [commit.md](commit.md) "never auto-commit" — and only inside the boundaries below. The `/autonomous-run` skill implements this protocol.
+
+### Authorization (all three required, before cycle 1)
+
+- **Explicit cycle range** — e.g. "run cycles 4.1 → 4.13". No open-ended "run the plan".
+- **Explicit commit grant** — the user says commits are included (e.g. "auto-commit between cycles"). Without it, the run stops before each COMMIT like a normal session.
+- **Session-scoped** — authorization covers this run only; it does not carry to another plan, another range, or another session.
+
+### Per-cycle obligations (unchanged)
+
+Every cycle in the run satisfies the full [Definition of done](#definition-of-done) (1)–(8) before its commit. One cycle = one commit per [commit.md](commit.md). The architect gate, reviewer separation, security tier, and NO-DEFER rules apply exactly as in interactive mode — autonomy never relaxes a gate.
+
+### Stop conditions — halt + write STATUS
+
+Halt the run and write `<project>/docs/AUTONOMOUS_RUN_STATUS.md` when ANY of:
+
+1. Architect returns `NO-GO`.
+2. A cycle's `Architecture review:` field is missing from the plan.
+3. A security-tier cycle whose plan field doesn't reflect the top-tier gate.
+4. A `[BLOCKER]`/`[REFACTOR]` finding requires genuine deferral (needs user approval per [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up)).
+5. REVIEW still `NEEDS FIX` after 3 REFACTOR passes, or a reviewer dispute survives the hallucination guard.
+6. The test gate cannot reach green for a reason outside the cycle's scope.
+7. A pre-commit hook fails (fix-forward needs user eyes; never `--amend`, never `--no-verify`).
+8. The cycle's spec demands out-of-bounds changes (schema edits in an implementation cycle, package additions not in the plan).
+
+### STATUS file format
+
+`AUTONOMOUS_RUN_STATUS.md` records: plan + authorized range; one line per completed cycle (`<X.Y> — committed <sha>`); the halted cycle + phase; the stop condition hit (numbered from the list above); evidence (gate output, reviewer finding, or failing command — quoted verbatim); proposed next action. It is a handoff to the human, not a log.
+
+### Resume
+
+User reviews STATUS + diffs, resolves the blocker, re-authorizes with the remaining range. The run never resumes itself.
+
+### Never, even when authorized
+
+Push, open PRs, `--amend`, `--no-verify`, force operations, or commits outside the cycle's bounded diff (code + plan `status:` + cycle note).

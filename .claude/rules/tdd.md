@@ -46,7 +46,7 @@ When adding code: **no code without a failing test demanding it**. The implement
 - **Zero new `TODO` / `FIXME` without a tracked follow-up** in the plan or an issue. Bare TODOs are deferred bugs.
 - **Zero new skipped / disabled tests** without an entry in the plan §"Cycle follow-ups".
 - **No debug residue** — `console.log`, `Console.WriteLine`, `fmt.Println`, `print()`, stray `debugger;` calls.
-- **UI cycles** (`feat(web)`): implementer manually exercises the feature in a browser before claiming GREEN. Tests pass ≠ feature works. Verify the golden path + edge cases + visible loading / error / empty states.
+- **UI cycles** (`feat(web)` / `feat(app)`): implementer manually exercises the feature in a browser (web) or on a device/emulator (app) before claiming GREEN. Tests pass ≠ feature works. Verify the golden path + edge cases + visible loading / error / empty states.
 - **API cycles** (`feat(api)`): implementer hits the endpoint(s) with a real request (curl, `.http` file) to confirm wire-level behavior end-to-end, including status codes + error envelopes.
 
 If any gate fails, GREEN is not done. Loop back to fix before invoking REVIEW.
@@ -60,7 +60,7 @@ If any gate fails, GREEN is not done. Loop back to fix before invoking REVIEW.
 ## Deferral policy — fix now, don't pile up
 
 - `[BLOCKER]` and `[REFACTOR]` items are resolved in this cycle's REFACTOR pass, full stop. No silent deferral.
-- `[NIT]` items: fix if cost is trivial (< 15 min). Otherwise log in the project's plan §"Open questions" as a tracked follow-up — never silently skip.
+- `[NIT]` items: fix now if the fix is trivial — bounded as **< 1 hour AI-assisted wall-clock** (≈ **< 4 hours of unaided human work**). The cycle is agent-executed, so the ceiling is measured against agent effort, not hand-coding time. Otherwise log in the project's plan §"Open questions" as a tracked follow-up — never silently skip.
 - Genuine deferral (item requires its own RED/GREEN — e.g. RLS policies, indexes that need access patterns from a later phase) requires:
   1. Explicit user approval in the current session, AND
   2. A new cycle entry added to the project's plan with a clear gate.

@@ -16,6 +16,8 @@ description: >
 
 Test-first or stop. Implementation without a failing test first is a skill violation. Review is a hard gate — no commit until reviewer says `APPROVED`.
 
+**Mode check (do this first):** if the work is a cycle in a project plan (a `<project>/docs/plan-NNN.yaml` covers it), do NOT run this skill — follow `.claude/rules/cycle-orchestration.md` instead (architect gate, cycle notes, security tier, plan `status:`, docs regen). This skill is **ad-hoc mode**: TDD for work outside a plan-driven project.
+
 ## Persistence
 
 ACTIVE for the duration of one feature/unit. Cycle ends when REVIEW returns `APPROVED` and the user confirms the COMMIT. User can `/tdd next` to begin next cycle, or `/tdd off` to exit.
@@ -119,7 +121,7 @@ ACTIVE for the duration of one feature/unit. Cycle ends when REVIEW returns `APP
 Reviewer findings get fixed **this cycle**, period. The cycle does not advance to COMMIT with open `[BLOCKER]` or `[REFACTOR]` items.
 
 - `[BLOCKER]` and `[REFACTOR]`: resolved in the REFACTOR pass of the current cycle. No silent deferral. No "we'll get it next time."
-- `[NIT]`: fix if cost is trivial (< 5 min). Otherwise log as a tracked follow-up in whatever follow-up register the project uses (cycle notes, plan doc, issue tracker). Never silently skip.
+- `[NIT]`: fix if cost is trivial (< 1 hour AI-assisted wall-clock ≈ < 4 hours unaided human work, per [tdd.md §Deferral policy](../../rules/tdd.md#deferral-policy--fix-now-dont-pile-up)). Otherwise log as a tracked follow-up in whatever follow-up register the project uses (cycle notes, plan doc, issue tracker). Never silently skip.
 - Genuine deferral (the item requires its own RED/GREEN — e.g. a retry policy that depends on a not-yet-built failure path) requires **both**:
   1. Explicit user approval in the current session, AND
   2. A new tracked cycle/task entry with a clear gate for when it will be picked up.
@@ -137,6 +139,7 @@ Before RED, identify stack from files in working dir:
 | `pubspec.yaml` | Flutter | `flutter_test` + `bloc_test` + `mocktail`/`mockito` | Test Engineer + Flutter Expert |
 | `package.json` with `react` (no `next`) | React (SPA) | `vitest`/`jest` + `@testing-library/react` + `msw` | Test Engineer + React Expert |
 | `package.json` with `next` | Next.js (App Router) | `vitest` + `@testing-library/react` + `msw` for unit; `playwright` for E2E | Test Engineer + React Expert |
+| `package.json`, server-side, no `react`/`next` | Node service (Express/Fastify/Hono/NestJS, queue/WebSocket workers, CLIs, npm packages) | `vitest`/`jest` + `supertest`/`undici` + `msw`/`nock`; `miniflare`/`unstable_dev` for Cloudflare Workers | Test Engineer + NodeJS Expert |
 | `*.csproj` / `*.sln` | .NET | `xUnit` + `NSubstitute`/`Moq` + `WebApplicationFactory` | Test Engineer + .NET Expert |
 | `pyproject.toml` / `requirements.txt` with `fastapi` | Python / FastAPI | `pytest` + `pytest-asyncio` + `httpx.AsyncClient` | Test Engineer + python-expert |
 | `pyproject.toml` with `grpcio` | Python / gRPC service | `pytest` + `grpc_testing` or in-process `grpc.aio` channel | Test Engineer + python-expert |
@@ -145,7 +148,7 @@ Before RED, identify stack from files in working dir:
 | `*.sql` migrations + Postgres | Plain PostgreSQL | `pgTAP` in a transaction with `ROLLBACK` | Test Engineer + Database Engineer |
 | Multiple | Polyrepo / Polyglot | Pick stack from file path of unit under test | Pair matching that path |
 
-If unclear, ask user once: "Stack? [flutter|react|next|dotnet|python-fastapi|python-grpc|supabase|postgres]". Don't guess.
+If unclear, ask user once: "Stack? [flutter|react|next|node|dotnet|python-fastapi|python-grpc|supabase|postgres]". Don't guess.
 
 ## Framework-Specific Test Shape
 
@@ -306,7 +309,7 @@ If user interrupts mid-phase, treat the interruption as a scope change → resta
 ## Cycle Size Guidance
 
 - One behavior per cycle. "User can log in with email + password" is too big — split into "rejects empty email", "rejects invalid email", "calls auth service with credentials", "stores token on success".
-- A cycle should typically take <15 minutes wall clock. If RED→GREEN takes longer, the test is too big — abort, split, retry.
+- A cycle should typically take <15 minutes of AI-assisted wall clock (actual elapsed agent-run time — distinct from the NIT fix-effort ceiling above). If RED→GREEN takes longer, the test is too big — abort, split, retry.
 - Multiple cycles per feature is normal and desired. Resist the urge to merge them.
 
 ## Boundaries

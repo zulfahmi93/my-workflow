@@ -49,13 +49,14 @@ Findings carry tags per [tdd.md §Reviewer issue tags](tdd.md#reviewer-issue-tag
 - License compatible with the project; maintenance status checked (recent commits, no critical unpatched CVEs).
 - Lock file updated in the same commit (e.g. `package-lock.json`, `pnpm-lock.yaml`, `packages.lock.json`, `poetry.lock`, `uv.lock`, `Cargo.lock`, `go.sum`).
 
-## UI cycles only (any commit scoped `(web)` — `feat(web)`, `fix(web)`, `refactor(web)`, etc.)
+## UI cycles only (any commit scoped `(web)` or `(app)` — `feat(web)`, `fix(app)`, `refactor(web)`, etc.)
 
 - Semantic HTML; ARIA labels on non-text interactive controls; full keyboard navigation; focus management on route change.
 - Loading, empty, and error states present — not only the happy state.
 - Responsive (mobile + desktop breakpoints) verified.
 - User-facing copy: clear, no `Lorem ipsum`, no `TODO:` placeholders, no debug strings.
 - No layout shift on hydration / initial load (CLS budget respected).
+- `(app)` cycles: Flutter semantics labels on interactive widgets, touch targets ≥ 48dp, reduced-motion respected, no jank on the changed flow (profile if in doubt).
 
 ## API cycles only (any commit scoped `(api)`)
 
