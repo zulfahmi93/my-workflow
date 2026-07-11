@@ -81,11 +81,15 @@ function slugify(s) {
   return (s || '').toLowerCase().replace(/[^\w]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
+export function normalizeTier(tier) {
+  return ({ opus: 'top', sonnet: 'mid', haiku: 'cheap' })[tier] || tier || '';
+}
+
 function archReviewModel(a) {
   if (!a || !a.state) return { tier: 'none', reason: '' };
   if (a.state === 'none') return { tier: 'none', reason: a.reason || '' };
   if (a.state === 'deferred') return { tier: 'deferred', reason: a.reason || '', deferTo: a['deferred-to'] || '' };
-  return { tier: a.tier || 'opus', reason: a.reason || '' };
+  return { tier: normalizeTier(a.tier || 'top'), reason: a.reason || '' };
 }
 
 function phasesModel(phases) {
@@ -94,7 +98,7 @@ function phasesModel(phases) {
   for (const key of order) {
     const p = phases[key];
     if (!p) continue;
-    const meta = p['meta-raw'] != null ? p['meta-raw'] : (p.model && p.agent ? `\`${p.model}\` - \`${p.agent}\`` : '');
+    const meta = p['meta-raw'] != null ? p['meta-raw'] : (p.model && p.agent ? `\`${normalizeTier(p.model)}\` - \`${p.agent}\`` : '');
     out.push({
       name: key.toUpperCase(),
       meta,

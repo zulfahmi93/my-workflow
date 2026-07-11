@@ -1,6 +1,6 @@
 // validate-cycle-note.mjs — standalone validator for per-cycle execution records.
 //
-// Cycle notes (projects/<name>/docs/cycles/<X.Y>.yaml) are EXECUTION-ONLY: they are not part
+// Cycle notes (projects/<group>/<name>/docs/cycles/<X.Y>.yaml) are EXECUTION-ONLY: they are not part
 // of the docs-gen build (generate.mjs never reads them) and are not rendered into the HTML site.
 // This script is the ajv gate the orchestrator runs at cycle close, mirroring `npm run validate`
 // for plan YAMLs.
@@ -12,8 +12,8 @@
 //
 // Usage (from tools/docs-gen/; relative paths resolve against the repo root, like the no-arg glob):
 //   node scripts/validate-cycle-note.mjs <path...>      # validate the given files
-//   node scripts/validate-cycle-note.mjs                # validate all projects/*/docs/cycles/*.yaml
-//   npm run validate-cycle-note -- projects/<name>/docs/cycles/<X.Y>.yaml
+//   node scripts/validate-cycle-note.mjs                # validate all grouped project cycle notes
+//   npm run validate-cycle-note -- projects/<group>/<name>/docs/cycles/<X.Y>.yaml
 //
 // Exits 1 on any violation so it can gate a commit.
 
@@ -56,7 +56,10 @@ function validateOne(absPath) {
 const args = process.argv.slice(2);
 const files = args.length
   ? args.map((a) => (isAbsolute(a) ? a : resolve(REPO_ROOT, a)))
-  : globSync('projects/*/docs/cycles/*.{yaml,yml}', { cwd: REPO_ROOT }).map((p) => join(REPO_ROOT, p));
+  : [
+      ...globSync('projects/*/*/docs/cycles/*.{yaml,yml}', { cwd: REPO_ROOT }),
+      ...globSync('projects/*/docs/cycles/*.{yaml,yml}', { cwd: REPO_ROOT }),
+    ].map((p) => join(REPO_ROOT, p));
 
 if (!files.length) {
   console.log('no cycle-note YAML files found — nothing to validate.');

@@ -6,7 +6,7 @@ import MarkdownIt from 'markdown-it';
 import anchor from 'markdown-it-anchor';
 import { renderDag, renderTimeline, renderTddLoop } from './render-svg.mjs';
 
-// linkify is OFF: source prose contains bare tokens like `CLAUDE.md`, `ghcr.io`, and
+// linkify is OFF: source prose contains bare tokens like `AGENTS.md`, `ghcr.io`, and
 // CSP host patterns that must NOT become network links in an offline doc set.
 const md = new MarkdownIt({ html: false, linkify: false, typographer: true }).use(anchor, {
   permalink: false,
@@ -193,7 +193,7 @@ export function inlineProse(markdown) {
 // ---------------------------------------------------------------------------
 export function cycleCard(cycle, { open = false } = {}) {
   const arch = cycle.archReview;
-  // 4-state architecture-review badge: opus (accent) / sonnet (wip) / none (idle) /
+  // 4-state architecture-review badge: top (accent) / mid (wip) / none (idle) /
   // deferred (info — links to the referenced cycle's anchor on this page).
   let archBadge;
   if (arch.tier === 'deferred') {
@@ -204,7 +204,7 @@ export function cycleCard(cycle, { open = false } = {}) {
       archBadge = `<span class="pill info"${title}><span class="dot"></span>architect: deferred</span>`;
     }
   } else {
-    const archClass = arch.tier === 'opus' ? 'accent' : arch.tier === 'sonnet' ? 'wip' : 'idle';
+    const archClass = arch.tier === 'top' ? 'accent' : arch.tier === 'mid' ? 'wip' : 'idle';
     const archText = arch.tier === 'none' ? 'architect: none' : `architect: required (${arch.tier})`;
     const archTitle = arch.reason ? ` title="${esc(arch.reason)}"` : '';
     archBadge = `<span class="pill ${archClass}"${archTitle}><span class="dot"></span>${esc(archText)}</span>`;

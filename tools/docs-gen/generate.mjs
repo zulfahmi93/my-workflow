@@ -55,7 +55,7 @@ function loadPlan(project, planCfg, opts = {}) {
   if (!sourceExists(docsRoot, yamlName)) {
     throw new Error(
       `no ${yamlName} found in ${docsRoot}; the MD-triad format was removed — ` +
-      `author a YAML source per tools/docs-gen/README.md + .claude/rules/docs-site.md`
+      `author a YAML source per tools/docs-gen/README.md + .agents/rules/docs-site.md`
     );
   }
 
@@ -253,9 +253,9 @@ ${hasBatches ? `        <a class="linkcard" href="batches.html">
 
     <section id="conventions" class="section">
       <h2>Conventions in play</h2>
-      <p>Every cycle runs through the same disciplined loop, defined in the shared rules under <code>.claude/rules/</code>.</p>
+      <p>Every cycle runs through the same disciplined loop, defined in the shared rules under <code>.agents/rules/</code>.</p>
       <div class="conv-grid">
-        <div class="conv"><h4>${T.ICONS.gate} Architect gate</h4><p>Each cycle carries an architecture-review tier (<code>opus</code>, <code>sonnet</code>, <code>none</code>, or <code>deferred</code>). A fresh <code>software-architect</code> returns a <code>GO</code> / <code>NO-GO</code> verdict <strong>before RED</strong> for the non-trivial ones.</p></div>
+        <div class="conv"><h4>${T.ICONS.gate} Architect gate</h4><p>Each cycle carries an architecture-review tier (<code>top</code>, <code>mid</code>, <code>none</code>, or <code>deferred</code>). Legacy provider aliases are normalized while loading. A fresh <code>software-architect</code> returns a <code>GO</code> / <code>NO-GO</code> verdict <strong>before RED</strong> for the non-trivial ones.</p></div>
         <div class="conv"><h4>${T.ICONS.eye} Reviewer separation</h4><p>REVIEW is performed by a fresh <code>code-reviewer</code> sub-agent &mdash; never self-review. Security-tier cycles add a <code>security-reviewer</code> second pass.</p></div>
         <div class="conv"><h4>${T.ICONS.x} NO-DEFER</h4><p>Every <code>[BLOCKER]</code> and <code>[REFACTOR]</code> finding is resolved in the same cycle&rsquo;s REFACTOR pass. Scope discipline is not a reason to defer an in-scope finding.</p></div>
       </div>

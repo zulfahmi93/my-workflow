@@ -144,7 +144,7 @@ No generator code changes are needed for a project that follows the schema.
   links are neutralised to inert `<span class="ref">` so the offline site has zero
   broken/network links. **Verbatim fields bypass the renderer** — phase `code[].src`,
   `session.prompt`, and worktree bash are emitted byte-for-byte (prompts get pasted into fresh
-  Claude sessions, so fidelity matters and is asserted on review).
+  agent sessions, so fidelity matters and is asserted on review).
 - **markdown-it-anchor** (MIT) — stable heading slugs so in-page anchors + the TOC line up.
 - **chokidar** (MIT, dev-only) — cross-platform file watcher for `--watch`. v4 dropped glob
   support, so we watch each `docsRoot` at depth 0 and filter to `*.yaml`, mapping a changed
@@ -177,7 +177,9 @@ non-zero) and is two-layer:
 
 - **JSON Schema** (`schema/plan.schema.json`, draft 2020-12, via **ajv**) — required fields,
   enums (`status` ∈ idle|wip|ok; `arch-review.state` ∈ required|none|deferred, and when
-  `required` → `tier` ∈ opus|sonnet; phase `model` ∈ opus|sonnet|haiku), types, and
+  `required` → `tier` ∈ top|mid (legacy opus|sonnet accepted); phase `model` ∈
+  top|mid|cheap (legacy opus|sonnet|haiku accepted). Legacy aliases normalize to semantic
+  tiers while loading), types, and
   `additionalProperties:false` everywhere so a typo'd / unknown key (or a misindented block
   scalar that lands as the wrong type) fails loudly.
 - **Referential integrity** (in `lib/validate-source.mjs`, which ajv can't express) — every
@@ -193,21 +195,21 @@ Schema/integrity validation FAILED for ballot-counter/plan-002.yaml (1 error):
 
 ### Cycle notes (execution-only)
 
-Per-cycle execution records live at `projects/<name>/docs/cycles/<X.Y>.yaml`, validated against
+Per-cycle execution records live at `projects/<group>/<name>/docs/cycles/<X.Y>.yaml`, validated against
 `schema/cycle-note.schema.json`. They are **not part of this build** — `generate.mjs` never reads
 them and they are **not rendered into the HTML site** (the plan YAML's cycle `status:` already
 drives the progress dashboard). They are read by the TDD orchestrator/reviewer and reviewed by a
 human at commit-time via the diff.
 
 ```bash
-npm run validate-cycle-note                                            # all projects/*/docs/cycles/*.yaml
-npm run validate-cycle-note -- projects/<name>/docs/cycles/<X.Y>.yaml  # one file (path relative to repo root)
+npm run validate-cycle-note                                                    # all grouped project cycle notes
+npm run validate-cycle-note -- projects/<group>/<name>/docs/cycles/<X.Y>.yaml  # one file (path relative to repo root)
 ```
 
 Same ajv-2020 net as the plan schema (required fields, enums, `additionalProperties:false`), plus:
 a `security-tier: true` note must carry a `threat-model`, and the filename `<X.Y>` must match the
 `cycle:` field. Exits non-zero on violation so it can gate a commit. Convention + field reference:
-`.claude/rules/cycle-orchestration.md` §Cycle notes format.
+`.agents/rules/cycle-orchestration.md` §Cycle notes format.
 
 ### Kebab-case YAML schema (per plan)
 

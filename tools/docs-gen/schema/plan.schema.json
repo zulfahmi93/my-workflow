@@ -141,7 +141,7 @@
       "required": ["state"],
       "properties": {
         "state": { "type": "string", "enum": ["required", "none", "deferred"] },
-        "tier": { "type": "string", "enum": ["opus", "sonnet"] },
+        "tier": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
         "reviewer": { "type": "string" },
         "reason": { "type": "string" },
         "deferred-to": { "type": ["string", "null"] }
@@ -157,7 +157,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "model": { "type": "string", "enum": ["opus", "sonnet", "haiku"] },
+        "model": { "type": "string", "enum": ["top", "mid", "cheap", "opus", "sonnet", "haiku"] },
         "agent": { "type": "string" },
         "meta-raw": { "type": "string" },
         "body": { "type": "string" },

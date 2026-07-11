@@ -27,7 +27,7 @@
       "required": ["verdict"],
       "properties": {
         "verdict": { "type": "string", "enum": ["GO", "NO-GO"] },
-        "tier": { "type": "string", "enum": ["opus", "sonnet", "haiku"] },
+        "tier": { "type": "string", "enum": ["top", "mid", "cheap", "opus", "sonnet", "haiku"] },
         "reviewer": { "type": "string" },
         "summary": { "type": "string" },
         "locked-decisions": { "type": "array", "items": { "type": "string" } }
