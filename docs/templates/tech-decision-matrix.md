@@ -1,6 +1,6 @@
 # Technology decision matrices
 
-Owner: **Software Architect** (within **CTO** standards). Stack defaults for this repo's stack (Flutter, React, Supabase, ASP.NET Core). These encode hard-won defaults — deviate only with an ADR and the research to back it. Pair with the Mandatory Research Standard in [`../../​.claude/rules/lifecycle.md`](../../.claude/rules/lifecycle.md).
+Owner: **Software Architect** (within **CTO** standards). Stack defaults for this repo's stack (Flutter, React, Supabase, ASP.NET Core). These encode hard-won defaults — deviate only with an ADR and the research to back it. Pair with the Mandatory Research Standard in [`.agents/rules/lifecycle.md`](../../.agents/rules/lifecycle.md).
 
 ## Supabase vs ASP.NET Core
 

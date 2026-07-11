@@ -7,7 +7,7 @@ metadata:
 
 # My Workflow — Wiki
 
-Compiled synthesis layer (Karpathy LLM-wiki style). Claude-maintained. Reads project sources, writes business + plan synthesis, links via `[[wikilinks]]`.
+Compiled synthesis layer (Karpathy LLM-wiki style). agent-maintained. Reads project sources, writes business + plan synthesis, links via `[[wikilinks]]`.
 
 **Authoritative raw sources:** `projects/<group>/<name>/docs/` per project (`<group>` = `personal` or `rintis`). This wiki is a read-cache; never the source of truth. Every page cites its source.
 
@@ -47,11 +47,11 @@ _(empty — populate when domain terms repeat across projects or pages)_
 
 ## Operational rules (not in wiki)
 
-See `.claude/rules/`:
+See `.agents/rules/`:
 
-- [`tdd.md`](../.claude/rules/tdd.md) — RED → GREEN → REVIEW → REFACTOR → COMMIT cycle
-- [`commit.md`](../.claude/rules/commit.md) — commit policy + Conventional Commits prefixes
-- [`cycle-orchestration.md`](../.claude/rules/cycle-orchestration.md) — architecture gate, session protocol, reviewer separation
+- [`tdd.md`](../.agents/rules/tdd.md) — RED → GREEN → REVIEW → REFACTOR → COMMIT cycle
+- [`commit.md`](../.agents/rules/commit.md) — commit policy + Conventional Commits prefixes
+- [`cycle-orchestration.md`](../.agents/rules/cycle-orchestration.md) — architecture gate, session protocol, reviewer separation
 
 ## Maintenance
 
@@ -59,4 +59,4 @@ See `.claude/rules/`:
 
 **Lint** — weekly sweep for stale `[[refs]]`, orphan pages, contradictions across concepts, project cards out of sync with the per-cycle `status:` field in the project's `plan-NNN.yaml`.
 
-**Schema** — see `/CLAUDE.md` §"Wiki schema" for page templates + conventions.
+**Schema** — see `/AGENTS.md` §"Wiki schema" for page templates + conventions.

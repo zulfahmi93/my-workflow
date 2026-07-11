@@ -1,8 +1,8 @@
 # Wiki schema
 
-Maintenance reference for the Karpathy-style LLM wiki at `/wiki/`. Loaded on-demand during wiki ingest / lint operations. Daily project work does NOT need this file. The high-level wiki concept is summarized in `/CLAUDE.md` §Wiki; this file is the detailed schema.
+Maintenance reference for the Karpathy-style LLM wiki at `/wiki/`. Loaded on-demand during wiki ingest / lint operations. Daily project work does NOT need this file. The high-level wiki concept is summarized in `/AGENTS.md` §Wiki; this file is the detailed schema.
 
-`projects/<name>/docs/` = raw layer (authoritative, mutable). `/wiki/` = compiled synthesis (Claude-maintained read-cache, never source of truth). The wiki holds **business matters + plans**. Operational rules (how-we-work) live in `.claude/rules/`, not in the wiki.
+`projects/<name>/docs/` = raw layer (authoritative, mutable). `/wiki/` = compiled synthesis (agent-maintained read-cache, never source of truth). The wiki holds **business matters + plans**. Operational rules (how-we-work) live in `.agents/rules/`, not in the wiki.
 
 ## File conventions
 

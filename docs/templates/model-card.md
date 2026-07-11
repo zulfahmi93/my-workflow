@@ -11,7 +11,7 @@ What decision or output does this model produce, for whom, at what stakes?
 
 ## Approach & Research
 Model class chosen (heuristic / classical ML / hosted / fine-tune / custom) and why,
-per the Mandatory Research Standard (.claude/rules/lifecycle.md). Options compared:
+per the Mandatory Research Standard (.agents/rules/lifecycle.md). Options compared:
 accuracy, latency, cost-per-inference, operational burden, lock-in.
 
 ## Data

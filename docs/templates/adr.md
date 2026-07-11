@@ -13,7 +13,7 @@ What is the business problem or technical constraint driving this decision?
 What have we tried? What are the constraints (team size, timeline, tech debt)?
 
 ## Research
-Per the Mandatory Research Standard (.claude/rules/lifecycle.md): the options
+Per the Mandatory Research Standard (.agents/rules/lifecycle.md): the options
 compared, and the evidence across maturity, ecosystem, operational burden,
 cost (now and at scale), performance, security, hiring/maintenance, and lock-in.
 

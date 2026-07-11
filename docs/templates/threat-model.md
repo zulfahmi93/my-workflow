@@ -38,7 +38,7 @@ acceptance by CEO/CTO/Product — silent acceptance is non-compliant.
 business. — [name, role: CEO | CTO | Product Manager], [date]
 
 ## 5. Cycle-Note Mapping
-Security-tier cycles (.claude/rules/cycle-orchestration.md §Security tier) must
+Security-tier cycles (.agents/rules/cycle-orchestration.md §Security tier) must
 file a `threat-model` block in their cycle note. Lift it from this doc:
 - `attacker-can[]` ← §2 exploit-path column — what the attacker can do
 - `mitigation-blocks[]` ← §2 mitigation column — what each mitigation blocks

@@ -16,7 +16,7 @@ Highest-value user paths first. Rank by what a failure costs the user/business.
 
 ## 2. Test Pyramid
 What lives at each layer. Every behavior covers happy path + boundary + error
-(.claude/rules/tdd.md §Test quality).
+(.agents/rules/tdd.md §Test quality).
 | Layer | What lives here | Tooling | Runtime budget |
 |-------|-----------------|---------|----------------|
 | Unit | [pure logic; external clients mocked] | [...] | < 1 s/test |
@@ -24,9 +24,9 @@ What lives at each layer. Every behavior covers happy path + boundary + error
 | E2E / UI | [P0 journeys only] | [...] | [...] |
 
 ## 3. Fixtures & Harness
-Follow .claude/rules/tdd.md §Test harness conventions (Testcontainers / pgTAP,
+Follow .agents/rules/tdd.md §Test harness conventions (Testcontainers / pgTAP,
 mocked LLM clients in unit suites, integration skip rules) — do not restate them.
-Project-specific fixtures, images, and data quirks: [link project CLAUDE.md §...]
+Project-specific fixtures, images, and data quirks: [link the nearest project-local guide]
 
 ## 4. CI Gates
 | Gate | Command | Blocks |
@@ -34,7 +34,7 @@ Project-specific fixtures, images, and data quirks: [link project CLAUDE.md §..
 | [full unit + integration suite] | [exact command] | merge |
 | [coverage floor on changed lines] | [...] | merge |
 
-**Flaky-test policy**: per .claude/rules/tdd.md §Test quality — root-cause the day
+**Flaky-test policy**: per .agents/rules/tdd.md §Test quality — root-cause the day
 it appears; quarantine only with owner + expiry; never retry-loop.
 
 ## 5. Release Test Evidence

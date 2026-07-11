@@ -27,7 +27,7 @@ deprecation, security incident, scale ceiling].
 
 ## Decision
 Accept lock-in / Abstract behind interface / Avoid / Migrate by [date]
-Research backing (Mandatory Research Standard — .claude/rules/lifecycle.md): [link/ADR]
+Research backing (Mandatory Research Standard — .agents/rules/lifecycle.md): [link/ADR]
 ```
 
 ## Portfolio register (roll-up)
