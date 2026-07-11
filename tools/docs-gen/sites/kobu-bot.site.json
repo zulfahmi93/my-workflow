@@ -1,0 +1,11 @@
+{
+  "productName": "Kobu Bot",
+  "accent": "#9d174d",
+  "themeKey": "kobu-bot-docs-theme",
+  "footerTagline": "The Wagyu Tavern WhatsApp bot · Berdua.AI",
+  "landing": {
+    "eyebrow": "Kobu Bot · build documentation",
+    "title": "Build plans for The Wagyu Tavern WhatsApp bot",
+    "lede": "The paid client deliverable behind the whatsapp-demo prototype: a production WhatsApp customer-service bot for The Wagyu Tavern — real corpus-derived data, conversation logging, a staff-template reservation flow, an admin UI with hot-reload content editing, and a human-approved self-improvement loop. Each plan below is a sequence of disciplined TDD cycles."
+  }
+}
