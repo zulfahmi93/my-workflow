@@ -43,7 +43,7 @@ Phases are a sequence of ownership, not a waterfall. Discovery can re-open after
 | 2 Discovery & Evidence | Product Manager | UX Researcher, Growth Strategist, Software Architect, AI Engineer |
 | 3 Product Definition & Experience Design | Product Manager, UI/UX Expert | UX Researcher, Technical Writer, API Designer, Software Architect |
 | 4 Architecture & Technical Planning | Software Architect | CTO, Database Engineer, API Designer, Security Reviewer, SRE, platform experts |
-| 5 Implementation & Integration | Flutter / React / .NET / Python / Supabase experts, AI Engineer, LLM Architect, Database Engineer | Software Architect, API Designer, MLOps |
+| 5 Implementation & Integration | Flutter / React / .NET / Python / NodeJS / Supabase experts, AI Engineer, LLM Architect, Database Engineer | Software Architect, API Designer, MLOps |
 | 6 Quality, Security & Release Readiness | Code Reviewer, Test Engineer, Security Reviewer, SRE | Architect, DevOps, MLOps, Product Manager |
 | 7 Launch, Operations & Continuous Improvement | SRE, Growth Strategist, Product Manager | DevOps, MLOps, Technical Writer, CEO |
 
@@ -83,11 +83,25 @@ Engineering and design agents are not asked to *own* these — they are asked to
 
 ---
 
+## Model tier map
+
+Rules, plans, and agent prompts reference **tiers**, never model names — this table is the only place the tier→model binding lives. A model-generation change is a one-line edit here, not a sweep across rules and plan YAMLs.
+
+| Tier | Current model | Used for |
+|---|---|---|
+| `top` | Opus | Architect gates, security-tier reviews, `security-reviewer` default |
+| `mid` | Sonnet | REVIEW verdict floor, RED/GREEN/REFACTOR default, `code-reviewer` default |
+| `cheap` | Haiku | Mechanical sweeps only — file inventories, lint-style checks. Never REVIEW verdicts, never architect gates (cheap-tier reviewers fabricate findings; the hallucination guard exists because of them) |
+
+A REVIEW verdict produced below `mid` is non-compliant. Fable (the tier above Opus) exists but is not adopted — cost; re-evaluate when pricing changes.
+
+---
+
 ## Agent file schema
 
 Every agent in `.claude/agents/` follows this structure so the system reads coherently:
 
-- **Frontmatter** — `name` (Title Case), `description` (third-person; role + authority + what they own), `color`, `emoji`, `vibe` (one line), `tools` (the shared line). No `model` field.
+- **Frontmatter** — `name` (Title Case), `description` (third-person; role + authority + what they own, ending with one `Use when …` routing clause — the subagent router sees only the description, never the body), `color`, `emoji`, `vibe` (one line), `tools` (the shared line; reviewers drop `Edit`/`Write` so review-only is mechanical, not prose). No `model` field, with two exceptions pinned per the [Model tier map](#model-tier-map): `code-reviewer` (`sonnet`) and `security-reviewer` (`opus`).
 - **Lifecycle banner** — a one-line blockquote pointing here: operates in this lifecycle; the Research + Commercial standards are binding.
 - **Identity & Priors** — one-line essence + a short list of hard-won priors (the judgment heuristics that keep the agent from repeating known mistakes). Light persona, no theatrics.
 - **Primary Role & Authority** — what they decide and are final on; an explicit "you do NOT own" boundary.
@@ -99,4 +113,4 @@ Every agent in `.claude/agents/` follows this structure so the system reads cohe
 - **Collaboration & Handoffs** — one agent-keyed table (`| Agent | Collaboration & handoff | Escalate / gate |`) covering the standing relationship, the artifact handed each way, and the escalation trigger per agent — so each relationship appears once. Process-level **Review** and **Feedback loop** bullets sit below the table.
 - **Quality Standards You Enforce / Avoid / Communication Contract.**
 
-Keep the generic lifecycle, research, and commercial content *here* — agents reference it, never restate it. Changing the lifecycle means editing this file, not 23 agents.
+Keep the generic lifecycle, research, and commercial content *here* — agents reference it, never restate it. Changing the lifecycle means editing this file, not 24 agents.
