@@ -4,15 +4,15 @@ The manual for running a TDD cycle end-to-end. Pairs with [tdd.md](tdd.md) (phas
 
 ## Pre-cycle reads (always)
 
-1. Repo root `/CLAUDE.md` — **auto-loaded; don't re-read.** Covers layout + wiki schema.
-2. Project's `CLAUDE.md` — **auto-loaded in its subtree; don't re-read.** Project-specific data rules, local-dev quirks.
+1. Repo root `/AGENTS.md` — the canonical shared guide; do not re-read when the runtime already loaded it.
+2. The nearest project-local guide — prefer `AGENTS.md`; honor a legacy provider guide when it is the only source of project-specific rules.
 3. This file + [tdd.md](tdd.md) + [commit.md](commit.md) — read on demand; once per session is enough.
 4. Project plan source — `<project>/docs/plan-NNN.yaml` carries the cycle's spec, status, and session prompt in one file (read the relevant cycle entry). See [docs-site.md](docs-site.md).
 5. Cycle status — the YAML cycle's `status:` field.
 6. `<project>/docs/cycles/<X.Y>.yaml` for any prior cycle the current cycle depends on. Read only what matters.
 7. Schema / contract / code files the current cycle touches (migrations, prior test files).
 
-TaskList: one task per phase (architect-gate if required, RED, GREEN, REVIEW, REFACTOR, progress-update). Mark `in_progress` on start, `completed` on done.
+Maintain one task per phase (architect-gate if required, RED, GREEN, REVIEW, REFACTOR, progress-update). Mark the active phase in progress and completed phases done.
 
 **Cost discipline:** don't restate this file in subagent prompts. Point at it.
 
@@ -20,7 +20,7 @@ TaskList: one task per phase (architect-gate if required, RED, GREEN, REVIEW, RE
 
 Every cycle in the project's plan file carries an `**Architecture review:**` field on its primary line. Three values:
 
-- **`required (<reviewer>, <one-line reason>)`** — top-tier gate BEFORE RED (tier→model binding: [lifecycle.md §Model tier map](lifecycle.md#model-tier-map)). Invoke `software-architect` (or named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
+- **`required (<reviewer>, <one-line reason>)`** — top-tier gate BEFORE RED (tier→model binding: [lifecycle.md §Model capability tiers](lifecycle.md#model-capability-tiers)). Invoke `software-architect` (or named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
 - **`deferred to Cycle <X.Y>`** — sibling cycle inherits the prior verdict. Read the referenced cycle's `architect-verdict` from `<project>/docs/cycles/<X.Y>.yaml` before RED; do not call architect again.
 - **`none — <reason>`** — explicitly trivial. Skip the architect call. Reason MUST be in the plan (e.g. "single pure-function regex normalizer").
 
@@ -32,7 +32,7 @@ This rule trades a small one-time plan-editing cost for permanent immunity to "I
 
 ## Reviewer separation — never self-review
 
-REVIEW must be performed by a fresh `code-reviewer` sub-agent spawned via the `Agent` tool. The cycle orchestrator MUST NOT review its own work — and "the orchestrator's work" includes everything the orchestrator wrote directly AND everything its RED / GREEN / REFACTOR sub-agents wrote on its behalf. Both share the orchestrator's context and blind spots.
+REVIEW must be performed by a fresh `code-reviewer` delegate using the runtime's independent-agent mechanism. The cycle orchestrator MUST NOT review its own work — and "the orchestrator's work" includes everything the orchestrator wrote directly AND everything its RED / GREEN / REFACTOR delegates wrote on its behalf. Both share the orchestrator's context and blind spots.
 
 Why this matters:
 
@@ -40,7 +40,7 @@ Why this matters:
 - The `code-reviewer` sub-agent's **fresh context** is what makes BLOCKER / REFACTOR findings load-bearing. Self-review collapses RED → GREEN → REVIEW into "implementer signs off on implementer" — the gate is silently degraded.
 - Self-review APPROVED ≠ separate-reviewer APPROVED. They are not interchangeable, even if the orchestrator's reasoning is careful.
 
-If the `Agent` tool is unavailable in the orchestrator's harness — **STOP** and write `AUTONOMOUS_RUN_STATUS.md`. Do NOT substitute orchestrator-side judgment for a separate REVIEW pass. The cycle is incomplete until a separate `code-reviewer` signs off.
+If independent delegation is unavailable in the runtime — **STOP** and write `AUTONOMOUS_RUN_STATUS.md`. Do NOT substitute orchestrator-side judgment for a separate REVIEW pass. The cycle is incomplete until a separate `code-reviewer` signs off.
 
 ### Permitted orchestrator-side reads (NOT review)
 
@@ -54,7 +54,7 @@ If a reviewer's findings appear wrong, the next pass goes to a fresh `code-revie
 
 The cycle-note YAML's `reviewer-findings[].reviewer-agent-id` records the reviewer agent ID per pass. If a cycle's notes show "self-review" as a reviewer-agent-id anywhere, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md.
 
-When the cycle runs via the `tdd-cycle` workflow (`.claude/workflows/tdd-cycle.js`), reviewer verdicts return as schema-validated structured output — findings land in the cycle note mechanically, no hand transcription. Record `wf:<runId>/review-pass-<N>` as the `reviewer-agent-id` (the run id is in the Workflow tool result).
+When a runtime implements [the neutral `tdd-cycle` workflow](../workflows/tdd-cycle.md), reviewer verdicts should return as schema-validated structured output so findings land in the cycle note mechanically. Record `wf:<runId>/review-pass-<N>` as the `reviewer-agent-id` when the runtime exposes a workflow run ID.
 
 ## REVIEW checklist
 
@@ -76,7 +76,7 @@ A cycle is in the security tier if it touches any of:
 
 For security-tier cycles:
 
-- **Architecture review tier: top** per [lifecycle.md §Model tier map](lifecycle.md#model-tier-map) (never mid, never cheap).
+- **Architecture review tier: top** per [lifecycle.md §Model capability tiers](lifecycle.md#model-capability-tiers) (never mid, never cheap).
 - **Second-pass review: `security-reviewer` agent** in addition to `code-reviewer`. Both must return `APPROVED` before COMMIT.
 - **Caveman tone does NOT apply** to security code or to security-tier commit messages. Code stays idiomatic; commit body explains the threat + mitigation.
 - **No silent assumptions.** Threat model spelled out in the cycle notes under §"Threat model": what the attacker can do, what the mitigation blocks, what residual risk remains.
@@ -85,7 +85,7 @@ For security-tier cycles:
 
 Every RED / GREEN / REVIEW / REFACTOR prompt MUST include:
 
-1. **Paths to read** — root `/CLAUDE.md`, project `CLAUDE.md`, this file, [tdd.md](tdd.md), the plan's §cycle, schema / contract / current-state files. Subagent auto-loads CLAUDE.md from working dir — point at it rather than restate.
+1. **Paths to read** — root `/AGENTS.md`, the nearest project-local guide, this file, [tdd.md](tdd.md), the plan's cycle entry, and relevant schema / contract / current-state files. Point at loaded guides rather than restating them.
 2. **Locked decisions** — architect verdict (paste verbatim or reference `<project>/docs/cycles/<X.Y>.yaml`), prior GREEN report, prior REVIEW findings.
 3. **Gate criteria** — what passes, what fails. Concrete (test count, exit code, file paths).
 4. **NO-DEFER reminder** — every `[BLOCKER]` / `[REFACTOR]` resolved this cycle. See [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up).
@@ -108,12 +108,12 @@ Reject only when state is independently verified (`ls`, `grep`, `dotnet test`, `
 
 ## Continuing a subagent vs spawning fresh
 
-Prefer `SendMessage` to continue a recent subagent over `Agent` to spawn a fresh one when:
+Prefer the runtime's continuation mechanism over spawning a fresh delegate when:
 
 - the same reviewer is doing a second pass on REFACTOR diff
 - the same implementer is doing follow-up work on the same files
 
-`SendMessage` reuses the agent's model context + prefix cache → cheaper, lower hallucination risk, and the agent already knows the state.
+Continuation reuses the delegate's context and often its prefix cache, reducing cost and re-reading.
 
 Spawn a fresh agent when:
 
@@ -158,15 +158,15 @@ The orchestrator confirms (1)–(8) as a post-APPROVED sanity check (this is com
 ## Session protocol (per cycle)
 
 1. User pastes a cycle prompt (e.g. "Begin Cycle 002.1").
-2. Claude reads the project's plan cycle spec; orchestrates RED → GREEN → REVIEW → (REFACTOR → REVIEW)* via the right agents until reviewer returns `APPROVED`.
-3. Claude updates the cycle `status:` in the plan YAML, files `docs/cycles/<X.Y>.yaml` (validated via `npm run validate-cycle-note`), and regenerates the docs HTML (`npm run build -- <project>`) when the cycle gate is met. Stops.
+2. The orchestrator reads the project's plan cycle spec and runs RED → GREEN → REVIEW → (REFACTOR → REVIEW)* through the assigned roles until the reviewer returns `APPROVED`.
+3. The orchestrator updates the cycle `status:` in the plan YAML, files `docs/cycles/<X.Y>.yaml` (validated via `npm run validate-cycle-note`), and regenerates the docs HTML (`npm run build -- <project>`) when the cycle gate is met. Stops.
 4. User reviews diffs.
-5. User says "commit" → Claude runs the commit protocol (one cycle = one commit). See [commit.md](commit.md).
-6. Claude writes the next-cycle prompt; user clears context and pastes it to restart.
+5. User says "commit" → the orchestrator runs the commit protocol (one cycle = one commit). See [commit.md](commit.md).
+6. The orchestrator writes the next-cycle prompt; the user starts a fresh context when appropriate.
 
 ## Autonomous run protocol
 
-An autonomous run executes a contiguous range of plan cycles without per-cycle user check-ins, committing once per completed cycle. It is the **only** sanctioned exception to [commit.md](commit.md) "never auto-commit" — and only inside the boundaries below. The `/autonomous-run` skill implements this protocol.
+An autonomous run executes a contiguous range of plan cycles without per-cycle user check-ins, committing once per completed cycle. It is the **only** sanctioned exception to [commit.md](commit.md) "never auto-commit" — and only inside the boundaries below. The `autonomous-run` skill implements this protocol.
 
 ### Authorization (all three required, before cycle 1)
 

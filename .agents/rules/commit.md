@@ -6,7 +6,7 @@ Shared across all projects in this repo.
 - One commit per completed TDD cycle (in TDD-disciplined projects).
 - Conventional Commits style; subject ≤ 50 chars; body explains the "why".
 - `Co-Authored-By` trailer required.
-- `.claude/settings.local.json` stays untracked (user-specific).
+- Provider-local runtime settings stay untracked (for example `.claude/settings.local.json`).
 
 ## Conventional Commits prefixes
 
@@ -34,10 +34,10 @@ Format: `<type>(<scope>)`. Type describes the kind of change. Scope describes th
 - `infra` — docker / Caddy / hosting / scripts
 - `plan` — plan / progress edits
 - `wiki` — wiki page ingest / lint
-- `rules` — `.claude/rules/` edits
-- `agents` — `.claude/agents/` edits
+- `rules` — `.agents/rules/` edits
+- `agents` — `.agents/roles/` edits
 
-Projects may define additional scopes in their own `CLAUDE.md` (e.g. `bot` in the WhatsApp repos); `ocr` above is ballot-counter-specific and grandfathered.
+Projects may define additional scopes in their own local guide (prefer `AGENTS.md`; honor legacy provider guides). `ocr` above is ballot-counter-specific and grandfathered.
 
 Examples: `feat(api): add mark_rosak PATCH endpoint`, `fix(web): redirect loop on /elections`, `refactor(ocr): extract cell-cropping helper`, `docs(wiki): ingest plan-002 cycle 002.1`.
 

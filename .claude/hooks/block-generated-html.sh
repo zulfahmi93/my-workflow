@@ -1,12 +1,5 @@
 #!/bin/bash
-# PreToolUse(Edit|Write|NotebookEdit) hook — enforces .claude/rules/docs-site.md:
-# everything under a project's docs/html/ is generated output; never hand-edit.
+# Claude PreToolUse(Edit|Write|NotebookEdit) adapter for the portable generated-path policy.
 fp=$(jq -r '.tool_input.file_path // empty' 2>/dev/null)
-[ -z "$fp" ] && exit 0
-case "$fp" in
-  */docs/html/*)
-    echo "Blocked by .claude/rules/docs-site.md: $fp is generated output. Edit the plan-NNN.yaml source and run 'npm run build -- <project>' from tools/docs-gen/." >&2
-    exit 2
-    ;;
-esac
-exit 0
+root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+exec "$root/.agents/scripts/check-generated-path.sh" "$fp"

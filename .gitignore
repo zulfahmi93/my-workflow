@@ -1,5 +1,5 @@
 # Per-project repos are versioned independently (each projects/<name> is its own git repo).
-# The root repo tracks only the shared infra: tools/, .claude/, wiki/, docs/, CLAUDE.md.
+# The root repo tracks shared infra: tools/, .agents/, provider adapters, wiki/, and allowlisted docs/.
 /projects/
 
 # Secrets — never commit
@@ -15,7 +15,7 @@ node_modules/
 # Generated documentation output
 /tools/docs-gen/README.html
 
-# Claude local / runtime (user-specific, per .claude/rules/commit.md)
+# Claude local / runtime (user-specific, per .agents/rules/commit.md)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 

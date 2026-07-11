@@ -67,11 +67,11 @@ If any gate fails, GREEN is not done. Loop back to fix before invoking REVIEW.
 - "Scope discipline" is NOT a valid reason to defer an in-scope review finding. The cost of touching one more file now is almost always lower than the cost of finding the same issue six cycles later when seed data, migrations, or live tests depend on the current shape.
 - When in doubt, fix now. Cycle wall-time is a soft target, not a gate.
 
-## Agents
+## Roles and delegation
 
-Agent + model assignments for each cycle live in the project's plan file. Use the matching `subagent_type` via the `Agent` tool. Agents are defined under `.claude/agents/`.
+Role + capability-tier assignments for each cycle live in the project's plan file. Use the runtime's delegation primitive with the matching definition under `.agents/roles/`.
 
-The `/tdd` skill is available when the user invokes it.
+The `tdd` skill is available through any runtime that supports Agent Skills. Provider adapters may additionally expose it as a slash command.
 
 ## Test harness conventions (generic)
 
@@ -79,7 +79,7 @@ DB-backed tests:
 
 - Use Testcontainers (.NET, Python) or docker + `pg_prove` (pgTAP) for a real database. No mocks against ORM / SQL.
 - Reset between tests: Respawn (.NET) or `BEGIN; ... ROLLBACK` (SQL).
-- Project-specific image versions, schema bootstrap quirks (e.g. `auth.users` stub), and fixture-path conventions live in the project's `CLAUDE.md`, not here.
+- Project-specific image versions, schema bootstrap quirks (e.g. `auth.users` stub), and fixture-path conventions live in the project's local guide, not here.
 
 LLM / external-API-backed tests:
 

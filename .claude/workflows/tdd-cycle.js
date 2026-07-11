@@ -18,15 +18,15 @@ for (const k of ['project', 'projectPath', 'plan', 'cycle', 'greenAgent']) {
   if (!A[k]) throw new Error(`args.${k} is required — e.g. { project: "isc-workflow-web", projectPath: "projects/rintis/isc-workflow-web", plan: "004", cycle: "4.2", greenAgent: "React Expert" }`)
 }
 
-// Tier→model binding mirrors .claude/rules/lifecycle.md §Model tier map. Change there first, then here.
+// Claude-specific tier→model binding for .agents/rules/lifecycle.md §Model capability tiers.
 const MODELS = { top: 'opus', mid: 'sonnet', ...(A.models || {}) }
 const RED_AGENT = A.redAgent || 'Test Engineer'
 const PLAN_PATH = `${A.projectPath}/docs/plan-${A.plan}.yaml`
-const RULES = '.claude/rules'
+const RULES = '.agents/rules'
 const MAX_REVIEW_PASSES = 4
 
 const COMMON = `Project: ${A.project}. Working dir is the repo root.
-Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), ${A.projectPath}/CLAUDE.md, ${RULES}/tdd.md, ${RULES}/cycle-orchestration.md §Subagent prompt skeleton.
+Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), the nearest local guide under ${A.projectPath} (AGENTS.md preferred; legacy CLAUDE.md allowed), ${RULES}/tdd.md, ${RULES}/cycle-orchestration.md §Subagent prompt skeleton.
 Tone: write idiomatic code/tests/docs (caveman is chat-only and does not apply to subagents).
 NO-DEFER: every [BLOCKER]/[REFACTOR] finding is resolved this cycle (${RULES}/tdd.md §Deferral policy).
 Out of bounds unless the cycle spec says otherwise: package additions, schema edits, API-contract changes, editing tests during GREEN.`
@@ -192,20 +192,29 @@ Implementer gate result: ${lastReport.gateResult} (command: ${lastReport.command
 Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.`,
     { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.mid })
   if (!review) throw new Error(`reviewer pass ${pass} died`)
-  reviewLog.push({ pass, verdict: review.verdict, findings: review.findings, skippedCategories: review.skippedCategories })
-  if (review.verdict === 'APPROVED') { approved = true; break }
-
   const blocking = review.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
+  const claimedApproved = review.verdict === 'APPROVED'
+  const mechanicallyApproved = blocking.length === 0
+  reviewLog.push({ pass, verdict: review.verdict, mechanicallyApproved, findings: review.findings, skippedCategories: review.skippedCategories })
+  if (claimedApproved !== mechanicallyApproved) {
+    return { halted: 'inconsistent-review-verdict', detail: `Reviewer returned ${review.verdict} with ${blocking.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+  }
+  if (mechanicallyApproved) { approved = true; break }
 
   // Adversarial verification — the hallucination guard, systematized.
-  const checked = (await parallel(blocking.map(f => () =>
+  const verificationResults = await parallel(blocking.map(f => () =>
     agent(`Adversarially verify a code-review finding against ACTUAL repo state (cwd = repo root).
 Finding [${f.tag}] on ${f.file || 'unknown file'}: ${f.finding}
 Use ls / grep / file reads, and run the gate command (${lastReport.command}) if relevant. refuted=true ONLY with hard evidence the finding misstates repo state (the file exists, the branch is covered, the import is used). Plausible-but-unverified stays refuted=false. evidence: the exact command + output line that decides it.`,
       { label: `verify:p${pass}`, phase: 'REVIEW', schema: REFUTE_SCHEMA, model: MODELS.mid })
       .then(v => ({ f, v }))
-  ))).filter(Boolean)
+  ))
+  const checked = Array.isArray(verificationResults) ? verificationResults : []
 
+  const completedVerifications = checked.filter(x => x && x.v).length
+  if (completedVerifications !== blocking.length) {
+    return { halted: 'finding-verification-failed', detail: `${blocking.length - completedVerifications} blocking finding verifier(s) returned no result.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+  }
   const confirmed = checked.filter(x => x.v && !x.v.refuted).map(x => x.f)
   for (const x of checked.filter(x => x.v && x.v.refuted)) {
     hallucinationsRejected.push({ claim: `[${x.f.tag}] ${x.f.finding}`, evidence: x.v.evidence, pass })
@@ -240,10 +249,15 @@ Files: ${JSON.stringify(lastReport.filesTouched)}; tests: ${JSON.stringify(red.t
 verdict=APPROVED only with zero BLOCKER/REFACTOR findings. You never edit files.`,
       { label: `security:pass-${spass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Security Reviewer', model: MODELS.top })
     if (!sec) throw new Error('security reviewer died')
-    securityReview = { pass: spass, verdict: sec.verdict, findings: sec.findings }
-    if (sec.verdict === 'APPROVED') break
-
     const sblock = sec.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
+    const claimedApproved = sec.verdict === 'APPROVED'
+    const mechanicallyApproved = sblock.length === 0
+    securityReview = { pass: spass, verdict: sec.verdict, mechanicallyApproved, findings: sec.findings }
+    if (claimedApproved !== mechanicallyApproved) {
+      return { halted: 'inconsistent-security-verdict', detail: `Security reviewer returned ${sec.verdict} with ${sblock.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview }
+    }
+    if (mechanicallyApproved) break
+
     if (spass === 2 || !sblock.length) {
       return { halted: 'security-review-not-approved', gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview }
     }

@@ -1,6 +1,6 @@
 # Product lifecycle & agent operating system
 
-The shared operating frame for **every** agent in `.claude/agents/`. Agents reference this file instead of restating it. Loaded on-demand by any agent orchestrating product work; not auto-loaded.
+The shared operating frame for **every** agent in `.agents/roles/`. Agents reference this file instead of restating it. Loaded on-demand by any agent orchestrating product work; not auto-loaded.
 
 This is the meta-layer that makes the agents one coordinated system rather than isolated prompts. It defines: the lifecycle phases, who owns what per phase, the research bar every technology decision must clear, the commercial bar every product decision must clear, and the file schema every agent follows.
 
@@ -83,25 +83,27 @@ Engineering and design agents are not asked to *own* these — they are asked to
 
 ---
 
-## Model tier map
+## Model capability tiers
 
-Rules, plans, and agent prompts reference **tiers**, never model names — this table is the only place the tier→model binding lives. A model-generation change is a one-line edit here, not a sweep across rules and plan YAMLs.
+Rules, plans, and role prompts reference semantic **tiers**, never provider model names. Each runtime adapter maps these tiers to models it supports.
 
-| Tier | Current model | Used for |
+| Tier | Capability requirement | Used for |
 |---|---|---|
-| `top` | Opus | Architect gates, security-tier reviews, `security-reviewer` default |
-| `mid` | Sonnet | REVIEW verdict floor, RED/GREEN/REFACTOR default, `code-reviewer` default |
-| `cheap` | Haiku | Mechanical sweeps only — file inventories, lint-style checks. Never REVIEW verdicts, never architect gates (cheap-tier reviewers fabricate findings; the hallucination guard exists because of them) |
+| `top` | Strongest available reasoning tier | Architect gates and security-tier reviews |
+| `mid` | Production coding and review tier | REVIEW verdict floor and RED/GREEN/REFACTOR default |
+| `cheap` | Fast, low-cost mechanical tier | File inventories and lint-style checks only; never REVIEW verdicts or architect gates |
 
-A REVIEW verdict produced below `mid` is non-compliant. Fable (the tier above Opus) exists but is not adopted — cost; re-evaluate when pricing changes.
+A REVIEW verdict produced below `mid` is non-compliant. Provider-specific model aliases and cost decisions belong in the runtime adapter, not this rule.
+
+Compatibility bridge: untouched nested projects may still store legacy Claude aliases (`opus`, `sonnet`, `haiku`) in plan and cycle-note YAML. The root schemas temporarily accept both forms and interpret them as `top`, `mid`, and `cheap` respectively. New shared configuration uses semantic tiers; remove the aliases only when nested projects are migrated separately.
 
 ---
 
-## Agent file schema
+## Role file schema
 
-Every agent in `.claude/agents/` follows this structure so the system reads coherently:
+Every role in `.agents/roles/` follows this structure so the system reads coherently:
 
-- **Frontmatter** — `name` (Title Case), `description` (third-person; role + authority + what they own, ending with one `Use when …` routing clause — the subagent router sees only the description, never the body), `color`, `emoji`, `vibe` (one line), `tools` (the shared line; reviewers drop `Edit`/`Write` so review-only is mechanical, not prose). No `model` field, with two exceptions pinned per the [Model tier map](#model-tier-map): `code-reviewer` (`sonnet`) and `security-reviewer` (`opus`).
+- **Frontmatter** — only portable routing fields: `name` (Title Case) and `description` (third-person; role + authority + ownership, ending with one `Use when …` clause). Tool allowlists, model aliases, colors, and other runtime metadata live in provider adapters.
 - **Lifecycle banner** — a one-line blockquote pointing here: operates in this lifecycle; the Research + Commercial standards are binding.
 - **Identity & Priors** — one-line essence + a short list of hard-won priors (the judgment heuristics that keep the agent from repeating known mistakes). Light persona, no theatrics.
 - **Primary Role & Authority** — what they decide and are final on; an explicit "you do NOT own" boundary.
@@ -113,4 +115,4 @@ Every agent in `.claude/agents/` follows this structure so the system reads cohe
 - **Collaboration & Handoffs** — one agent-keyed table (`| Agent | Collaboration & handoff | Escalate / gate |`) covering the standing relationship, the artifact handed each way, and the escalation trigger per agent — so each relationship appears once. Process-level **Review** and **Feedback loop** bullets sit below the table.
 - **Quality Standards You Enforce / Avoid / Communication Contract.**
 
-Keep the generic lifecycle, research, and commercial content *here* — agents reference it, never restate it. Changing the lifecycle means editing this file, not 24 agents.
+Keep the generic lifecycle, research, and commercial content *here* — roles reference it, never restate it. Changing the lifecycle means editing this file, not 24 role definitions.
