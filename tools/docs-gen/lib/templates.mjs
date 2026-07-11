@@ -133,7 +133,7 @@ ${lis}
 
 function footer(source, site) {
   const brand = (site && site.productName) || 'Docs';
-  const tagline = (site && site.footerTagline) || 'Rintis AI';
+  const tagline = (site && site.footerTagline) || '';
   return `<footer class="foot">
   <div class="wrap">
     <span class="mono">${esc(brand)} · docs</span>

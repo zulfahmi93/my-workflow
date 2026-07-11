@@ -1,9 +1,9 @@
 {
-  "name": "rintis-docs-gen",
+  "name": "docs-gen",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Shared config-driven static-HTML generator for Rintis project build-plan docs (single-file plan-NNN.yaml → offline per-project docs sites).",
+  "description": "Shared config-driven static-HTML generator for project build-plan docs (single-file plan-NNN.yaml → offline per-project docs sites).",
   "engines": {
     "node": ">=24"
   },

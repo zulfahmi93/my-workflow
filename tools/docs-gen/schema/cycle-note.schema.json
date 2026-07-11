@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://rintis.ai/schema/cycle-note.schema.json",
+  "$id": "https://docs-gen.example/schema/cycle-note.schema.json",
   "title": "cycle-note source (kebab-case)",
-  "description": "Schema for projects/<name>/docs/cycles/<X.Y>.yaml — the per-cycle execution record filed at the end of each TDD cycle (cycle-orchestration.md §Cycle notes format). Execution-only: read by the orchestrator/reviewer and reviewed by the human at commit-time via diff; NOT rendered into the docs HTML site. additionalProperties:false everywhere so typo'd / unknown keys fail validation loudly.",
+  "description": "Schema for projects/<group>/<name>/docs/cycles/<X.Y>.yaml — the per-cycle execution record filed at the end of each TDD cycle (cycle-orchestration.md §Cycle notes format). Execution-only: read by the orchestrator/reviewer and reviewed by the human at commit-time via diff; NOT rendered into the docs HTML site. additionalProperties:false everywhere so typo'd / unknown keys fail validation loudly.",
   "type": "object",
   "additionalProperties": false,
   "required": ["project", "cycle", "outcome", "reviewer-findings"],

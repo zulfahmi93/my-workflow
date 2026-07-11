@@ -74,8 +74,8 @@ non-default source filename.)
   "projects": [
     {
       "name": "ballot-counter",
-      "docsRoot": "projects/ballot-counter/docs",    // relative to repo root
-      "outDir": "projects/ballot-counter/docs/html",  // relative to repo root
+      "docsRoot": "projects/personal/ballot-counter/docs",    // relative to repo root
+      "outDir": "projects/personal/ballot-counter/docs/html",  // relative to repo root
       "site": "ballot-counter.site.json",             // file under tools/docs-gen/sites/
       "plans": [ { "id": "002" }, { "id": "003" }, { "id": "004" }, { "id": "005" } ]
     }
@@ -92,7 +92,7 @@ All project-identity lives here (no brand string is hardcoded in the generator):
   "productName": "UNDI",                 // brand in header, footer, page titles
   "accent": "#c0392b",                   // --accent; injected inline <head> per page
   "themeKey": "undi-docs-theme",         // localStorage key (per project → themes are isolated)
-  "footerTagline": "Handwritten ballot scanning · Rintis AI",  // optional
+  "footerTagline": "Handwritten ballot scanning · zulfahmi.dev",  // optional
   "landing": {                           // the project landing hero
     "eyebrow": "UNDI · build documentation",
     "title": "Build plans for UNDI ballot counting",

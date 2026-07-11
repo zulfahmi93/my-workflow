@@ -212,12 +212,19 @@ function tableModel(src) {
   if (rowObjs.length === 0) {
     return { headers: structured.headers || [], rows: [], placeholder: structured.placeholder || '' };
   }
-  const headers = structured.headers && structured.headers.length ? structured.headers : Object.keys(rowObjs[0]);
-  const rows = rowObjs.map((o) =>
-    headers.map((h) => {
+  const firstIsArray = Array.isArray(rowObjs[0]);
+  const headers = structured.headers && structured.headers.length
+    ? structured.headers
+    : (firstIsArray ? [] : Object.keys(rowObjs[0]));
+  const rows = rowObjs.map((o) => {
+    // Array rows are index-aligned to headers; object rows are keyed by header (or its slug).
+    if (Array.isArray(o)) {
+      return headers.map((_, i) => (o[i] != null ? String(o[i]) : ''));
+    }
+    return headers.map((h) => {
       const key = h.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
       return o[h] != null ? String(o[h]) : (o[key] != null ? String(o[key]) : '');
-    })
-  );
+    });
+  });
   return { headers, rows, placeholder: '' };
 }

@@ -12,6 +12,9 @@
 # Dependencies
 node_modules/
 
+# Generated documentation output
+/tools/docs-gen/README.html
+
 # Claude local / runtime (user-specific, per .claude/rules/commit.md)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock

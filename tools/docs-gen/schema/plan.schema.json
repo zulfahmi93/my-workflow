@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://rintis.ai/schema/plan.schema.json",
+  "$id": "https://docs-gen.example/schema/plan.schema.json",
   "title": "docs-gen single-file plan source (kebab-case)",
-  "description": "Schema for projects/<name>/docs/plan-<id>.yaml — the deduplicated single source of truth. additionalProperties:false everywhere so typo'd / unknown keys fail the build loudly.",
+  "description": "Schema for projects/<group>/<name>/docs/plan-<id>.yaml — the deduplicated single source of truth. additionalProperties:false everywhere so typo'd / unknown keys fail the build loudly.",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "project", "title", "cycles"],
