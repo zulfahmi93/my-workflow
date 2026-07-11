@@ -19,7 +19,7 @@ Generic handwritten ballot scanning platform. Works for any handwritten voting f
 
 Hand-counting handwritten ballots is slow, error-prone, and doesn't scale. Children's-quality handwriting on Malay-language ballots is among the hardest OCR tasks: even 100B+ open-weight VLMs score 0.40–0.58 on handwriting-heavy benchmarks (May 2026), while Gemini 3.1 Flash-Lite reaches 0.60–0.64. Architecture follows the research recommendation: layout detector + Gemini OCR on cropped cells + roster-based classification + light human-in-the-loop correction.
 
-See `projects/ballot-counter/docs/research-report.md` §1 for the full benchmark + cost analysis (≈ \$0.0001–\$0.0005 per cell — under RM5/month at typical volumes).
+See `projects/personal/ballot-counter/docs/research-report.md` §1 for the full benchmark + cost analysis (≈ \$0.0001–\$0.0005 per cell — under RM5/month at typical volumes).
 
 ## Core domain concept
 
@@ -39,7 +39,7 @@ See `projects/ballot-counter/docs/research-report.md` §1 for the full benchmark
 ## Layout
 
 ```
-projects/ballot-counter/
+projects/personal/ballot-counter/
 ├── apps/web/              Next.js 16
 ├── apps/api/              .NET 10
 ├── services/ocr/          Python 3.13 FastAPI
@@ -53,7 +53,7 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5050 (host; cont
 
 ## Plan-002 status
 
-**Plan:** `projects/ballot-counter/docs/plan-002.yaml` (single-source YAML; plans 003–005 also filed as `plan-00N.yaml`). Six cycles, all post-MVP follow-ups + navigation glue plan-001 never specced.
+**Plan:** `projects/personal/ballot-counter/docs/plan-002.yaml` (single-source YAML; plans 003–005 also filed as `plan-00N.yaml`). Six cycles, all post-MVP follow-ups + navigation glue plan-001 never specced.
 
 | Cycle | Description | Status |
 |---|---|---|
@@ -68,8 +68,8 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5050 (host; cont
 
 ## Authoritative sources
 
-- Plans: `projects/ballot-counter/docs/plan-{002,003,004,005}.yaml` (single source of truth; per-cycle `status:` lives in each plan YAML — no separate progress tracker)
-- Cycle notes: `projects/ballot-counter/docs/cycles/<X.Y>.yaml`
-- Research: `projects/ballot-counter/docs/research-report.md`
-- Plan-001 (frozen MVP): `projects/ballot-counter/docs/archive/plan-001/plan-001.md`
-- Project operational rules: `projects/ballot-counter/CLAUDE.md`
+- Plans: `projects/personal/ballot-counter/docs/plan-{002,003,004,005}.yaml` (single source of truth; per-cycle `status:` lives in each plan YAML — no separate progress tracker)
+- Cycle notes: `projects/personal/ballot-counter/docs/cycles/<X.Y>.yaml`
+- Research: `projects/personal/ballot-counter/docs/research-report.md`
+- Plan-001 (frozen MVP): `projects/personal/ballot-counter/docs/archive/plan-001/plan-001.md`
+- Project operational rules: `projects/personal/ballot-counter/CLAUDE.md`

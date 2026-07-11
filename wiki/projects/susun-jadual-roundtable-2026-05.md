@@ -15,10 +15,10 @@ A multi-POV critique of [[susun-jadual]] plan-001 v1, conducted same-day as the 
 ## Outputs
 
 - **POVs** (raw individual analyses):
-  - `projects/susun-jadual/docs/roundtable/architect.md` — 12 findings, stack/architecture lens
-  - `projects/susun-jadual/docs/roundtable/pm.md` — 12 findings, commercial/GTM lens
-  - `projects/susun-jadual/docs/roundtable/ux.md` — 10 findings, user-fit lens
-- **Joint verdict:** `projects/susun-jadual/docs/roundtable/joint-verdict.md` — 24 consensus items + 5 disagreements + 17 amendments + Hetzner unanimous
+  - `projects/personal/susun-jadual/docs/roundtable/architect.md` — 12 findings, stack/architecture lens
+  - `projects/personal/susun-jadual/docs/roundtable/pm.md` — 12 findings, commercial/GTM lens
+  - `projects/personal/susun-jadual/docs/roundtable/ux.md` — 10 findings, user-fit lens
+- **Joint verdict:** `projects/personal/susun-jadual/docs/roundtable/joint-verdict.md` — 24 consensus items + 5 disagreements + 17 amendments + Hetzner unanimous
 
 ## What the roundtable found
 
@@ -81,8 +81,8 @@ PM Finding #7 captured the framing tightening: lead with "Battle-tested solver �
 
 ## Authoritative sources
 
-- Verdict: `projects/susun-jadual/docs/roundtable/joint-verdict.md`
-- Individual POVs: `projects/susun-jadual/docs/roundtable/{architect,pm,ux}.md`
-- Resulting plan: `projects/susun-jadual/docs/plan-001.yaml` (v2)
+- Verdict: `projects/personal/susun-jadual/docs/roundtable/joint-verdict.md`
+- Individual POVs: `projects/personal/susun-jadual/docs/roundtable/{architect,pm,ux}.md`
+- Resulting plan: `projects/personal/susun-jadual/docs/plan-001.yaml` (v2)
 - Parent project card: [[susun-jadual]]
 - Core concept: [[timetable-csp]]

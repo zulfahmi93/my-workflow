@@ -1,15 +1,18 @@
 ---
 name: rintis-landing
-description: Marketing landing site for Rintis Tech (rintis.tech). Next.js 16 + Tailwind 4 + Cloudflare Workers (OpenNext). Dark forest-green + lime editorial system; brand pivoted off the original Mistral-sunset look on 2026-05-17.
+description: LEGACY marketing landing site for Rintis Tech (rintis.tech). Superseded 2026-06-25 by `landing-website/` after company rebrand to Berdua.AI (legal Berdua Sdn. Bhd.). Kept as historical record.
 metadata:
   type: project
-  status: live-on-dev
+  status: superseded
+  superseded_by: landing-website
   last_ingested: 2026-05-17
 ---
 
-# Rintis Tech Landing
+# Rintis Tech Landing — _legacy_
 
-**Status:** Site scaffolded + content shipped. Deploy pipeline live on `dev.rintis.tech` (CF Worker `rintis-landing-dev`); `main` → `rintis.tech` prod path ready, gated on required-reviewer approval. No `plan-XXX.md` filed (PRD-driven, no TDD scaffold — see `[[design-system-pivot]]` for the visual-system source of truth).
+> **Superseded 2026-06-25.** Company rebranded to **Berdua.AI** (legal: **Berdua Sdn. Bhd.**). Active landing now lives at `projects/rintis/landing-website/` (new design system, new content). This page documents the prior brand for history; do not edit, do not deploy, do not resurrect without owner approval.
+
+**Status:** Site scaffolded + content shipped (legacy). Deploy pipeline was live on `dev.rintis.tech` (CF Worker `rintis-landing-dev`); `main` → `rintis.tech` prod path ready, gated on required-reviewer approval. No `plan-XXX.md` filed (PRD-driven, no TDD scaffold — see `[[design-system-pivot]]` for the visual-system source of truth at the time).
 
 ## What
 
@@ -19,11 +22,11 @@ Single-page marketing landing for the company under the **Rintis Tech** brand at
 
 Public face of the company. **Domain split is load-bearing:** legal entity is **Rintis AI** but `rintis.ai` was out of budget when this landing was scoped, so all public copy ships under **Rintis Tech** on `rintis.tech` until the `.ai` domain becomes affordable. Repo + GitHub org stay "Rintis AI" internally — intentional.
 
-PRD-driven, **not** TDD-driven. The guarantee surface is post-deploy: Playwright + axe (no critical/serious a11y violations), Lighthouse CI (perf ≥ .85, a11y ≥ .95, SEO ≥ .95), and an HTTP smoke (200 + content asserts). That stack is the de-facto test gate per [`docs/deploy.md` §"Why no TDD red/green here?"](../../projects/rintis-landing/docs/deploy.md).
+PRD-driven, **not** TDD-driven. The guarantee surface is post-deploy: Playwright + axe (no critical/serious a11y violations), Lighthouse CI (perf ≥ .85, a11y ≥ .95, SEO ≥ .95), and an HTTP smoke (200 + content asserts). That stack is the de-facto test gate per [`docs/deploy.md` §"Why no TDD red/green here?"](../../projects/rintis/rintis-landing/docs/deploy.md).
 
 ## Core domain concept
 
-[[design-system-pivot]] — token-locked editorial design system (Fraunces + Inter, dark ink-0…ink-4 forest-greens, lime accent, `--rt-*` CSS-variable prefix). On 2026-05-17 the brand pivoted from the original Mistral-inspired sunset/cream system (orange `#fa520f` primary, PP Editorial Old, sunset-stripe band) to the **forest-green + lime** system that ships on v1. The repo-level `projects/rintis-landing/CLAUDE.md` still documents the prior Mistral system and lags the pivot — `DESIGN.md` v-alpha is the source of truth.
+[[design-system-pivot]] — token-locked editorial design system (Fraunces + Inter, dark ink-0…ink-4 forest-greens, lime accent, `--rt-*` CSS-variable prefix). On 2026-05-17 the brand pivoted from the original Mistral-inspired sunset/cream system (orange `#fa520f` primary, PP Editorial Old, sunset-stripe band) to the **forest-green + lime** system that ships on v1. The repo-level `projects/rintis/rintis-landing/CLAUDE.md` still documents the prior Mistral system and lags the pivot — `DESIGN.md` v-alpha is the source of truth.
 
 ## Stack
 
@@ -36,7 +39,7 @@ PRD-driven, **not** TDD-driven. The guarantee surface is post-deploy: Playwright
 | CI gates | ESLint ^9 (pinned, see below), `tsc --noEmit`, Playwright ^1.60 + `@axe-core/playwright` ^4.11, Lighthouse CI ^0.15.1 (forced to Lighthouse ^13.0.2 via npm `overrides`) |
 | Smoke | `scripts/smoke.sh` (HTTP 200 + content asserts) |
 
-**Pinned deps with unblock triggers** (don't bump blindly — see [`deploy.md` §"Pinned dependency versions"](../../projects/rintis-landing/docs/deploy.md)):
+**Pinned deps with unblock triggers** (don't bump blindly — see [`deploy.md` §"Pinned dependency versions"](../../projects/rintis/rintis-landing/docs/deploy.md)):
 
 - `eslint: ^9` — blocked on `eslint-plugin-react` (transitive via `eslint-config-next@16.2.6`) gaining ESLint-10 compat. ESLint 10 removed `context.getFilename()` and the React rule still calls it — `npm run lint` crashes on the first `.tsx` file. Watch `vercel/next.js/packages/eslint-config-next/package.json`.
 - `lighthouse: ^13.0.2` (via `overrides` against `@lhci/cli`) — `@lhci/cli@0.15.1` bundles Lighthouse 12, which flagged Cloudflare's "Managed robots.txt" `Content-Signal:` directive as invalid and dropped SEO to 0.92. Lighthouse 13 fixed parsing ([GoogleChrome/lighthouse#16767](https://github.com/GoogleChrome/lighthouse/pull/16767)). Drop the override when lhci ships a Lighthouse-13 bundle.
@@ -44,7 +47,7 @@ PRD-driven, **not** TDD-driven. The guarantee surface is post-deploy: Playwright
 ## Layout
 
 ```
-projects/rintis-landing/
+projects/rintis/rintis-landing/
 ├── app/
 │   ├── _components/        Hero shader, sections, nav, counters, waveforms,
 │   │                       WhatsApp demo, icons, reveal, reduced-motion hook
@@ -98,10 +101,10 @@ PR pipeline: lint + typecheck + Next build + OpenNext build — no deploy. Deplo
 
 ## Authoritative sources
 
-- Project operational rules: `projects/rintis-landing/CLAUDE.md` (note: brand-color section lags the pivot)
-- Design system (source of truth): `projects/rintis-landing/DESIGN.md`
-- Deploy + CI runbook: `projects/rintis-landing/docs/deploy.md`
-- Copy source (read-only): `projects/rintis-landing/docs/profiles/1-10.png`
-- Brand logo (canonical): `projects/rintis-landing/docs/branding/logo.png`
-- Next 16 breaking-change warning for agents: `projects/rintis-landing/AGENTS.md`
-- Page composition: `projects/rintis-landing/app/page.tsx` + `app/_components/sections.tsx`
+- Project operational rules: `projects/rintis/rintis-landing/CLAUDE.md` (note: brand-color section lags the pivot)
+- Design system (source of truth): `projects/rintis/rintis-landing/DESIGN.md`
+- Deploy + CI runbook: `projects/rintis/rintis-landing/docs/deploy.md`
+- Copy source (read-only): `projects/rintis/rintis-landing/docs/profiles/1-10.png`
+- Brand logo (canonical): `projects/rintis/rintis-landing/docs/branding/logo.png`
+- Next 16 breaking-change warning for agents: `projects/rintis/rintis-landing/AGENTS.md`
+- Page composition: `projects/rintis/rintis-landing/app/page.tsx` + `app/_components/sections.tsx`

@@ -1,15 +1,24 @@
-# Rintis AI — Monorepo
+# My Workflow — Monorepo
 
-Centralized repo for all Rintis AI projects. Each project under `projects/<name>/` is autonomous (own stack, own plan, own `CLAUDE.md`). This root file is the **meta layer**: repo layout, where to load further context, wiki schema (Karpathy-style LLM wiki).
+Centralized repo for personal and company projects. Each project under `projects/<group>/<name>/` (`<group>` = `personal` or `rintis`) is autonomous (own stack, own plan, own `CLAUDE.md`). This root file is the **meta layer**: repo layout, where to load further context, wiki schema (Karpathy-style LLM wiki).
+
+> Company brand: **Berdua.AI** (legal entity: **Berdua Sdn. Bhd.**). The `projects/rintis/` group dir is the legacy folder name — kept for path stability across plans, cycle notes, and wiki refs.
 
 ## Layout
 
 ```
 /projects/                # autonomous projects — each has own CLAUDE.md
-  ballot-counter/         # handwritten ballot scanning (UNDI)
-  tunas-lite/             # WhatsApp clock-in demo
-  ai-receipt-maker/       # receipt PDF generator (.NET)
-  baja-dunia/             # marketing site (PRD-driven, no TDD scaffold)
+  personal/               # personal projects
+    ai-receipt-maker/     # receipt PDF generator (.NET)
+    ballot-counter/       # handwritten ballot scanning (UNDI)
+    duitnow-demo/         # DuitNow payments app (Flutter)
+    susun-jadual/         # AI-assisted school-timetable generator (CP-SAT)
+    zulfahmi-portfolio/   # personal portfolio site (zulfahmi.dev)
+  rintis/                 # company projects (Berdua.AI; folder name legacy)
+    baja-dunia/           # marketing site (PRD-driven, no TDD scaffold)
+    rintis-landing/       # legacy landing site (historical; superseded by landing-website/)
+    landing-website/      # Berdua.AI marketing site (new; design + content in progress)
+    tunas-lite/           # WhatsApp clock-in demo
 /wiki/                    # Karpathy-style LLM wiki — compiled synthesis layer
   index.md                # top catalog
   log.md                  # ingest changelog
@@ -19,12 +28,14 @@ Centralized repo for all Rintis AI projects. Each project under `projects/<name>
   glossary.md             # repeated domain terms
 /.claude/
   agents/                 # shared subagents (all projects)
-  skills/                 # shared skills (/tdd etc)
+  skills/                 # shared skills — tdd (ad-hoc TDD), cycle (plan-driven cycle), plan-author, wiki-ingest, autonomous-run
+  workflows/              # deterministic orchestration scripts — tdd-cycle.js (one cycle, schema-validated verdicts), plan-batch.js (one batch via tdd-cycle)
+  hooks/                  # enforcement hooks wired in .claude/settings.json — block --no-verify/--amend commits, block edits to generated docs html/, validate plan/cycle-note YAML on write
   rules/                  # shared operational rules
-    lifecycle.md          # 7-phase product lifecycle + agent operating system + Research/Commercial standards + agent file schema
+    lifecycle.md          # 7-phase product lifecycle + agent operating system + Research/Commercial standards + model tier map + agent file schema
     tdd.md                # TDD cycle phases + generic test harness
     commit.md             # commit policy + Conventional Commits prefixes
-    cycle-orchestration.md  # full cycle manual (architect gate, reviewer separation, subagent skeleton, hallucination guard, cycle notes, session protocol)
+    cycle-orchestration.md  # full cycle manual (architect gate, reviewer separation, subagent skeleton, hallucination guard, cycle notes, session + autonomous-run protocols)
     review-checklist.md   # REVIEW phase categories the code-reviewer evaluates against
     docs-site.md          # plan-NNN.yaml → HTML generator: when/how to regenerate, onboarding checklist
 /tools/
@@ -36,12 +47,12 @@ Centralized repo for all Rintis AI projects. Each project under `projects/<name>
 
 ## Context loading
 
-Claude auto-loads BOTH this file and the project's `projects/<name>/CLAUDE.md` when working anywhere in that project's subtree. Split of responsibility:
+Claude auto-loads BOTH this file and the project's `projects/<group>/<name>/CLAUDE.md` when working anywhere in that project's subtree. Split of responsibility:
 
 | File | Holds |
 |---|---|
 | `/CLAUDE.md` (this) | Repo layout, wiki schema, meta orientation |
-| `projects/<name>/CLAUDE.md` | Project-specific data rules, local-dev quirks, plan refs |
+| `projects/<group>/<name>/CLAUDE.md` | Project-specific data rules, local-dev quirks, plan refs |
 | `.claude/rules/*.md` | Shared operational rules — **not auto-loaded**; read on demand |
 | `/wiki/**` | Business + plan synthesis — **not auto-loaded**; read on demand |
 
@@ -53,11 +64,11 @@ The `.claude/agents/` are one coordinated operating system, not isolated prompts
 
 For "what is this project / what's the plan / what's the domain concept" → read `/wiki/`.
 
-For authoritative project content (plans, cycle notes, research) → read `projects/<name>/docs/`. The wiki is a synthesis cache, not the source of truth.
+For authoritative project content (plans, cycle notes, research) → read `projects/<group>/<name>/docs/`. The wiki is a synthesis cache, not the source of truth.
 
 ## Wiki (Karpathy LLM-wiki style)
 
-`projects/<name>/docs/` = raw layer (authoritative, mutable). `/wiki/` = compiled synthesis (Claude-maintained read-cache, never source of truth). The wiki holds **business matters + plans**. Operational rules (how-we-work) live in `.claude/rules/`, not in the wiki.
+`projects/<group>/<name>/docs/` = raw layer (authoritative, mutable). `/wiki/` = compiled synthesis (Claude-maintained read-cache, never source of truth). The wiki holds **business matters + plans**. Operational rules (how-we-work) live in `.claude/rules/`, not in the wiki.
 
 Schema, file conventions, frontmatter spec, page templates, ingest triggers, and lint policy → [`wiki/SCHEMA.md`](wiki/SCHEMA.md). Loaded on-demand when ingesting / linting; not needed for daily project work.
 

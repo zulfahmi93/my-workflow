@@ -48,7 +48,7 @@ Verify live versions before quoting — user upgrades mid-project.
 ## Layout
 
 ```
-projects/ai-receipt-maker/
+projects/personal/ai-receipt-maker/
 ├── receipt-toolkit.sln                10 .NET projects
 ├── Directory.{Build,Packages}.props   analyzers + CPM pins
 ├── docs/                              PROGRESS.md, adr/, archive/, plans/, api/openapi.json
@@ -68,7 +68,7 @@ Resume: `dotnet build receipt-toolkit.sln` (NOT `dotnet test --no-build` — mas
 
 ## Plan-001 status
 
-**Plan:** archived at `projects/ai-receipt-maker/docs/archive/plan-001-receipt-toolkit-tdd.md`. Phase 9 V9.7 execution report at `docs/TDD-EXECUTION-REPORT.md`.
+**Plan:** archived at `projects/personal/ai-receipt-maker/docs/archive/plan-001-receipt-toolkit-tdd.md`. Phase 9 V9.7 execution report at `docs/TDD-EXECUTION-REPORT.md`.
 
 | Phase | Description | Status |
 |---|---|---|
@@ -87,11 +87,11 @@ Resume: `dotnet build receipt-toolkit.sln` (NOT `dotnet test --no-build` — mas
 
 ## Authoritative sources
 
-- Current state: `projects/ai-receipt-maker/docs/PROGRESS.md`
-- Plan-001 (frozen): `projects/ai-receipt-maker/docs/archive/plan-001-receipt-toolkit-tdd.md`
-- Phase history: `projects/ai-receipt-maker/docs/archive/progress-001-phases-0-through-3c-polish.md`
-- Divergences (numbered, anchored): `projects/ai-receipt-maker/docs/archive/divergences-001.md`
-- ADRs: `projects/ai-receipt-maker/docs/adr/0001..0004`
-- Forward plans: `projects/ai-receipt-maker/docs/plans/` (e.g. `001-car-workshop-jobcard.md`)
-- README (architecture overview + setup): `projects/ai-receipt-maker/README.md`
-- Project operational rules: `projects/ai-receipt-maker/CLAUDE.md`
+- Current state: `projects/personal/ai-receipt-maker/docs/PROGRESS.md`
+- Plan-001 (frozen): `projects/personal/ai-receipt-maker/docs/archive/plan-001-receipt-toolkit-tdd.md`
+- Phase history: `projects/personal/ai-receipt-maker/docs/archive/progress-001-phases-0-through-3c-polish.md`
+- Divergences (numbered, anchored): `projects/personal/ai-receipt-maker/docs/archive/divergences-001.md`
+- ADRs: `projects/personal/ai-receipt-maker/docs/adr/0001..0004`
+- Forward plans: `projects/personal/ai-receipt-maker/docs/plans/` (e.g. `001-car-workshop-jobcard.md`)
+- README (architecture overview + setup): `projects/personal/ai-receipt-maker/README.md`
+- Project operational rules: `projects/personal/ai-receipt-maker/CLAUDE.md`

@@ -1,15 +1,15 @@
 ---
 name: isc-workflow-web
-description: Next.js port of the iSarawak Care iSC Workflow government portal. Plan-001 (bootstrap) in progress — 1 of 8 cycles shipped.
+description: Next.js port of the iSarawak Care iSC Workflow government portal. Plan-001 (bootstrap) complete — all 8 cycles done (1.1–1.4 committed; 1.5–1.8 pending commit).
 metadata:
   type: project
-  status: plan-001-in-progress
+  status: plan-001-complete
   last_ingested: 2026-05-29
 ---
 
 # iSC Workflow Web
 
-**Status:** Plan-001 (bootstrap) in progress (as of 2026-05-29). 8 cycles, 1 shipped (Cycle 1.1 scaffold, commit `03eede3`); 7 idle. No security-tier cycles (auth is plan-002).
+**Status:** Plan-001 (bootstrap) complete as of 2026-05-29. All 8 cycles done: 1.1–1.4 committed; 1.5–1.8 approved and pending the B02/B03/B04/B05 commit batch. No security-tier cycles (auth is plan-002).
 
 ## What
 
@@ -21,6 +21,13 @@ The Flutter app is being migrated to web for reach and maintainability against a
 
 Key constraints: SarawakID OAuth with a **365-day non-refresh Bearer token** (auth is plan-002, via Auth.js v5); the OpenAPI spec has **no `servers:` block** so the client `baseUrl` is set at runtime per environment (dev `iscworkflow.socoe.co` / prod `isc-initiative.socoe.co`); the generated API client must tolerate mostly-untyped non-2xx bodies via a hand-written validation-error narrowing guard.
 
+Notable plan-001 implementation notes (from cycle notes):
+
+- **proxy.ts not middleware.ts** — Next.js 16.2.6 uses `proxy.ts` as the canonical middleware filename; the plan's `middleware.ts` reference was corrected in Cycle 1.5 per the architect's corrective ruling.
+- **Plain MSW handlers** — Cycle 1.6 determined that `openapi-msw` cannot be wired without a unified `paths` map (which `@hey-api/openapi-ts` does not emit). Plain `msw/node` `http.get`/`http.post` handlers with response bodies typed against the generated per-operation types provide identical zero-network guarantees.
+- **3-locale catalogs** — Cycle 1.7 emitted `apps/web/messages/{en,ms,zh}.json` from the Flutter ARB source. EN is the 1052-key canonical superset; MS (979 ARB keys) and ZH (973 ARB keys) are back-filled from EN so all three catalogs are render-complete and key-identical (1052 keys each, zero orphans).
+- **Corrective round on Cycle 1.5** — a post-APPROVED sanity check surfaced four defects (D1–D4: async layout, nested `<html>`, missing `[locale]/page`, absent `ms`/`zh` catalog during prerender). All fixed in an architect-ruled corrective round and independently re-reviewed by a fresh Code Reviewer before commit.
+
 ## Core domain concept
 
 _(none yet)_ — no `wiki/concepts/<topic>.md` exists for this project. Candidate concepts to extract as plans land: the form-builder / workflow-levels model, and the OpenAPI-codegen + typed-error-envelope strategy (ADR-0002, Cycle 1.4).
@@ -31,13 +38,13 @@ Locked in `projects/rintis/isc-workflow-web/docs/adr/0001-stack-adoption.md`; de
 
 | Layer | Tech | Lands in |
 |---|---|---|
-| Framework | Next.js 16.2.x App Router + TypeScript (strict) | Cycle 1.1 (shipped) |
-| Styling | Tailwind CSS v4 (CSS-first) + shadcn/ui | Cycle 1.1 (shipped) |
+| Framework | Next.js 16.2.x App Router + TypeScript (strict) | Cycle 1.1 (shipped `03eede3`) |
+| Styling | Tailwind CSS v4 (CSS-first) + shadcn/ui | Cycle 1.1 (shipped `03eede3`) |
 | API client | `@hey-api/openapi-ts` (typescript + sdk + client-fetch + TanStack Query plugins) → `packages/api-client` | Cycle 1.4 |
 | Server state | TanStack Query v5 | Cycle 1.5 |
 | App/session state | Zustand v5 | Cycle 1.5 |
-| i18n | next-intl v4 (EN/MS/ZH; catalogs from Flutter ARB) | Cycle 1.5 + 1.7 |
-| Testing | Vitest 4 + Playwright 1.60 + MSW 2 (`openapi-msw`) | Cycle 1.6 |
+| i18n | next-intl v4 (EN/MS/ZH; 1052-key catalogs from Flutter ARB) | Cycle 1.5 + 1.7 |
+| Testing | Vitest 4 + Playwright 1.60 + MSW 2 (plain `http` handlers) | Cycle 1.6 |
 | Auth | Auth.js v5 (SarawakID OAuth, server-side, `httpOnly` cookie) | plan-002 |
 
 ## Layout
@@ -53,7 +60,7 @@ projects/rintis/isc-workflow-web/
 └── README.md
 ```
 
-Local dev: `cd apps/web && npm run dev` → http://localhost:3000. Codegen via `npm run codegen`; the Flutter reference app at `/Users/zulfahmi/Desktop/ukuya/03-app-isarawak-care/app_workflow/` is read-only, outside this repo, never vendored.
+Local dev: `cd apps/web && npm run dev` → http://localhost:3000. Codegen via `npm run codegen` from `apps/web/`; ARB catalogs via `node scripts/arb-to-json.mjs` from project root (one-shot, already committed). The Flutter reference app at `/Users/zulfahmi/Desktop/ukuya/03-app-isarawak-care/app_workflow/` is read-only, outside this repo, never vendored.
 
 ## Plan status
 
@@ -62,13 +69,13 @@ Local dev: `cd apps/web && npm run dev` → http://localhost:3000. Codegen via `
 | Cycle | Description | Status |
 |---|---|---|
 | 1.1 | Repo scaffold — Next.js App Router + TS strict + Tailwind v4 + shadcn/ui | ✅ Shipped (`03eede3`) |
-| 1.2 | Project docs — CLAUDE.md + README + wiki card | ⬜ Idle |
-| 1.3 | Mandatory research report + ADR-0001 (stack adoption) | ⬜ Idle |
-| 1.4 | OpenAPI codegen pipeline — `@hey-api/openapi-ts` → `packages/api-client` + ADR-0002 | ⬜ Idle |
-| 1.5 | App providers + state skeleton — TanStack Query + Zustand + next-intl + root layout + ADR-0003 | ⬜ Idle |
-| 1.6 | Test harness — Vitest + Playwright + MSW + CI | ⬜ Idle |
-| 1.7 | ARB → `messages/*.json` converter + key-parity | ⬜ Idle |
-| 1.8 | plan-001 wrap — docs-gen build green + validators + wiki ingest | ⬜ Idle |
+| 1.2 | Project docs — CLAUDE.md + README + wiki card | ✅ Done (pending commit) |
+| 1.3 | Mandatory research report + ADR-0001 (stack adoption) | ✅ Done (pending commit) |
+| 1.4 | OpenAPI codegen pipeline — `@hey-api/openapi-ts` → `packages/api-client` + ADR-0002 | ✅ Done (pending commit) |
+| 1.5 | App providers + state skeleton — TanStack Query + Zustand + next-intl + root layout + ADR-0003 | ✅ Done (pending commit) |
+| 1.6 | Test harness — Vitest + Playwright + MSW + CI | ✅ Done (pending commit) |
+| 1.7 | ARB → `messages/*.json` converter + key-parity | ✅ Done (pending commit) |
+| 1.8 | plan-001 wrap — docs-gen build green + validators + wiki ingest | ✅ Done (pending commit) |
 
 Three cycles (1.2, 1.3, 1.8) are NO-TDD docs/verification cycles (no RED phase). Auth + app shell are plan-002.
 

@@ -1,16 +1,20 @@
 ---
 name: design-system-pivot
-description: Rintis Tech landing's token-locked editorial design system, and the 2026-05-17 pivot from the Mistral-inspired sunset/cream look to the dark forest-green + lime system that ships v1. Used by [[rintis-landing]].
+description: LEGACY — the Rintis Tech landing's token-locked editorial design system and the 2026-05-17 sunset→green pivot. Superseded 2026-06-25 by the Berdua.AI design system (new landing-website/). Kept as historical record.
 metadata:
   type: concept
+  status: superseded
+  superseded_by: landing-website
   used_by:
     - rintis-landing
   last_ingested: 2026-05-17
 ---
 
-# Design system + brand pivot — Rintis Tech landing
+# Design system + brand pivot — Rintis Tech landing _(legacy)_
 
-Token-locked design system for `rintis.tech`. Source of truth: `projects/rintis-landing/DESIGN.md` (alpha, `@google/design.md` grammar). Used by [[rintis-landing]].
+> **Superseded 2026-06-25.** Company rebranded to **Berdua.AI** (legal: **Berdua Sdn. Bhd.**); the new design system lives with `projects/rintis/landing-website/`. This page records the prior visual system for context; do not resurrect tokens without owner approval.
+
+Token-locked design system for `rintis.tech` (legacy). Source of truth at the time: `projects/rintis/rintis-landing/DESIGN.md` (alpha, `@google/design.md` grammar). Used by [[rintis-landing]].
 
 ## Model — the rules that ship v1
 
@@ -40,11 +44,15 @@ Token-locked design system for `rintis.tech`. Source of truth: `projects/rintis-
 
 **Token bridge:** CSS variables use `--rt-*` prefix (`--rt-ink-0`, `--rt-lime`, `--rt-lime-line`), defined once in `app/globals.css :root`. Tailwind 4 utilities consume via `@theme` — **never hardcode color values in component classes**. If a component needs a value not in `DESIGN.md`, add the token first, then consume.
 
-## Brand-vs-company naming (load-bearing)
+## Brand-vs-company naming _(legacy snapshot)_
 
-- **Company:** Rintis AI (legal + long-term identity, internal repo + org name).
-- **Brand on this domain:** **Rintis Tech**. Public copy — page titles, meta tags, hero headlines, footer wordmarks, OG tags — ships as "Rintis Tech", NOT "Rintis AI", until `rintis.ai` becomes affordable.
-- The split is intentional and lives until the user explicitly flips it.
+At the time this system shipped:
+
+- **Company:** Rintis AI (legal + long-term identity at the time; internal repo + org name).
+- **Brand on this domain:** **Rintis Tech**. Public copy shipped under "Rintis Tech" on `rintis.tech` until the `.ai` domain became affordable.
+- The split was intentional.
+
+**2026-06-25 rebrand resolution:** The split was resolved by a full rebrand. New brand = **Berdua.AI**; legal entity = **Berdua Sdn. Bhd.**; canonical domain = `berdua.ai`. Both prior names ("Rintis AI", "Rintis Tech") are retired.
 
 ## The 2026-05-17 pivot
 
@@ -60,7 +68,7 @@ After the company-profile-deck content review confirmed the green direction bett
 - Token-locked discipline (every CSS variable + Tailwind token resolves to a `DESIGN.md` token; lint via `@google/design.md`).
 - Brand naming split (Rintis Tech on this domain, Rintis AI internally).
 
-**Known lag:** `projects/rintis-landing/CLAUDE.md` "Design system guardrails" section still documents the Mistral sunset system as of 2026-05-17 — `DESIGN.md` v-alpha is authoritative. CLAUDE.md needs a follow-up edit.
+**Known lag:** `projects/rintis/rintis-landing/CLAUDE.md` "Design system guardrails" section still documents the Mistral sunset system as of 2026-05-17 — `DESIGN.md` v-alpha is authoritative. CLAUDE.md needs a follow-up edit.
 
 ## Why this shape
 
@@ -72,14 +80,14 @@ After the company-profile-deck content review confirmed the green direction bett
 
 ## Authoritative spec
 
-- `projects/rintis-landing/DESIGN.md` (alpha — token-locked, `@google/design.md` grammar)
-- `projects/rintis-landing/CLAUDE.md` §"Design system guardrails" (lags the pivot as of 2026-05-17)
+- `projects/rintis/rintis-landing/DESIGN.md` (alpha — token-locked, `@google/design.md` grammar)
+- `projects/rintis/rintis-landing/CLAUDE.md` §"Design system guardrails" (lags the pivot as of 2026-05-17)
 
 ## Implementation refs
 
-- `projects/rintis-landing/app/globals.css` — `--rt-*` CSS variable definitions
-- `projects/rintis-landing/app/_components/hero-shader.tsx` — WebGL `waterPlane` shader (three greens)
-- `projects/rintis-landing/app/_components/sections.tsx` — 11 stacked landing sections
-- `projects/rintis-landing/app/_components/nav.tsx` — fixed top nav with lime-underline scroll-spy
-- `projects/rintis-landing/app/_components/whatsapp-demo.tsx` — consumes `wa-*` tokens
-- `projects/rintis-landing/public/assets/logo-black.png` + `logo-white.png` — derived from canonical `docs/branding/logo.png`
+- `projects/rintis/rintis-landing/app/globals.css` — `--rt-*` CSS variable definitions
+- `projects/rintis/rintis-landing/app/_components/hero-shader.tsx` — WebGL `waterPlane` shader (three greens)
+- `projects/rintis/rintis-landing/app/_components/sections.tsx` — 11 stacked landing sections
+- `projects/rintis/rintis-landing/app/_components/nav.tsx` — fixed top nav with lime-underline scroll-spy
+- `projects/rintis/rintis-landing/app/_components/whatsapp-demo.tsx` — consumes `wa-*` tokens
+- `projects/rintis/rintis-landing/public/assets/logo-black.png` + `logo-white.png` — derived from canonical `docs/branding/logo.png`

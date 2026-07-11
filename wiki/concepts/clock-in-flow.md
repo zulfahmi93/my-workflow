@@ -59,20 +59,20 @@ Both [[tunas-lite]] cycles that touch this flow shipped under opus architect + `
 - **Cycle 3.1 — HMAC verification.** Raw body buffering (not deserialized JSON; signature verifies bytes-as-sent), constant-time hex compare via `CryptographicOperations.FixedTimeEquals`, GET verify-token + POST signature paths separately tested.
 - **Cycle 3.5 — Orchestrator.** Unknown sender → silent drop; face/geofence failure persists row with respective pass flag false.
 
-Threat models filed at `projects/tunas-lite/docs/cycles/3.1.md` + `projects/tunas-lite/docs/cycles/3.5.md`.
+Threat models filed at `projects/rintis/tunas-lite/docs/cycles/3.1.md` + `projects/rintis/tunas-lite/docs/cycles/3.5.md`.
 
 ## Authoritative spec
 
-`projects/tunas-lite/docs/plan-001.md` §"Core concept: clock-in flow" — full flow + per-phase contract decisions (gRPC `.proto`, HMAC verifier, orchestrator failure modes).
+`projects/rintis/tunas-lite/docs/plan-001.md` §"Core concept: clock-in flow" — full flow + per-phase contract decisions (gRPC `.proto`, HMAC verifier, orchestrator failure modes).
 
 ## Implementation refs
 
-- Webhook + HMAC: `projects/tunas-lite/apps/api/Security/WhatsAppWebhookVerifier.cs`, `Security/WebhookSignatureMiddleware.cs`
-- Payload parser: `projects/tunas-lite/apps/api/Webhook/WhatsAppPayloadParser.cs`
-- Geofence: `projects/tunas-lite/apps/api/Geofencing/Geofence.cs` (haversine)
-- Face-match gRPC contract: `projects/tunas-lite/proto/face.proto`
-- Face-match server: `projects/tunas-lite/services/face/server.py`
-- Face-match client: `projects/tunas-lite/apps/api/FaceClient/FaceMatchClient.cs`
-- Orchestrator: `projects/tunas-lite/apps/api/Orchestration/ClockInOrchestrator.cs`
-- Dashboard read endpoint: `projects/tunas-lite/apps/api/Endpoints/AttendanceEndpoint.cs`
-- Schema: `projects/tunas-lite/supabase/migrations/001_init.sql`
+- Webhook + HMAC: `projects/rintis/tunas-lite/apps/api/Security/WhatsAppWebhookVerifier.cs`, `Security/WebhookSignatureMiddleware.cs`
+- Payload parser: `projects/rintis/tunas-lite/apps/api/Webhook/WhatsAppPayloadParser.cs`
+- Geofence: `projects/rintis/tunas-lite/apps/api/Geofencing/Geofence.cs` (haversine)
+- Face-match gRPC contract: `projects/rintis/tunas-lite/proto/face.proto`
+- Face-match server: `projects/rintis/tunas-lite/services/face/server.py`
+- Face-match client: `projects/rintis/tunas-lite/apps/api/FaceClient/FaceMatchClient.cs`
+- Orchestrator: `projects/rintis/tunas-lite/apps/api/Orchestration/ClockInOrchestrator.cs`
+- Dashboard read endpoint: `projects/rintis/tunas-lite/apps/api/Endpoints/AttendanceEndpoint.cs`
+- Schema: `projects/rintis/tunas-lite/supabase/migrations/001_init.sql`

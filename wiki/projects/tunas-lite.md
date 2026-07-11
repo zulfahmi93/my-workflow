@@ -17,7 +17,7 @@ metadata:
 
 ## Why
 
-Built to back the **TUNAS Lite partner quotation** (`projects/tunas-lite/TUNAS_Lite_Quotation.md` line 23). Demonstrates the exact proposed stack works credibly before the partner signs — TUNAS reviewers can audit stack-honesty (no swapping FastAPI HTTP for the gRPC promise; no fudging the InsightFace claim with cloud face APIs).
+Built to back the **TUNAS Lite partner quotation** (`projects/rintis/tunas-lite/TUNAS_Lite_Quotation.md` line 23). Demonstrates the exact proposed stack works credibly before the partner signs — TUNAS reviewers can audit stack-honesty (no swapping FastAPI HTTP for the gRPC promise; no fudging the InsightFace claim with cloud face APIs).
 
 **Demo NOT product.** Single test employee, single test worksite. Multi-tenant + RLS, LHDN MyInvois, OCR pipelines (receipt / MC / invoice), Hangfire, PWA, liveness detection, WiFi SSID check, BM language, dashboard auth, production deploy — all explicitly out of scope. Loom narration calls out every demo-vs-quoted-scope delta so reviewers don't misread the demo as feature-complete.
 
@@ -40,7 +40,7 @@ Built to back the **TUNAS Lite partner quotation** (`projects/tunas-lite/TUNAS_L
 ## Layout
 
 ```
-projects/tunas-lite/
+projects/rintis/tunas-lite/
 ├── apps/web/              Next.js 16
 ├── apps/api/              .NET 10 Minimal API
 ├── services/face/         Python 3.13 FastAPI + gRPC + InsightFace
@@ -55,7 +55,7 @@ Local dev: `cd infra && docker compose up -d` → web:3000, api:5000, face:50051
 
 ## Plan-001 status
 
-**Plan:** `projects/tunas-lite/docs/plan-001.md`. 11 cycles compressed to 6 parallel waves via `docs/parallel-waves.md` (cycle dependency DAG). Six cycles shipped in an overnight run 2026-05-13 → 2026-05-14.
+**Plan:** `projects/rintis/tunas-lite/docs/plan-001.md`. 11 cycles compressed to 6 parallel waves via `docs/parallel-waves.md` (cycle dependency DAG). Six cycles shipped in an overnight run 2026-05-13 → 2026-05-14.
 
 | Phase | Cycle(s) | Status | Shipped |
 |---|---|---|---|
@@ -70,9 +70,9 @@ Two cycles are **security tier** (opus architect + `Security Reviewer` second-pa
 
 ## Authoritative sources
 
-- Plan: `projects/tunas-lite/docs/plan-001.md`
-- Parallel waves DAG: `projects/tunas-lite/docs/parallel-waves.md`
-- Progress tracker: `projects/tunas-lite/docs/progress.md`
-- Cycle notes: `projects/tunas-lite/docs/cycles/*.md`
-- Partner quotation (stack + scope contract): `projects/tunas-lite/TUNAS_Lite_Quotation.md`
-- Project operational rules: `projects/tunas-lite/CLAUDE.md`
+- Plan: `projects/rintis/tunas-lite/docs/plan-001.md`
+- Parallel waves DAG: `projects/rintis/tunas-lite/docs/parallel-waves.md`
+- Progress tracker: `projects/rintis/tunas-lite/docs/progress.md`
+- Cycle notes: `projects/rintis/tunas-lite/docs/cycles/*.md`
+- Partner quotation (stack + scope contract): `projects/rintis/tunas-lite/TUNAS_Lite_Quotation.md`
+- Project operational rules: `projects/rintis/tunas-lite/CLAUDE.md`

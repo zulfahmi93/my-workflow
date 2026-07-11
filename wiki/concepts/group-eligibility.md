@@ -29,10 +29,10 @@ Hardcoded gender (M/F) failed early. Malaysian school elections often use car-na
 
 ## Authoritative spec
 
-`projects/ballot-counter/docs/archive/plan-001/plan-001.md` §"Core concept: Group eligibility" — full rule set (frozen with plan-001 MVP).
+`projects/personal/ballot-counter/docs/archive/plan-001/plan-001.md` §"Core concept: Group eligibility" — full rule set (frozen with plan-001 MVP).
 
 ## Implementation refs
 
-- Schema: `projects/ballot-counter/supabase/migrations/001_init.sql` — `candidates.groups`, `categories.required_group`, `elections.group_policy`
+- Schema: `projects/personal/ballot-counter/supabase/migrations/001_init.sql` — `candidates.groups`, `categories.required_group`, `elections.group_policy`
 - API layer: strict-policy pre-filter before OCR dispatch (ballot-counter .NET API)
 - OCR service: `services/ocr/` returns `NeedsReview` flag on permissive mismatch

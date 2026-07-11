@@ -52,17 +52,17 @@ Linux-only golden byte tests gate the PDF + PNG outputs (`archive/divergences-00
 
 ## Authoritative spec
 
-- ADR 0001 — SkiaSharp as render engine: `projects/ai-receipt-maker/docs/adr/0001-skiasharp-as-render-engine.md`
-- ADR 0004 — Font embedding: `projects/ai-receipt-maker/docs/adr/0004-font-embedding.md`
-- Plan-001 (frozen): `projects/ai-receipt-maker/docs/archive/plan-001-receipt-toolkit-tdd.md`
-- Divergence #16 (SkiaSharp 4 preview pin for VF axis API): `projects/ai-receipt-maker/docs/archive/divergences-001.md#div-16`
-- Divergence #23 (Linux-only golden gate): `projects/ai-receipt-maker/docs/archive/divergences-001.md#div-23`
+- ADR 0001 — SkiaSharp as render engine: `projects/personal/ai-receipt-maker/docs/adr/0001-skiasharp-as-render-engine.md`
+- ADR 0004 — Font embedding: `projects/personal/ai-receipt-maker/docs/adr/0004-font-embedding.md`
+- Plan-001 (frozen): `projects/personal/ai-receipt-maker/docs/archive/plan-001-receipt-toolkit-tdd.md`
+- Divergence #16 (SkiaSharp 4 preview pin for VF axis API): `projects/personal/ai-receipt-maker/docs/archive/divergences-001.md#div-16`
+- Divergence #23 (Linux-only golden gate): `projects/personal/ai-receipt-maker/docs/archive/divergences-001.md#div-23`
 
 ## Implementation refs
 
-- Core render entrypoint + exporter trio: `projects/ai-receipt-maker/src/ReceiptToolkit.Core/`
+- Core render entrypoint + exporter trio: `projects/personal/ai-receipt-maker/src/ReceiptToolkit.Core/`
 - Section interface: `IReceiptSection` (file-scoped namespace `ReceiptToolkit.Core.Rendering.Sections`)
-- Font provider: `projects/ai-receipt-maker/src/ReceiptToolkit.Core/` → `FontProvider`
+- Font provider: `projects/personal/ai-receipt-maker/src/ReceiptToolkit.Core/` → `FontProvider`
 - Theme colours: `ThemeColors.ResolveOrDefault`
 - Text measurement helpers: `TextMeasurer.Measure`, `TextMeasurer.WrapLines`
-- Golden bytes (Linux CI gate): `projects/ai-receipt-maker/examples/golden/sample_receipt_data.golden.{pdf,png}`
+- Golden bytes (Linux CI gate): `projects/personal/ai-receipt-maker/examples/golden/sample_receipt_data.golden.{pdf,png}`

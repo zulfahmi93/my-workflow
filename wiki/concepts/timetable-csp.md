@@ -49,7 +49,7 @@ Encoding (architect locks per cycle in `plan-001.yaml` `open-questions` #2):
 | S4 | Same subject same class on consecutive days | 2 |
 | S5 | Teacher daily-load imbalance (max-min day > 2) | 1 per period over |
 
-Weights from `projects/susun-jadual/docs/research-report.md §3.6`. Externalised in request schema; user-overridable per plan-002.
+Weights from `projects/personal/susun-jadual/docs/research-report.md §3.6`. Externalised in request schema; user-overridable per plan-002.
 
 ### Output
 
@@ -91,8 +91,8 @@ Infeasibility is not an error — it is a user-actionable result. When CP-SAT re
 
 ## Authoritative spec
 
-- `projects/susun-jadual/docs/research-report.md §2–§3` — full taxonomy + solver feasibility benchmarks.
-- `projects/susun-jadual/docs/plan-001.yaml` — cycles 2.1–2.4 (`solver` phase) that implement the model.
+- `projects/personal/susun-jadual/docs/research-report.md §2–§3` — full taxonomy + solver feasibility benchmarks.
+- `projects/personal/susun-jadual/docs/plan-001.yaml` — cycles 2.1–2.4 (`solver` phase) that implement the model.
 - Furst et al. 2018, "XHSTT-2014 archive results," International Timetabling Competition.
 - Google OR-Tools docs, https://developers.google.com/optimization/cp/cp_solver.
 
