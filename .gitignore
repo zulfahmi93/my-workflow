@@ -19,6 +19,11 @@ node_modules/
 # Large binary assets (version via Git LFS if needed)
 /docs/profiles/
 
+# Documentation is private/local by default. Explicitly allow shared folders.
+/docs/*
+!/docs/templates/
+!/docs/templates/**
+
 # OS metadata
 .DS_Store
 Thumbs.db
