@@ -4,7 +4,7 @@ Small, cross-cutting fixes to the shared agent machinery — `tools/docs-gen/`, 
 
 Surfaced 2026-07-19 by the u60-monitor open-issue sweep (`projects/personal/u60-monitor/docs/open-issues-2026-07-19.md`, bucket R / §D4–D6). Every claim below was verified against source at that date; verify again before acting.
 
-**Status:** all three DONE (2026-07-19). Kept as the record of what was wrong and why, since two of the three findings were partly misdiagnosed when filed. Worth doing before the ~28 authored-but-unexecuted cycles across u60-monitor plans 008–011 run, because two of the three improve the records those cycles produce.
+**Status:** ALL ITEMS CLOSED (2026-07-19), including every deferred nit. Kept as the record of what was wrong and why, since two of the three original findings were partly misdiagnosed when filed. Worth doing before the ~28 authored-but-unexecuted cycles across u60-monitor plans 008–011 run, because two of the three improve the records those cycles produce.
 
 ---
 
@@ -69,7 +69,7 @@ Each lands as its own commit in the root repo, scope `rules` or `chore` per `.ag
 
 ---
 
-## 4. Commit-gate follow-ups (opened 2026-07-19)
+## 4. Commit-gate follow-ups — **ALL CLOSED**
 
 Item 3 was adversarially attacked by 4 agents with per-finding verification: **22 claimed breaks, 21 confirmed.** The false positives and the parity blocker were fixed immediately, because those stop work. What follows is the residue, deliberately deferred: they are **false negatives in a forward-only lint**, so each costs at most one over-length subject slipping through, and none can block a commit.
 
@@ -79,18 +79,18 @@ Item 3 was adversarially attacked by 4 agents with per-finding verification: **2
 - **Codex launcher, blocker.** `.codex/hooks.json` built all three hook paths from `$(git rev-parse --show-toplevel)`, which returns the *nested* project repo when the cwd is inside `projects/<group>/<name>/`. Codex therefore found none of its hooks there — the whole commit policy AND the generated-file policy silently did not run, in exactly the directories where most work happens. Now walks up for `.agents/`. The wrapper scripts were hardened the same way.
 - **False positives.** Subshell parens glued onto the preceding token, so `(cd x && git commit -m "…")` measured a subject with a trailing `")`; parens are now segment separators, which also stops `(git commit …)` hiding the commit entirely. And `UNRESOLVABLE` missed bare `$VAR` and ANSI-C `$'…'`, measuring literal text; it is now any `$` or backtick.
 
-**Deferred — false negatives only:**
+**All closed 2026-07-19.** Each row below is now fixed and covered by a regression case:
 
 | # | Gap | Cost |
 |---|---|---|
-| 4a | `--message` is matched exactly; git accepts any unambiguous abbreviation (`--mess`). | Long subject slips through. |
-| 4b | The heredoc-subject regex requires `cat` + whitespace + a `[A-Za-z_]\w*` delimiter. `cat<<EOF` and exotic delimiters miss. | Slips through. |
-| 4c | Segments split only on `;&|()`. A newline-joined script is one segment, so a later `git commit` in it can be missed. | Slips through. |
-| 4d | The first `-m` is assumed to be the subject. If it is empty, git's `cleanup=whitespace` promotes the *second*. | Slips through. |
-| 4e | `subject_of` takes the first non-empty LINE; git's `%s` is the first *paragraph* with newlines folded, so a subject with no blank line before the body is measured short. | Under-measures. |
-| 4f | shlex strips embedded double quotes from a heredoc token, shortening the measured subject by one per quote. | Off-by-N under-measure. |
+| 4a | ~~`--message` matched exactly~~ → **FIXED**: `resolve_long_option()` resolves abbreviations against the full git-commit option set exactly as git's parse-options does; an ambiguous prefix (`--fi` → file/fixup) resolves to nothing and is skipped, matching git's own rejection. |
+| 4b | ~~Heredoc regex too strict~~ → **FIXED**: `cat<<EOF` (no space), `<<-MSG`, and delimiters like `X_1` all match now. |
+| 4c | ~~Newline-joined scripts collapsed into one segment~~ → **FIXED**: `\n` is a segment separator; newlines *inside quotes* are unaffected, since shlex consumes those into the token. |
+| 4d | ~~First `-m` assumed to be the subject~~ → **FIXED**: the first NON-EMPTY message is the subject, matching `cleanup=whitespace`. |
+| 4e | ~~First LINE taken as the subject~~ → **FIXED**: `first_paragraph()` folds the first paragraph's newlines to spaces, as git's `%s` does, and handles a leading newline (which previously measured as `""`). |
+| 4f | ~~shlex stripped embedded quotes~~ → **FIXED**: the heredoc body is now read from the RAW command text rather than the shlex token, so the measured subject is byte-for-byte what git receives. |
 
-**Also deferred — tooling, not the gate:**
+**Tooling — also closed:**
 
-- `validate-agent-config.mjs` only substring-greps `hooks.json` for a literal path and greps the wrapper for a literal script name. It would not have caught either parity break above. Worth making it *execute* the hook against a fixture instead.
-- Both wrappers do `cmd=$(jq -r … 2>/dev/null)`, so a missing `jq` silently yields an empty command and the policy fails open. Identical in both adapters, so not a parity break — but it is a silent one.
+- `validate-agent-config.mjs` now **executes** both adapters' commit hooks against six fixtures (short/long subject, `--amend`, `--no-verify`, heredoc prose, non-git command), run from inside a nested project repo — which is precisely where a root-resolution bug hides. Verified it BITES: reintroducing the old `git rev-parse --show-toplevel` resolution makes it fail with exit 1 and name the cause; restoring passes with exit 0. The old substring greps are retained as a cheap first signal.
+- The `jq` dependency is gone. Both wrappers now extract the command with `.agents/scripts/read-hook-command.py` — python3 was already a hard dependency (the policy script is Python), so this removes a dependency rather than adding one. Malformed JSON, a wrong-typed command, or a missing interpreter now produce a **loud** stderr line instead of an empty string silently disabling the policy.

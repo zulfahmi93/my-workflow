@@ -23,12 +23,17 @@ import shlex
 import sys
 
 
-# Parens are treated as segment separators too. Without them, `whitespace_split` glues a
-# subshell's closing paren onto the preceding token — so `(cd x && git commit -m "…")`
-# measured a subject with a trailing `")` (a false positive), and `(git commit …)` hid the
-# commit from the parser entirely (a false negative).
-CONTROL = re.compile(r"^[;&|()]+$")
-PUNCTUATION = ";&|()"
+# Segment separators.
+#   ( )  — without them `whitespace_split` glues a subshell's closing paren onto the
+#          preceding token, so `(cd x && git commit -m "…")` measured a trailing `")`
+#          (false positive) and `(git commit …)` hid the commit entirely (false negative).
+#   \n   — a newline is ordinary whitespace to shlex, so a newline-joined script collapsed
+#          into ONE segment and a `git commit` on a later line was never seen. Newlines
+#          INSIDE quotes are unaffected: shlex consumes those as part of the token.
+CONTROL = re.compile(r"^[;&|()\n]+$")
+PUNCTUATION = ";&|()\n"
+# shlex must stop treating \n as whitespace or it would never emit it as a token.
+LEXER_WHITESPACE = " \t\r"
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 GIT_OPTIONS_WITH_VALUE = {
     "-C",
@@ -62,13 +67,23 @@ OPAQUE_LONG_OPTIONS = {
 }
 OPAQUE_SHORT_OPTIONS = {"F", "C", "c", "t"}
 
+# Every `git commit` long option, so an ABBREVIATION can be resolved the way git resolves
+# it: any unambiguous prefix is accepted (`--mess` means `--message`). Matching the full
+# spelling only let `git commit --mess "<long subject>"` through unchecked.
+COMMIT_LONG_OPTIONS = {
+    "--all", "--allow-empty", "--allow-empty-message", "--amend", "--author", "--branch",
+    "--cleanup", "--date", "--dry-run", "--edit", "--file", "--fixup", "--gpg-sign",
+    "--include", "--long", "--message", "--no-edit", "--no-gpg-sign", "--no-post-rewrite",
+    "--no-status", "--no-verify", "--null", "--only", "--patch", "--pathspec-file-nul",
+    "--pathspec-from-file", "--porcelain", "--quiet", "--reedit-message", "--reset-author",
+    "--reuse-message", "--short", "--signoff", "--squash", "--status", "--template",
+    "--trailer", "--untracked-files", "--verbose",
+}
+
 # `-m "$(cat <<'EOF' \n <subject> \n ... \n EOF \n )"` — the repo's dominant commit form.
-# shlex hands the whole substitution through as one literal token, so the subject is the
-# first non-empty line after the heredoc opener.
-HEREDOC_SUBSTITUTION = re.compile(
-    r"^\$\(\s*cat\s+<<-?\s*(?P<q>['\"]?)(?P<delim>[A-Za-z_][A-Za-z0-9_]*)(?P=q)\s*\n(?P<body>.*)",
-    re.S,
-)
+# Deliberately loose about spacing and the delimiter (`cat<<EOF`, `<<-MSG`, `<<"X_1"` all
+# match); the strict `cat\s+` + word-only delimiter form missed real invocations.
+HEREDOC_SUBSTITUTION = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)([^\s'\";)]+)\1")
 
 # Any shell expansion or ANSI-C quoting — the value cannot be resolved statically, so the
 # subject check must skip rather than measure the literal text. Deliberately broad: `$VAR`,
@@ -87,6 +102,7 @@ def command_segments(command: str) -> list[list[str]]:
     lexer = shlex.shlex(command, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace_split = True
     lexer.commenters = ""
+    lexer.whitespace = LEXER_WHITESPACE
     segments: list[list[str]] = [[]]
     for token in lexer:
         if CONTROL.fullmatch(token):
@@ -250,6 +266,57 @@ def unparseable_fallback(command: str, error: Exception) -> int:
     return 0
 
 
+def resolve_long_option(name: str) -> str | None:
+    """Resolve a possibly-abbreviated long option the way git's parse-options does.
+
+    Exact spellings win outright; otherwise a prefix must match exactly ONE option to be
+    unambiguous. `--mess` -> `--message`; `--fi` matches both `--file` and `--fixup`, so git
+    would reject it and this returns None.
+    """
+    if name in COMMIT_LONG_OPTIONS:
+        return name
+    if not name.startswith("--") or len(name) <= 2:
+        return None
+    matches = [option for option in COMMIT_LONG_OPTIONS if option.startswith(name)]
+    return matches[0] if len(matches) == 1 else None
+
+
+def heredoc_body_from_raw(command: str, delimiter: str) -> str | None:
+    """Read a heredoc body out of the ORIGINAL command text.
+
+    The shlex token cannot be used: it has already had embedded quotes consumed as quoting
+    syntax and stripped, which shortened the measured subject by one per quote. The raw text
+    is what git will actually receive.
+    """
+    opener = re.compile(r"<<-?\s*(['\"]?)" + re.escape(delimiter) + r"\1")
+    match = opener.search(command)
+    if not match:
+        return None
+    after_opener = command[match.end():].split("\n")[1:]
+    body: list[str] = []
+    for line in after_opener:
+        if line.strip() == delimiter:
+            return "\n".join(body)
+        body.append(line)
+    return "\n".join(body)  # unterminated heredoc — take what is there
+
+
+def first_paragraph(text: str) -> str | None:
+    """git's `%s`: the first PARAGRAPH, newlines folded to single spaces.
+
+    Taking only the first LINE under-measured any subject written without a blank line
+    before its body, and returned "" for a message starting with a newline.
+    """
+    collected: list[str] = []
+    for line in text.split("\n"):
+        if not line.strip():
+            if collected:
+                break
+            continue
+        collected.append(line.strip())
+    return " ".join(collected) if collected else None
+
+
 def commit_messages(args: list[str]) -> tuple[list[str], bool]:
     """Return (-m/--message values in order, determinable).
 
@@ -265,9 +332,10 @@ def commit_messages(args: list[str]) -> tuple[list[str], bool]:
         long_name = token.split("=", 1)[0]
 
         if token.startswith("--"):
-            if long_name in OPAQUE_LONG_OPTIONS:
+            resolved = resolve_long_option(long_name) or long_name
+            if resolved in OPAQUE_LONG_OPTIONS:
                 return [], False
-            if long_name == "--message":
+            if resolved == "--message":
                 if "=" in token:
                     messages.append(token.split("=", 1)[1])
                     index += 1
@@ -276,7 +344,7 @@ def commit_messages(args: list[str]) -> tuple[list[str], bool]:
                         messages.append(args[index + 1])
                     index += 2
                 continue
-            if long_name in COMMIT_LONG_OPTIONS_WITH_VALUE and "=" not in token:
+            if resolved in COMMIT_LONG_OPTIONS_WITH_VALUE and "=" not in token:
                 index += 2
                 continue
             index += 1
@@ -303,31 +371,28 @@ def commit_messages(args: list[str]) -> tuple[list[str], bool]:
     return messages, True
 
 
-def subject_of(message: str) -> str | None:
+def subject_of(message: str, command: str) -> str | None:
     """The commit subject, or None when it cannot be resolved statically."""
     heredoc = HEREDOC_SUBSTITUTION.match(message.strip())
     if heredoc:
-        delimiter = heredoc.group("delim")
-        for line in heredoc.group("body").split("\n"):
-            stripped = line.strip()
-            if not stripped or stripped == delimiter:
-                continue
-            return stripped
-        return None
+        body = heredoc_body_from_raw(command, heredoc.group(2))
+        return first_paragraph(body) if body is not None else None
     if UNRESOLVABLE.search(message):
         return None
-    return message.split("\n", 1)[0].strip()
+    return first_paragraph(message)
 
 
-def oversized_subject(args: list[str]) -> str | None:
+def oversized_subject(args: list[str], command: str) -> str | None:
     messages, determinable = commit_messages(args)
     if not determinable or not messages:
         return None
-    # git joins repeated -m as paragraphs; the FIRST is the subject.
-    subject = subject_of(messages[0])
-    if subject is None or len(subject) <= SUBJECT_LIMIT:
-        return None
-    return subject
+    # git joins repeated -m as paragraphs and `cleanup=whitespace` drops empty ones, so the
+    # subject is the first NON-EMPTY message, not blindly the first.
+    for message in messages:
+        subject = subject_of(message, command)
+        if subject:
+            return subject if len(subject) > SUBJECT_LIMIT else None
+    return None
 
 
 def main() -> int:
@@ -352,7 +417,7 @@ def main() -> int:
         if blocked:
             print(f"Blocked by .agents/rules/commit.md: git commit flag {blocked} is forbidden.", file=sys.stderr)
             return 2
-        oversized = oversized_subject(args)
+        oversized = oversized_subject(args, command)
         if oversized:
             print(
                 f"Blocked by .agents/rules/commit.md: commit subject is {len(oversized)} chars "

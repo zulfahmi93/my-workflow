@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { access, readdir, readFile, stat } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -170,6 +171,55 @@ async function validateCodexRuntimeAdapters() {
   }
 }
 
+// Substring-grepping the hook wiring proves only that a path is spelled somewhere. It would
+// not have caught either real break found in review: a launcher that resolved the repo root
+// via `git rev-parse --show-toplevel` (which returns the NESTED project repo, so the hook was
+// never found at all), or a policy that denied every Bash call it could not tokenize. Both
+// are invisible to a grep and obvious to a single execution — so execute it.
+function runHook(hookPath, command, cwd) {
+  return new Promise((resolve) => {
+    const child = execFile(hookPath, { cwd, timeout: 20000 }, (error, stdout, stderr) => {
+      resolve({ code: error?.code ?? 0, stderr: stderr ?? '' });
+    });
+    child.stdin.end(JSON.stringify({ tool_name: 'Bash', tool_input: { command } }));
+  });
+}
+
+async function validateCommitHookBehaviour() {
+  const apostrophe = String.fromCharCode(39);
+  const cases = [
+    { name: 'short subject allowed', command: 'git commit -m "feat: short"', expect: 0 },
+    { name: 'long subject blocked', command: `git commit -m "feat: ${'x'.repeat(51)}"`, expect: 2 },
+    { name: '--amend blocked', command: 'git commit --amend -m "x"', expect: 2 },
+    { name: '--no-verify blocked', command: 'git commit --no-verify -m "x"', expect: 2 },
+    // The blocker: a heredoc body with an odd number of apostrophes must NOT be denied.
+    {
+      name: 'heredoc prose allowed',
+      command: `cat > /dev/null <<${apostrophe}EOF${apostrophe}\nit doesn${apostrophe}t matter\nEOF`,
+      expect: 0,
+    },
+    { name: 'non-git command allowed', command: 'echo hello', expect: 0 },
+  ];
+
+  // Run from inside a nested project repo when one exists — that is exactly where a
+  // root-resolution bug hides, because .agents/ lives only at the monorepo root.
+  const nested = path.join(repoRoot, 'projects/personal/u60-monitor');
+  const cwd = await access(nested).then(() => nested).catch(() => repoRoot);
+
+  for (const hook of ['.claude/hooks/block-commit-flags.sh', '.codex/hooks/block-commit-flags.sh']) {
+    const hookPath = path.join(repoRoot, hook);
+    for (const testCase of cases) {
+      const { code, stderr } = await runHook(hookPath, testCase.command, cwd);
+      if (code !== testCase.expect) {
+        errors.push(
+          `${hook}: ${testCase.name} — expected exit ${testCase.expect}, got ${code}` +
+          (stderr.trim() ? ` (${stderr.trim().split('\n')[0]})` : ''),
+        );
+      }
+    }
+  }
+}
+
 async function validateLinks() {
   const roots = [path.join(repoRoot, 'AGENTS.md'), path.join(repoRoot, '.agents')];
   const files = [];
@@ -201,6 +251,7 @@ await validateRoles();
 await validateSkills();
 await validateClaudeRuntimeAdapters();
 await validateCodexRuntimeAdapters();
+await validateCommitHookBehaviour();
 await validateLinks();
 
 if (errors.length) {
