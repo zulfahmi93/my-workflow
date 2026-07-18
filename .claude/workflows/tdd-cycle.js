@@ -12,7 +12,9 @@ export const meta = {
 }
 
 // Required args: { project, projectPath, plan, cycle, greenAgent }
-// Optional: redAgent (default 'Test Engineer'), securityTier (bool), models ({top, mid} override)
+// Optional: redAgent (default 'Test Engineer'), securityTier (bool), models ({top, mid} override),
+//           notice (extra text appended to every delegate's preamble — e.g. an isolation warning
+//           when projectPath points at a git worktree rather than the project's primary checkout)
 //
 // `args` can arrive as a JSON STRING rather than an object (reproduced: a payload passed to a
 // name-based invocation reaches the script as a string, so every A.<key> read is undefined and the
@@ -43,7 +45,7 @@ const COMMON = `Project: ${A.project}. Working dir is the repo root.
 Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), the nearest local guide under ${A.projectPath} (AGENTS.md preferred; legacy CLAUDE.md allowed), ${RULES}/tdd.md, ${RULES}/cycle-orchestration.md §Subagent prompt skeleton.
 Tone: write idiomatic code/tests/docs (caveman is chat-only and does not apply to subagents).
 NO-DEFER: every [BLOCKER]/[REFACTOR] finding is resolved this cycle (${RULES}/tdd.md §Deferral policy).
-Out of bounds unless the cycle spec says otherwise: package additions, schema edits, API-contract changes, editing tests during GREEN.`
+Out of bounds unless the cycle spec says otherwise: package additions, schema edits, API-contract changes, editing tests during GREEN.${A.notice ? `\n${A.notice}` : ''}`
 
 const GATE_SCHEMA = {
   type: 'object', additionalProperties: false,

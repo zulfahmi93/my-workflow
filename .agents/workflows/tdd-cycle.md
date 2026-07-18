@@ -6,7 +6,9 @@ Canonical vendor-neutral contract for one plan-driven cycle. Runtime adapters im
 
 Required: `project`, `projectPath`, `plan`, `cycle`, `greenRole`.
 
-Optional: `redRole` (default `Test Engineer`), `securityTier`, and runtime mappings for semantic model tiers (`top`, `mid`).
+Optional: `redRole` (default `Test Engineer`), `securityTier`, runtime mappings for semantic model tiers (`top`, `mid`), and `notice` — extra text appended to every delegate's preamble.
+
+`notice` exists for isolation: when `projectPath` points at a git worktree rather than the project's primary checkout, every delegate must be told so explicitly. A delegate that edits the primary checkout out of habit corrupts a tree the cycle does not own, and the mistake surfaces only at integration.
 
 ## Global invariants
 
