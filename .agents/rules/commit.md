@@ -4,7 +4,7 @@ Shared across all projects in this repo.
 
 - Never auto-commit. Only on explicit "commit" / "let's commit".
 - One commit per completed TDD cycle (in TDD-disciplined projects).
-- Conventional Commits style; subject ≤ 50 chars; body explains the "why".
+- Conventional Commits style; subject ≤ 50 chars; body explains the "why". **The subject limit is enforced** by `.agents/scripts/check-commit-command.py`, wired as a pre-Bash hook in both adapters — an over-length subject is rejected before the commit runs.
 - `Co-Authored-By` trailer required.
 - Provider-local runtime settings stay untracked (for example `.claude/settings.local.json`).
 
@@ -72,6 +72,17 @@ Wrap body lines at ~72 characters.
 - Untracked third-party vendored code without a license + provenance note
 
 If staging includes any of the above, the orchestrator refuses the commit and surfaces the offending paths to the user.
+
+## What the commit hook enforces
+
+`.agents/scripts/check-commit-command.py` runs before every Bash call (wired via `.claude/hooks/` and `.codex/hooks/`, both execing the same shared script — there is one implementation, not two). It rejects:
+
+- the forbidden flags `--amend`, `--no-verify`, `-n`;
+- a commit **subject** longer than 50 characters.
+
+The subject check is deliberately **conservative**: it fires only when the subject is statically readable from the command line, and skips anything it cannot resolve — `-F file`, `-C`/`-c` reuse, `--fixup`/`--squash`, `-t` template, an editor commit with no `-m`, or a message containing shell expansion it cannot evaluate. A false block would stop all work; a missed long subject is only a lint miss. It *does* resolve the `-m "$(cat <<'EOF' … EOF)"` heredoc form, which is the dominant pattern here — without that the gate would be decorative.
+
+The limit is forward-only. It does not rewrite history, and the 31 pre-existing over-length subjects across the two repos stay as they are (`--amend` is forbidden anyway).
 
 ## Pre-commit hooks
 

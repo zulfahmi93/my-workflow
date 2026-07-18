@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Block forbidden flags on actual `git commit` command segments."""
+"""Enforce commit policy on actual `git commit` command segments.
+
+Two checks:
+  1. Forbidden flags (`--amend`, `--no-verify`, `-n`).
+  2. Subject length <= 50 chars (.agents/rules/commit.md).
+
+The subject check is deliberately CONSERVATIVE: it only fires when the subject can be
+read statically from the command line. Anything whose text this script cannot resolve —
+`-F file`, `-C`/`-c` reuse, `--fixup`/`--squash`, `-t` template, an editor commit with no
+`-m`, or a message containing shell expansion it cannot evaluate — is SKIPPED rather than
+guessed at. A false block here would stop all work; a missed long subject is a lint miss.
+
+It does resolve the `-m "$(cat <<'EOF' ... EOF)"` heredoc form, which is the dominant
+pattern in this repo — without that the gate would be decorative.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +23,12 @@ import shlex
 import sys
 
 
-CONTROL = re.compile(r"^[;&|]+$")
+# Parens are treated as segment separators too. Without them, `whitespace_split` glues a
+# subshell's closing paren onto the preceding token — so `(cd x && git commit -m "…")`
+# measured a subject with a trailing `")` (a false positive), and `(git commit …)` hid the
+# commit from the parser entirely (a false negative).
+CONTROL = re.compile(r"^[;&|()]+$")
+PUNCTUATION = ";&|()"
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 GIT_OPTIONS_WITH_VALUE = {
     "-C",
@@ -33,9 +52,39 @@ COMMIT_LONG_OPTIONS_WITH_VALUE = {
 }
 COMMIT_SHORT_OPTIONS_WITH_VALUE = {"C", "F", "c", "m", "t"}
 
+# .agents/rules/commit.md §Conventional Commits: "subject <= 50 chars".
+SUBJECT_LIMIT = 50
+
+# Message sources this script cannot read. Their presence makes the subject
+# undeterminable, so the length check is skipped rather than guessed.
+OPAQUE_LONG_OPTIONS = {
+    "--file", "--reuse-message", "--reedit-message", "--fixup", "--squash", "--template",
+}
+OPAQUE_SHORT_OPTIONS = {"F", "C", "c", "t"}
+
+# `-m "$(cat <<'EOF' \n <subject> \n ... \n EOF \n )"` — the repo's dominant commit form.
+# shlex hands the whole substitution through as one literal token, so the subject is the
+# first non-empty line after the heredoc opener.
+HEREDOC_SUBSTITUTION = re.compile(
+    r"^\$\(\s*cat\s+<<-?\s*(?P<q>['\"]?)(?P<delim>[A-Za-z_][A-Za-z0-9_]*)(?P=q)\s*\n(?P<body>.*)",
+    re.S,
+)
+
+# Any shell expansion or ANSI-C quoting — the value cannot be resolved statically, so the
+# subject check must skip rather than measure the literal text. Deliberately broad: `$VAR`,
+# `${VAR}`, `$(cmd)`, `$'...'` and backticks all count. A subject containing a literal `$`
+# is rare, and skipping one is far cheaper than wrongly blocking a commit.
+UNRESOLVABLE = re.compile(r"[$`]")
+
+# A heredoc opener anywhere on a line: <<EOF, <<-EOF, <<'EOF', <<"EOF".
+HEREDOC_OPENER = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+# Last-resort scan when the command cannot be tokenized at all.
+FORBIDDEN_FALLBACK = re.compile(r"--amend\b|--no-verify\b")
+
 
 def command_segments(command: str) -> list[list[str]]:
-    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=PUNCTUATION)
     lexer.whitespace_split = True
     lexer.commenters = ""
     segments: list[list[str]] = [[]]
@@ -154,15 +203,146 @@ def forbidden_flag(args: list[str]) -> str | None:
     return None
 
 
+def strip_heredoc_bodies(command: str) -> str:
+    """Remove heredoc BODIES, keeping the command skeleton.
+
+    `shlex` has no heredoc model, so an unquoted body is lexed as ordinary command text —
+    a single apostrophe in English prose ("doesn't") opens a quote that never closes and
+    tokenizing raises ValueError. Bodies are never policy-relevant: only the command line
+    around them is. Stripping them lets a `cat > notes.md <<'EOF' … EOF` call tokenize.
+    """
+    lines = command.split("\n")
+    kept: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        kept.append(line)
+        index += 1
+        match = HEREDOC_OPENER.search(line)
+        if not match:
+            continue
+        delimiter = match.group(2)
+        while index < len(lines) and lines[index].strip() != delimiter:
+            index += 1
+        if index < len(lines):
+            kept.append(lines[index])  # keep the terminator so structure survives
+            index += 1
+    return "\n".join(kept)
+
+
+def unparseable_fallback(command: str, error: Exception) -> int:
+    """Decide policy for a command that cannot be tokenized even after stripping heredocs.
+
+    Returning 2 here — as this script used to — denies EVERY Bash call the lexer chokes on,
+    including commands with no `git` in them at all. That is a repo-wide outage triggered by
+    an apostrophe. Fail OPEN instead, after a narrow textual scan for the two flags that are
+    hard-forbidden. The subject check is skipped, consistent with this script's stated rule
+    of skipping whatever it cannot read rather than guessing.
+    """
+    if "commit" in command and FORBIDDEN_FALLBACK.search(command):
+        print(
+            "Blocked by .agents/rules/commit.md: forbidden git commit flag detected "
+            "(command could not be fully parsed).",
+            file=sys.stderr,
+        )
+        return 2
+    print(f"commit-policy: skipping unparseable command ({error})", file=sys.stderr)
+    return 0
+
+
+def commit_messages(args: list[str]) -> tuple[list[str], bool]:
+    """Return (-m/--message values in order, determinable).
+
+    determinable is False when an option supplies the message from a source this script
+    cannot read; the caller must then skip the subject check entirely.
+    """
+    messages: list[str] = []
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--":
+            break
+        long_name = token.split("=", 1)[0]
+
+        if token.startswith("--"):
+            if long_name in OPAQUE_LONG_OPTIONS:
+                return [], False
+            if long_name == "--message":
+                if "=" in token:
+                    messages.append(token.split("=", 1)[1])
+                    index += 1
+                else:
+                    if index + 1 < len(args):
+                        messages.append(args[index + 1])
+                    index += 2
+                continue
+            if long_name in COMMIT_LONG_OPTIONS_WITH_VALUE and "=" not in token:
+                index += 2
+                continue
+            index += 1
+            continue
+
+        if token.startswith("-") and len(token) > 1:
+            cluster = token[1:]
+            consumed_next = False
+            for offset, option in enumerate(cluster):
+                if option in OPAQUE_SHORT_OPTIONS:
+                    return [], False
+                if option == "m":
+                    rest = cluster[offset + 1 :]
+                    if rest:
+                        messages.append(rest)
+                    elif index + 1 < len(args):
+                        messages.append(args[index + 1])
+                        consumed_next = True
+                    break
+            index += 2 if consumed_next else 1
+            continue
+
+        index += 1
+    return messages, True
+
+
+def subject_of(message: str) -> str | None:
+    """The commit subject, or None when it cannot be resolved statically."""
+    heredoc = HEREDOC_SUBSTITUTION.match(message.strip())
+    if heredoc:
+        delimiter = heredoc.group("delim")
+        for line in heredoc.group("body").split("\n"):
+            stripped = line.strip()
+            if not stripped or stripped == delimiter:
+                continue
+            return stripped
+        return None
+    if UNRESOLVABLE.search(message):
+        return None
+    return message.split("\n", 1)[0].strip()
+
+
+def oversized_subject(args: list[str]) -> str | None:
+    messages, determinable = commit_messages(args)
+    if not determinable or not messages:
+        return None
+    # git joins repeated -m as paragraphs; the FIRST is the subject.
+    subject = subject_of(messages[0])
+    if subject is None or len(subject) <= SUBJECT_LIMIT:
+        return None
+    return subject
+
+
 def main() -> int:
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if not command:
         return 0
     try:
         segments = command_segments(command)
-    except ValueError as error:
-        print(f"Unable to parse command for commit policy: {error}", file=sys.stderr)
-        return 2
+    except ValueError as first_error:
+        # Almost always a heredoc body shlex mis-lexed — strip bodies and retry before
+        # concluding anything. Only the skeleton matters for commit policy.
+        try:
+            segments = command_segments(strip_heredoc_bodies(command))
+        except ValueError:
+            return unparseable_fallback(command, first_error)
 
     for segment in segments:
         args = commit_arguments(segment)
@@ -171,6 +351,15 @@ def main() -> int:
         blocked = forbidden_flag(args)
         if blocked:
             print(f"Blocked by .agents/rules/commit.md: git commit flag {blocked} is forbidden.", file=sys.stderr)
+            return 2
+        oversized = oversized_subject(args)
+        if oversized:
+            print(
+                f"Blocked by .agents/rules/commit.md: commit subject is {len(oversized)} chars "
+                f"(limit {SUBJECT_LIMIT}).\n  {oversized}\n"
+                "Shorten the subject; move the detail into the body.",
+                file=sys.stderr,
+            )
             return 2
     return 0
 

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/block-commit-flags.sh\"",
+            "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec \"$root/.codex/hooks/block-commit-flags.sh\"",
             "timeout": 30,
             "statusMessage": "Checking commit policy"
           }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/dispatch-file-policy.py\" block-generated",
+            "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec python3 \"$root/.codex/hooks/dispatch-file-policy.py\" block-generated",
             "timeout": 30,
             "statusMessage": "Checking generated-file policy"
           }
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/dispatch-file-policy.py\" validate-yaml",
+            "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec python3 \"$root/.codex/hooks/dispatch-file-policy.py\" validate-yaml",
             "timeout": 600,
             "statusMessage": "Validating documentation YAML"
           }
