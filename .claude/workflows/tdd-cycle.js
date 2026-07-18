@@ -190,7 +190,7 @@ Locked decisions:
 ${lockedBlock}
 Implementer gate result: ${lastReport.gateResult} (command: ${lastReport.command})${guard}
 Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.`,
-    { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.mid })
+    { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.top })
   if (!review) throw new Error(`reviewer pass ${pass} died`)
   const blocking = review.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
   const claimedApproved = review.verdict === 'APPROVED'
