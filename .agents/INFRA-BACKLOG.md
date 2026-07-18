@@ -4,7 +4,9 @@ Small, cross-cutting fixes to the shared agent machinery — `tools/docs-gen/`, 
 
 Surfaced 2026-07-19 by the u60-monitor open-issue sweep (`projects/personal/u60-monitor/docs/open-issues-2026-07-19.md`, bucket R / §D4–D6). Every claim below was verified against source at that date; verify again before acting.
 
-**Status:** ALL ITEMS CLOSED (2026-07-19), including every deferred nit. Kept as the record of what was wrong and why, since two of the three original findings were partly misdiagnosed when filed. Worth doing before the ~28 authored-but-unexecuted cycles across u60-monitor plans 008–011 run, because two of the three improve the records those cycles produce.
+**Status: ALL ITEMS CLOSED (2026-07-19)**, including every deferred nit. Kept as the record of what was wrong and why — two of the three original findings were partly misdiagnosed when filed, and closing them surfaced two pre-existing blockers neither had noticed.
+
+All five landed before the ~28 authored-but-unexecuted cycles across u60-monitor plans 008–011, which was the point: items 1 and 3 improve the records and the gates those cycles run under.
 
 ---
 
@@ -58,14 +60,6 @@ The two historical violations recorded in `plan-003.yaml:701` are permanently un
 **Design note:** make it a **hard** reject, not a warning. A warning changes nothing here — the rule already exists in writing and is ignored 22% of the time. Ensure it does not fire on merge commits or on the `Co-Authored-By` / `Claude-Session` trailers.
 
 **Related, already done:** the `tdd-cycle.js` `MODELS.mid → MODELS.top` REVIEW patch was committed 2026-07-19 as `81eb021`. Before that, any clean checkout silently ran every code-reviewer pass on the wrong tier.
-
----
-
-## Sequencing
-
-Independent of each other; all three are small. If only one gets done, do **#1** — it is the only one whose absence silently degrades the record of work already scheduled.
-
-Each lands as its own commit in the root repo, scope `rules` or `chore` per `.agents/rules/commit.md`.
 
 ---
 
