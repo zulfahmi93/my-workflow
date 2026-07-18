@@ -176,13 +176,35 @@ async function validateCodexRuntimeAdapters() {
 // via `git rev-parse --show-toplevel` (which returns the NESTED project repo, so the hook was
 // never found at all), or a policy that denied every Bash call it could not tokenize. Both
 // are invisible to a grep and obvious to a single execution — so execute it.
-function runHook(hookPath, command, cwd) {
+function runHook(hookPath, toolInput, cwd) {
   return new Promise((resolve) => {
     const child = execFile(hookPath, { cwd, timeout: 20000 }, (error, stdout, stderr) => {
       resolve({ code: error?.code ?? 0, stderr: stderr ?? '' });
     });
-    child.stdin.end(JSON.stringify({ tool_name: 'Bash', tool_input: { command } }));
+    child.stdin.end(JSON.stringify({ tool_name: 'Bash', tool_input: toolInput }));
   });
+}
+
+// Every adapter hook must at minimum LOCATE its portable script and exit cleanly on a
+// benign payload. A hook that cannot find .agents/ exits non-zero (or silently no-ops),
+// and that is invisible to the substring greps above.
+async function validateAllHooksResolve(cwd) {
+  const benign = { command: 'echo hello', file_path: path.join(repoRoot, 'README-nonexistent.txt') };
+  const hooks = [
+    '.claude/hooks/block-commit-flags.sh',
+    '.claude/hooks/block-generated-html.sh',
+    '.claude/hooks/validate-docs-yaml.sh',
+    '.codex/hooks/block-commit-flags.sh',
+  ];
+  for (const hook of hooks) {
+    const { code, stderr } = await runHook(path.join(repoRoot, hook), benign, cwd);
+    if (code !== 0) {
+      errors.push(`${hook}: benign payload should exit 0, got ${code} (${stderr.trim().split('\n')[0]})`);
+    }
+    if (/No such file or directory|command not found/.test(stderr)) {
+      errors.push(`${hook}: cannot resolve its portable script from cwd ${cwd} (${stderr.trim().split('\n')[0]})`);
+    }
+  }
 }
 
 async function validateCommitHookBehaviour() {
@@ -206,10 +228,12 @@ async function validateCommitHookBehaviour() {
   const nested = path.join(repoRoot, 'projects/personal/u60-monitor');
   const cwd = await access(nested).then(() => nested).catch(() => repoRoot);
 
+  await validateAllHooksResolve(cwd);
+
   for (const hook of ['.claude/hooks/block-commit-flags.sh', '.codex/hooks/block-commit-flags.sh']) {
     const hookPath = path.join(repoRoot, hook);
     for (const testCase of cases) {
-      const { code, stderr } = await runHook(hookPath, testCase.command, cwd);
+      const { code, stderr } = await runHook(hookPath, { command: testCase.command }, cwd);
       if (code !== testCase.expect) {
         errors.push(
           `${hook}: ${testCase.name} — expected exit ${testCase.expect}, got ${code}` +

@@ -93,4 +93,17 @@ Item 3 was adversarially attacked by 4 agents with per-finding verification: **2
 **Tooling — also closed:**
 
 - `validate-agent-config.mjs` now **executes** both adapters' commit hooks against six fixtures (short/long subject, `--amend`, `--no-verify`, heredoc prose, non-git command), run from inside a nested project repo — which is precisely where a root-resolution bug hides. Verified it BITES: reintroducing the old `git rev-parse --show-toplevel` resolution makes it fail with exit 1 and name the cause; restoring passes with exit 0. The old substring greps are retained as a cheap first signal.
-- The `jq` dependency is gone. Both wrappers now extract the command with `.agents/scripts/read-hook-command.py` — python3 was already a hard dependency (the policy script is Python), so this removes a dependency rather than adding one. Malformed JSON, a wrong-typed command, or a missing interpreter now produce a **loud** stderr line instead of an empty string silently disabling the policy.
+- The `jq` dependency is gone. All four adapter wrappers now extract their field with `.agents/scripts/read-hook-field.py` — python3 was already a hard dependency (the policy script is Python), so this removes a dependency rather than adding one. Malformed JSON, a wrong-typed command, or a missing interpreter now produce a **loud** stderr line instead of an empty string silently disabling the policy.
+
+---
+
+## 5. Same-class sweep (closed 2026-07-19)
+
+After closing item 4, the two defect classes it fixed were swept for elsewhere. Both had further instances that no item had filed:
+
+- **`jq` silent fail-open** also affected `.claude/hooks/block-generated-html.sh` and `.claude/hooks/validate-docs-yaml.sh`. All four adapter wrappers now use `.agents/scripts/read-hook-field.py` (renamed from `read-hook-command.py` once a second field was needed).
+- **Root resolution via `$(pwd)`** also affected those same two hooks — the cwd is routinely inside a nested project repo, where `.agents/` does not exist. Both now resolve from their own location.
+- **Delimiter-charset drift**: `HEREDOC_OPENER` (used to strip bodies) kept a word-only charset after `HEREDOC_SUBSTITUTION` was loosened, so an exotic delimiter like `X-1` would not be stripped — the case that most needs stripping. Unified.
+- `validate-agent-config.mjs` now also asserts that **all four** hooks resolve their portable script and exit 0 on a benign payload, not just the two commit hooks. Verified it bites in both directions.
+
+**Nothing in this file is open.**

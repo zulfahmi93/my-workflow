@@ -92,7 +92,10 @@ HEREDOC_SUBSTITUTION = re.compile(r"^\$\(\s*cat\s*<<-?\s*(['\"]?)([^\s'\";)]+)\1
 UNRESOLVABLE = re.compile(r"[$`]")
 
 # A heredoc opener anywhere on a line: <<EOF, <<-EOF, <<'EOF', <<"EOF".
-HEREDOC_OPENER = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+# Same delimiter charset as HEREDOC_SUBSTITUTION above — a word-only charset here would
+# fail to strip a body opened with an exotic delimiter, which is the case that needed
+# stripping most.
+HEREDOC_OPENER = re.compile(r"<<-?\s*(['\"]?)([^\s'\";)]+)\1")
 
 # Last-resort scan when the command cannot be tokenized at all.
 FORBIDDEN_FALLBACK = re.compile(r"--amend\b|--no-verify\b")
