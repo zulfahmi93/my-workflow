@@ -44,7 +44,24 @@
           "finding": { "type": "string", "minLength": 1 },
           "resolution": { "type": "string", "minLength": 1 },
           "pass": { "type": "integer", "minimum": 1 },
-          "reviewer-agent-id": { "type": "string", "minLength": 1 }
+          "reviewer-agent-id": { "$ref": "#/$defs/reviewer-agent-id" }
+        }
+      }
+    },
+    "review-passes": {
+      "description": "One entry per REVIEW pass, INCLUDING passes that returned zero findings. Without this, a clean APPROVED pass leaves no machine-readable trace of who reviewed it — reviewer-agent-id lives only inside reviewer-findings[], so a no-findings pass names nobody and cycle-orchestration.md's self-review check cannot fire on the case where an accidental self-review is easiest to miss. Optional, so the 201 notes filed before this field existed stay valid.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["pass", "reviewer-agent-id", "verdict"],
+        "properties": {
+          "pass": { "type": "integer", "minimum": 1 },
+          "reviewer-agent-id": { "$ref": "#/$defs/reviewer-agent-id" },
+          "verdict": { "type": "string", "enum": ["APPROVED", "NEEDS FIX"] },
+          "role": { "type": "string", "enum": ["code-reviewer", "security-reviewer"] },
+          "model": { "type": "string", "enum": ["top", "mid", "cheap", "opus", "sonnet", "haiku"] },
+          "findings-count": { "type": "integer", "minimum": 0 }
         }
       }
     },
@@ -101,5 +118,13 @@
       "if": { "properties": { "security-tier": { "const": true } }, "required": ["security-tier"] },
       "then": { "required": ["threat-model"] }
     }
-  ]
+  ],
+  "$defs": {
+    "reviewer-agent-id": {
+      "description": "Identifier of the agent that performed the pass — e.g. `wf:<runId>/review-pass-<N>` when the runtime exposes a workflow run ID. The orchestrator reviewing its own work is non-compliant per cycle-orchestration.md §Permitted orchestrator-side reads, so a self-review value is rejected here mechanically rather than left to a human spotting it in a diff.",
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "[Ss]elf[- _]?[Rr]eview" }
+    }
+  }
 }

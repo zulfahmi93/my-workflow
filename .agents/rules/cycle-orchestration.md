@@ -52,7 +52,21 @@ These are not self-review; do not confuse with the rule above:
 
 If a reviewer's findings appear wrong, the next pass goes to a fresh `code-reviewer` (with the anti-hallucination guard injected) — never to the orchestrator's own judgment.
 
-The cycle-note YAML's `reviewer-findings[].reviewer-agent-id` records the reviewer agent ID per pass. If a cycle's notes show "self-review" as a reviewer-agent-id anywhere, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md.
+The cycle-note YAML's `reviewer-findings[].reviewer-agent-id` records the reviewer agent ID per pass. If a cycle's notes show "self-review" as a reviewer-agent-id anywhere, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md. **This is now enforced by the schema** — a self-review value fails `npm run validate-cycle-note` rather than relying on a human catching it in a diff.
+
+**Record every REVIEW pass in `review-passes[]`, including passes that returned zero findings.** `reviewer-agent-id` also lives inside `reviewer-findings[]`, but a clean APPROVED pass produces no finding and therefore named nobody — so the one case where an accidental self-review is easiest to miss was exactly the case the rule above could not detect. Each entry takes `pass`, `reviewer-agent-id` and `verdict` (`APPROVED` / `NEEDS FIX`), plus optional `role`, `model` and `findings-count`:
+
+```yaml
+review-passes:
+  - pass: 1
+    reviewer-agent-id: "wf:wf_c33477c5-d3a/review-pass-1"
+    verdict: APPROVED
+    role: code-reviewer
+    model: opus
+    findings-count: 0
+```
+
+The field is optional so notes filed before it existed stay valid, but **once supplied the roster must be complete**: the validator rejects a note whose `reviewer-findings` reference a pass with no roster entry, since a partial roster reads as full attribution while hiding one. Security-tier cycles list the `security-reviewer` second pass as its own entry.
 
 When a runtime implements [the neutral `tdd-cycle` workflow](../workflows/tdd-cycle.md), reviewer verdicts should return as schema-validated structured output so findings land in the cycle note mechanically. Record `wf:<runId>/review-pass-<N>` as the `reviewer-agent-id` when the runtime exposes a workflow run ID.
 

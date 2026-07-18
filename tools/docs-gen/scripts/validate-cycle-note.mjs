@@ -7,8 +7,11 @@
 //
 // Checks:
 //   1. JSON Schema (cycle-note.schema.json, draft 2020-12) — required fields, enums, types,
-//      additionalProperties:false, and the security-tier → threat-model conditional require.
+//      additionalProperties:false, the security-tier → threat-model conditional require, and
+//      the self-review rejection on every reviewer-agent-id.
 //   2. Filename ↔ content: the `cycle:` field must match the <X.Y> in the filename.
+//   3. review-passes ↔ reviewer-findings coherence, when the optional roster is present:
+//      every pass that produced findings must appear in the roster, and no pass twice.
 //
 // Usage (from tools/docs-gen/; relative paths resolve against the repo root, like the no-arg glob):
 //   node scripts/validate-cycle-note.mjs <path...>      # validate the given files
@@ -38,6 +41,17 @@ function validateOne(absPath) {
   if (!validate(doc)) {
     for (const e of validate.errors) {
       const path = e.instancePath || '(root)';
+      // ajv renders a failed `not` as "must NOT be valid", which says nothing about why.
+      // The only `not` in this schema is the self-review rejection, and it is the one
+      // failure a human most needs an actionable message for.
+      if (e.keyword === 'not' && path.endsWith('/reviewer-agent-id')) {
+        errors.push(
+          `${path} must not be a self-review — the orchestrator reviewing its own work is ` +
+          'non-compliant (cycle-orchestration.md §Permitted orchestrator-side reads). ' +
+          'Record the fresh reviewer agent, e.g. "wf:<runId>/review-pass-<N>".',
+        );
+        continue;
+      }
       const extra = e.params && e.params.additionalProperty ? ` ("${e.params.additionalProperty}")`
         : e.params && e.params.allowedValues ? ` (allowed: ${e.params.allowedValues.join(', ')})` : '';
       errors.push(`${path} ${e.message}${extra}`);
@@ -48,6 +62,31 @@ function validateOne(absPath) {
   const fileId = basename(absPath).replace(/\.ya?ml$/, '');
   if (doc && doc.cycle && doc.cycle !== fileId) {
     errors.push(`filename "${fileId}.yaml" does not match cycle: "${doc.cycle}"`);
+  }
+
+  // review-passes ↔ reviewer-findings coherence. Only checked when review-passes is
+  // present, so notes filed before the field existed stay valid — but once a roster is
+  // supplied it must be complete, or it gives a false sense of attribution: a pass that
+  // produced findings yet appears in no roster entry is exactly the gap the field exists
+  // to close.
+  if (doc && Array.isArray(doc['review-passes'])) {
+    const roster = new Set(doc['review-passes'].map((p) => p && p.pass));
+    const findingPasses = new Set(
+      (Array.isArray(doc['reviewer-findings']) ? doc['reviewer-findings'] : [])
+        .map((f) => f && f.pass)
+        .filter((p) => p !== undefined),
+    );
+    for (const p of [...findingPasses].sort((a, b) => a - b)) {
+      if (!roster.has(p)) {
+        errors.push(`reviewer-findings reference pass ${p}, but review-passes has no entry for it`);
+      }
+    }
+    const seen = new Set();
+    for (const p of doc['review-passes']) {
+      if (!p || p.pass === undefined) continue;
+      if (seen.has(p.pass)) errors.push(`review-passes has duplicate entries for pass ${p.pass}`);
+      seen.add(p.pass);
+    }
   }
 
   return errors;

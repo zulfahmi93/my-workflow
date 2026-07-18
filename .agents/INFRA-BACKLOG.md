@@ -4,11 +4,13 @@ Small, cross-cutting fixes to the shared agent machinery — `tools/docs-gen/`, 
 
 Surfaced 2026-07-19 by the u60-monitor open-issue sweep (`projects/personal/u60-monitor/docs/open-issues-2026-07-19.md`, bucket R / §D4–D6). Every claim below was verified against source at that date; verify again before acting.
 
-**Status:** none started. Worth doing before the ~28 authored-but-unexecuted cycles across u60-monitor plans 008–011 run, because two of the three improve the records those cycles produce.
+**Status:** item 1 DONE (`schema` + validator + rule doc). Items 2 and 3 not started. Worth doing before the ~28 authored-but-unexecuted cycles across u60-monitor plans 008–011 run, because two of the three improve the records those cycles produce.
 
 ---
 
-## 1. Cycle-note schema rejects a per-pass reviewer roster
+## 1. Cycle-note schema rejects a per-pass reviewer roster — **DONE**
+
+> **Resolved 2026-07-19.** Optional `review-passes[]` added to `cycle-note.schema.json`; `self-review` is now rejected mechanically on every `reviewer-agent-id` via a shared `$defs`; the validator cross-checks roster completeness and renders an actionable message instead of ajv's bare "must NOT be valid". All 201 existing notes still validate. `cycle-orchestration.md` documents the field. One correction to the finding below: cycle 6.1 *did* name its reviewer (`wf:wf_c33477c5-d3a/review-pass-1`) — in the prose summary, not a machine-readable field, which is the same gap but slightly less severe than recorded.
 
 **Priority: highest of the three.** Directly degrades the audit trail of every cycle run from here on.
 
