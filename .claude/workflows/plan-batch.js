@@ -10,7 +10,18 @@ export const meta = {
 
 // Required args: { project, projectPath, plan, batch }
 // Optional: cycles [{cycle, greenAgent, redAgent?, securityTier?}] to restrict/override, models {top, mid}
-const A = args || {}
+//
+// `args` can arrive as a JSON STRING rather than an object — see the note in tdd-cycle.js.
+const A = normalizeArgs(args)
+
+function normalizeArgs(raw) {
+  if (typeof raw !== 'string') return raw || {}
+  try {
+    return JSON.parse(raw) || {}
+  } catch {
+    throw new Error(`args arrived as a non-JSON string: ${raw.slice(0, 80)} — pass an object, e.g. { project: "…", batch: "P4.A" }`)
+  }
+}
 for (const k of ['project', 'projectPath', 'plan', 'batch']) {
   if (!A[k]) throw new Error(`args.${k} required — { project, projectPath, plan, batch, cycles?, models? }`)
 }

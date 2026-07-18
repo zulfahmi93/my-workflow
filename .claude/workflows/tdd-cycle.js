@@ -13,7 +13,21 @@ export const meta = {
 
 // Required args: { project, projectPath, plan, cycle, greenAgent }
 // Optional: redAgent (default 'Test Engineer'), securityTier (bool), models ({top, mid} override)
-const A = args || {}
+//
+// `args` can arrive as a JSON STRING rather than an object (reproduced: a payload passed to a
+// name-based invocation reaches the script as a string, so every A.<key> read is undefined and the
+// required-args loop below fails with a misleading "args.project is required"). Normalize instead
+// of making callers wrap the call.
+const A = normalizeArgs(args)
+
+function normalizeArgs(raw) {
+  if (typeof raw !== 'string') return raw || {}
+  try {
+    return JSON.parse(raw) || {}
+  } catch {
+    throw new Error(`args arrived as a non-JSON string: ${raw.slice(0, 80)} — pass an object, e.g. { project: "…", cycle: "4.2" }`)
+  }
+}
 for (const k of ['project', 'projectPath', 'plan', 'cycle', 'greenAgent']) {
   if (!A[k]) throw new Error(`args.${k} is required — e.g. { project: "isc-workflow-web", projectPath: "projects/rintis/isc-workflow-web", plan: "004", cycle: "4.2", greenAgent: "React Expert" }`)
 }
