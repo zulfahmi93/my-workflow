@@ -47,13 +47,14 @@ Out of bounds unless the cycle spec says otherwise: package additions, schema ed
 
 const GATE_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['mode', 'specSummary', 'securityTier', 'lockedDecisions'],
+  required: ['mode', 'specSummary', 'securityTier', 'noTdd', 'lockedDecisions'],
   properties: {
     mode: { type: 'string', enum: ['required', 'deferred', 'none', 'missing'] },
     reason: { type: 'string' },
     reviewer: { type: 'string' },
     specSummary: { type: 'string' },
     securityTier: { type: 'boolean' },
+    noTdd: { type: 'boolean' },
     lockedDecisions: { type: 'array', items: { type: 'string' } },
   },
 }
@@ -131,6 +132,7 @@ Task: read ${PLAN_PATH} and extract cycle ${A.cycle}.
 2. If deferred to a sibling cycle, read that cycle's architect-verdict from ${A.projectPath}/docs/cycles/<X.Y>.yaml and return its locked-decisions as lockedDecisions (otherwise lockedDecisions = []).
 3. specSummary: the cycle's spec in ≤ 200 words (title, phase steps, gate criteria, files in scope).
 4. securityTier: true if the plan marks it OR the spec touches any item in ${RULES}/cycle-orchestration.md §Security tier.
+5. noTdd: the cycle's "no-tdd" field, verbatim (absent → false). Report what the plan says; do not infer it from the spec.
 Return data only.`, { label: 'gate:read-plan', phase: 'Gate', schema: GATE_SCHEMA })
 if (!gate) throw new Error('gate reader died')
 
@@ -159,30 +161,47 @@ Verdict ≤ 400 words. GO or NO-GO. lockedDecisions: the decisions RED/GREEN mus
 const locked = [...(gate.lockedDecisions || []), ...((architectVerdict && architectVerdict.lockedDecisions) || [])]
 const lockedBlock = locked.length ? locked.map(d => `- ${d}`).join('\n') : '- none'
 
+// A `no-tdd: true` cycle (docs, ADR sweeps, prose) has no behaviour to drive a failing test from.
+// Forcing RED there produces a test written to fail on purpose, which is worse than no test: it
+// passes the gate mechanically while asserting nothing. Skip RED and redefine REVIEW as a
+// fact-check, where an unverifiable claim is a BLOCKER — that verification IS the gate for a
+// docs cycle, since there is no suite result to stand in for it.
+const noTdd = Boolean(gate.noTdd)
+
 // ---- RED ----
-phase('RED')
-const red = await agent(`${COMMON}
+let red = null
+if (noTdd) {
+  log(`no-tdd cycle — RED skipped; REVIEW runs as a source-verified fact-check`)
+} else {
+  phase('RED')
+  red = await agent(`${COMMON}
 Locked decisions:
 ${lockedBlock}
 Cycle spec: ${gate.specSummary}
 
 RED phase per ${RULES}/tdd.md: author the failing test(s) for this cycle. The test must fail for the RIGHT reason (missing/incorrect behavior — not a typo, import error, or broken infra), with a failure message naming the expectation. Run it and quote the exact failure line.`,
-  { label: 'red', phase: 'RED', schema: RED_SCHEMA, agentType: RED_AGENT, model: MODELS.mid })
-if (!red) throw new Error('RED author died')
-log(`RED: ${red.failureLine}`)
+    { label: 'red', phase: 'RED', schema: RED_SCHEMA, agentType: RED_AGENT, model: MODELS.mid })
+  if (!red) throw new Error('RED author died')
+  log(`RED: ${red.failureLine}`)
+}
+const testFiles = (red && red.testFiles) || []
 
-// ---- GREEN ----
+// ---- GREEN (or AUTHOR, for a no-tdd cycle) ----
 phase('GREEN')
 const green = await agent(`${COMMON}
 Locked decisions:
 ${lockedBlock}
 Cycle spec: ${gate.specSummary}
-RED report: tests ${JSON.stringify(red.testFiles)}; failing with: ${red.failureLine}; command: ${red.failingCommand}
+${noTdd
+  ? `AUTHOR phase (no-tdd cycle — there is no RED report and you must not invent one).
+Make exactly the documentation changes the cycle spec calls for. Every factual claim you write MUST be verified against current source before you write it: open the file, read the line, cite it. Where the spec's own description disagrees with what the source now says, the SOURCE wins — record the discrepancy in notes rather than propagating the spec's version.
+Do not edit code or tests. Run the project's full test suite anyway and report it unchanged, so a stray edit cannot hide. gateResult format: "Passed: N / Failed: 0".`
+  : `RED report: tests ${JSON.stringify(testFiles)}; failing with: ${red.failureLine}; command: ${red.failingCommand}
 
-GREEN phase per ${RULES}/tdd.md: minimal code to flip the failing test(s) green. Do NOT edit the tests. Satisfy the full GREEN gate (whole suite green, zero new warnings, no debug residue, no untested branches) before returning. gateResult format: "Passed: N / Failed: 0".`,
-  { label: 'green', phase: 'GREEN', schema: IMPL_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
-if (!green) throw new Error('GREEN implementer died')
-log(`GREEN: ${green.gateResult}`)
+GREEN phase per ${RULES}/tdd.md: minimal code to flip the failing test(s) green. Do NOT edit the tests. Satisfy the full GREEN gate (whole suite green, zero new warnings, no debug residue, no untested branches) before returning. gateResult format: "Passed: N / Failed: 0".`}`,
+  { label: noTdd ? 'author' : 'green', phase: 'GREEN', schema: IMPL_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
+if (!green) throw new Error(`${noTdd ? 'AUTHOR' : 'GREEN'} implementer died`)
+log(`${noTdd ? 'AUTHOR' : 'GREEN'}: ${green.gateResult}`)
 
 // ---- REVIEW ⇄ REFACTOR ----
 const reviewLog = []
@@ -198,12 +217,14 @@ for (let pass = 1; pass <= MAX_REVIEW_PASSES && !approved; pass++) {
 
   const review = await agent(`${COMMON}
 You are the independent REVIEW gate (pass ${pass}) for cycle ${A.cycle}. Apply ${RULES}/review-checklist.md to the diff.
-Files to review: ${JSON.stringify(lastReport.filesTouched)} plus tests ${JSON.stringify(red.testFiles)}
+Files to review: ${JSON.stringify(lastReport.filesTouched)}${testFiles.length ? ` plus tests ${JSON.stringify(testFiles)}` : ''}
 Cycle spec: ${gate.specSummary}
 Locked decisions:
 ${lockedBlock}
 Implementer gate result: ${lastReport.gateResult} (command: ${lastReport.command})${guard}
-Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.`,
+${noTdd
+  ? `This is a no-tdd DOCUMENTATION cycle: there is no new test, so the fact-check IS the gate. Verify EVERY factual claim the diff asserts against current source — open the cited file, read the cited line. A claim you cannot verify against source is a BLOCKER, not a NIT, even when it reads plausibly. A stale cross-reference, a path that no longer resolves, or a cited line number that has moved is likewise a BLOCKER. Skip the test-coverage category and say so in skippedCategories.\n`
+  : ''}Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.`,
     { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.top })
   if (!review) throw new Error(`reviewer pass ${pass} died`)
   const blocking = review.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
@@ -259,7 +280,7 @@ if (securityTier) {
   for (let spass = 1; spass <= 2; spass++) {
     const sec = await agent(`${COMMON}
 SECURITY-TIER second-pass review (pass ${spass}) for cycle ${A.cycle} per ${RULES}/cycle-orchestration.md §Security tier. Review the diff against ${RULES}/review-checklist.md §Security plus threat-model completeness (attacker-can / mitigation-blocks / residual-risk).
-Files: ${JSON.stringify(lastReport.filesTouched)}; tests: ${JSON.stringify(red.testFiles)}; gate: ${lastReport.gateResult}.
+Files: ${JSON.stringify(lastReport.filesTouched)}; tests: ${JSON.stringify(testFiles)}; gate: ${lastReport.gateResult}.
 verdict=APPROVED only with zero BLOCKER/REFACTOR findings. You never edit files.`,
       { label: `security:pass-${spass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Security Reviewer', model: MODELS.top })
     if (!sec) throw new Error('security reviewer died')
@@ -289,7 +310,7 @@ Tests stay green. Return resolutions per finding. gateResult format "Passed: N /
 
 return {
   approved: true,
-  cycle: A.cycle, project: A.project, plan: A.plan, securityTier,
+  cycle: A.cycle, project: A.project, plan: A.plan, securityTier, noTdd,
   gate: { mode: gate.mode, specSummary: gate.specSummary },
   architectVerdict, red, green, refactors, reviewLog, hallucinationsRejected, securityReview,
   reviewerIdConvention: 'record reviewer-agent-id as wf:<runId>/review-pass-<N> (runId is in the Workflow tool result)',

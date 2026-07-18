@@ -21,7 +21,7 @@ Optional: `redRole` (default `Test Engineer`), `securityTier`, and runtime mappi
 
 Runtime adapters must reject unknown fields and require the following shapes:
 
-- Gate: `mode(required|deferred|none|missing)`, `specSummary`, `securityTier`, `lockedDecisions[]`, optional `reason` and `reviewer`.
+- Gate: `mode(required|deferred|none|missing)`, `specSummary`, `securityTier`, `noTdd`, `lockedDecisions[]`, optional `reason` and `reviewer`.
 - Architect verdict: `verdict(GO|NO-GO)`, `summary`, `lockedDecisions[]`.
 - RED: `testFiles[]`, `failingCommand`, `failureLine`, `gateResult`.
 - Implementation: `filesTouched[]`, `gateResult`, `command`, `deviations[{change,rationale}]`, optional `notes`.
@@ -38,20 +38,26 @@ Runtime adapters must reject unknown fields and require the following shapes:
 3. Derive the security tier from both input and the canonical trigger list. Stop with `security-tier-plan-mismatch` when security work is marked `none`.
 4. For `deferred`, load locked decisions from the referenced cycle note.
 5. For `required` or security-tier work not legitimately deferred, delegate the architecture gate at `top` capability. Stop with `architect-no-go` on `NO-GO`.
+6. Read the plan's `no-tdd` flag verbatim into `noTdd`. It is reported, never inferred from the spec.
 
 ### 2. RED
 
-Delegate the configured test-author role at `mid` capability. The test must fail for missing or incorrect behavior—not syntax, imports, or infrastructure—and return the exact failure line and command.
+Skipped entirely when `noTdd` is set: a documentation cycle has no behavior to drive a failing test from, and a test authored to fail on purpose passes the gate mechanically while asserting nothing. The review pass below carries the gate instead.
+
+Otherwise delegate the configured test-author role at `mid` capability. The test must fail for missing or incorrect behavior—not syntax, imports, or infrastructure—and return the exact failure line and command.
 
 ### 3. GREEN
 
 Delegate `greenRole` at `mid` capability. Implement the minimum behavior that satisfies the full GREEN gate. Return a gate result in `Passed: N / Failed: 0` form.
 
+When `noTdd` is set this is an AUTHOR pass instead: make only the documentation changes the spec calls for, verify every factual claim against current source before writing it, and let the source win over the spec's own description—recording the discrepancy rather than propagating it. Code and tests stay untouched, and the suite still runs so a stray edit cannot hide.
+
 ### 4. REVIEW and REFACTOR loop
 
 Run at most four review passes:
 
-1. Delegate a fresh `Code Reviewer` at `mid` capability with no write permission.
+1. Delegate a fresh `Code Reviewer` at `top` capability with no write permission. Every review pass runs at `top`; a cheaper reviewer is what the separation rule exists to prevent.
+   When `noTdd` is set, the reviewer runs as a source-verified fact-check: every claim the diff asserts is checked against the cited file and line, an unverifiable claim is a `BLOCKER` rather than a `NIT`, and the test-coverage category is recorded in `skippedCategories`.
 2. Derive approval mechanically: `APPROVED` is valid only when there are no `BLOCKER` or `REFACTOR` findings. Stop with `inconsistent-review-verdict` when the claimed verdict contradicts the finding list.
 3. Adversarially verify every blocking finding against actual repository state and the implementer's gate command. A finding is refuted only by hard evidence.
 4. Stop with `finding-verification-failed` if any finding verifier dies or returns no result; missing verification is never treated as refutation.
