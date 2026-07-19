@@ -39,7 +39,12 @@ const MODELS = { top: 'opus', mid: 'sonnet', ...(A.models || {}) }
 const RED_AGENT = A.redAgent || 'Test Engineer'
 const PLAN_PATH = `${A.projectPath}/docs/plan-${A.plan}.yaml`
 const RULES = '.agents/rules'
-const MAX_REVIEW_PASSES = 4
+// 4 was too low for a large cycle. Cycle 8.3 (plan-008) converged 7 → 5 → 2 → 2 blocking
+// findings across four passes with zero hallucinations rejected, then halted on the cap with two
+// documentation findings outstanding — a stop that read as "reviewer dispute" when the cycle was
+// plainly still converging. Raise the ceiling rather than teach the orchestrator to override the
+// stop condition, and let the caller lower it for small cycles.
+const MAX_REVIEW_PASSES = A.maxReviewPasses || 6
 
 const COMMON = `Project: ${A.project}. Working dir is the repo root.
 Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), the nearest local guide under ${A.projectPath} (AGENTS.md preferred; legacy CLAUDE.md allowed), ${RULES}/tdd.md, ${RULES}/cycle-orchestration.md §Subagent prompt skeleton.

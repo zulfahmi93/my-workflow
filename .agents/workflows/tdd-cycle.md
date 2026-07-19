@@ -6,7 +6,7 @@ Canonical vendor-neutral contract for one plan-driven cycle. Runtime adapters im
 
 Required: `project`, `projectPath`, `plan`, `cycle`, `greenRole`.
 
-Optional: `redRole` (default `Test Engineer`), `securityTier`, runtime mappings for semantic model tiers (`top`, `mid`), and `notice` — extra text appended to every delegate's preamble.
+Optional: `redRole` (default `Test Engineer`), `securityTier`, `maxReviewPasses` (default 6), runtime mappings for semantic model tiers (`top`, `mid`), and `notice` — extra text appended to every delegate's preamble.
 
 `notice` exists for isolation: when `projectPath` points at a git worktree rather than the project's primary checkout, every delegate must be told so explicitly. A delegate that edits the primary checkout out of habit corrupts a tree the cycle does not own, and the mistake surfaces only at integration.
 
@@ -56,7 +56,7 @@ When `noTdd` is set this is an AUTHOR pass instead: make only the documentation 
 
 ### 4. REVIEW and REFACTOR loop
 
-Run at most four review passes:
+Run at most `maxReviewPasses` review passes (default 6). Four proved too low for a large cycle: one converged 7 → 5 → 2 → 2 blocking findings with zero refutations and then halted on the cap with documentation findings still open, which reads as a reviewer dispute when the cycle is plainly still converging.
 
 1. Delegate a fresh `Code Reviewer` at `top` capability with no write permission. Every review pass runs at `top`; a cheaper reviewer is what the separation rule exists to prevent.
    When `noTdd` is set, the reviewer runs as a source-verified fact-check: every claim the diff asserts is checked against the cited file and line, an unverifiable claim is a `BLOCKER` rather than a `NIT`, and the test-coverage category is recorded in `skippedCategories`.
@@ -67,7 +67,7 @@ Run at most four review passes:
 6. If all blocking findings are refuted, run a fresh review pass without changing code.
 7. Otherwise delegate `greenRole` to resolve every confirmed finding, rerun the gate, record one resolution per finding, and loop.
 
-Stop with `review-not-approved` if four passes do not reach approval.
+Stop with `review-not-approved` if that many passes do not reach approval.
 
 ### 5. Security review
 
