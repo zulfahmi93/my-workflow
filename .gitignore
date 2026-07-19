@@ -31,3 +31,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Session scratchpad leaked into the repo. The scratchpad lives at an ABSOLUTE path under
+# /private/tmp/claude-501/, but a tool invoked with the leading slash dropped writes a literal
+# `private/tmp/...` tree inside the repo root instead. Commit dd57513 swept 36 such generated
+# files (19,610 lines) in via a `git add -A` that ran in the wrong working directory.
+/private/
