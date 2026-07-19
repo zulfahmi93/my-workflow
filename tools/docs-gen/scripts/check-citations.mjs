@@ -26,7 +26,12 @@ import { join, resolve, basename, extname } from 'node:path'
 const SCAN_EXT = new Set(['.md', '.yaml', '.yml'])
 // Extensions worth resolving. A bare `foo.dart:12` is a citation; `1.2:` in prose is not.
 const CITED_EXT = new Set(['.dart', '.rs', '.md', '.yaml', '.yml', '.kts', '.xml', '.plist', '.json', '.mjs', '.js', '.py', '.sh'])
-const SKIP_DIR = new Set(['node_modules', '.git', 'html', 'build', '.dart_tool', 'ios', 'android', 'private'])
+// Directories not worth SCANNING for citations. They are still INDEXED as citation targets —
+// docs legitimately cite android/app/build.gradle.kts and ios/Runner/Info.plist, and skipping
+// them at index time reported real files as UNRESOLVED, which is a false positive that
+// devalues the whole report.
+const SKIP_SCAN = new Set(['node_modules', '.git', 'html', 'build', '.dart_tool', 'private'])
+const SKIP_INDEX = new Set(['node_modules', '.git', 'html', 'build', '.dart_tool', 'private'])
 
 // `docs/adr/0015-x.md:120-140` or `system.rs:274`. Requires an extension so plan ids and
 // cycle numbers ("plan-008.yaml" is fine, "8.3:" is not) cannot masquerade as citations.
@@ -49,7 +54,7 @@ if (!targets.length) {
 function walk(p, out = []) {
   const st = statSync(p)
   if (st.isDirectory()) {
-    if (SKIP_DIR.has(basename(p))) return out
+    if (SKIP_SCAN.has(basename(p))) return out
     for (const e of readdirSync(p)) walk(join(p, e), out)
   } else if (SCAN_EXT.has(extname(p))) {
     out.push(p)
@@ -64,7 +69,7 @@ function index(dir) {
   let entries
   try { entries = readdirSync(dir) } catch { return }
   for (const e of entries) {
-    if (SKIP_DIR.has(e)) continue
+    if (SKIP_INDEX.has(e)) continue
     const p = join(dir, e)
     let st
     try { st = statSync(p) } catch { continue }
