@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-007 — Overview</title>
+<meta name="description" content="Replace the first-load-only count-up ramp with a faithful SwiftUI `.contentTransition(.numericText())` morph that fires on EVERY value change, applied to every live numeric readout in the app. The motion is decoded FROM PIXELS (a 169-frame frame-by-frame capture, `docs/rnd/swiftui-numerictext-animation/`): each changed glyph column does blur + scale + downward slide + asymmetric cross-fade, digits resolve left-to-right (a stagger), and the number width reflows on a digit-count change. Built as one reusable primitive over THREE cycles — 7.1 a pure-Dart right-aligned glyph-diff (`lib/core/numeric_transition.dart`, unit-tested), 7.2 the `AnimatedNumericText` core roll (drift+scale+fade+stagger, saveLayer-free at rest), 7.2b its blur + animated reflow + perf tiering — then adopted across all five numeric surfaces over four cycles (7.3 SpeedTwin, retiring the old `CountUpText`; 7.4 BatteryTile; 7.5 DataUsageSection; 7.6 FooterTriplet + SpeedHistoryChart). The enter-live '0'-baseline count-up hack is removed. ZERO new pubspec deps.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-007</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html" aria-current="page">Overview</a>
+      <a class="navlink" href="plan.html">Cycles</a>
+      <a class="navlink" href="batches.html">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">Build plan 007</p>
+    <h1>u60-monitor — Numeric-text content transitions (plan-007)</h1>
+    <p class="lede">Replace the first-load-only count-up ramp with a faithful SwiftUI <code>.contentTransition(.numericText())</code> morph that fires on EVERY value change, applied to every live numeric readout in the app. The motion is decoded FROM PIXELS (a 169-frame frame-by-frame capture, <code>docs/rnd/swiftui-numerictext-animation/</code>): each changed glyph column does blur + scale + downward slide + asymmetric cross-fade, digits resolve left-to-right (a stagger), and the number width reflows on a digit-count change. Built as one reusable primitive over THREE cycles — 7.1 a pure-Dart right-aligned glyph-diff (<code>lib/core/numeric_transition.dart</code>, unit-tested), 7.2 the <code>AnimatedNumericText</code> core roll (drift+scale+fade+stagger, saveLayer-free at rest), 7.2b its blur + animated reflow + perf tiering — then adopted across all five numeric surfaces over four cycles (7.3 SpeedTwin, retiring the old <code>CountUpText</code>; 7.4 BatteryTile; 7.5 DataUsageSection; 7.6 FooterTriplet + SpeedHistoryChart). The enter-live ‘0’-baseline count-up hack is removed. ZERO new pubspec deps.</p>
+    <div class="hero-meta">
+      <span><b>10</b> TDD cycles</span>
+      <span><b>3</b> parallel batches</span>
+      <span><b>Low–moderate. The serial spine is 7.1 → 7.2 → 7.3 (each depends on the prior). The three remaining adoptions (7.4, 7.5, 7.6) depend only on 7.2 and are file-disjoint, so they COULD parallelise in worktrees — but the run executes them SEQUENTIALLY on main because each cycle's full `flutter test` gate is cross-attributable in a shared tree (the plan-004/005 lesson). One commit per cycle.</b> wall-time saved</span>
+      <span><b>10 / 10</b> shipped</span>
+    </div>
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#context">Context</a></li>
+      <li><a href="#stack">Stack</a></li>
+      <li><a href="#tdd-cycle-format">TDD cycle format</a></li>
+      <li><a href="#numeric-surface-inventory">Numeric-surface inventory — the &quot;ALL numeric texts&quot; map</a></li>
+      <li><a href="#security-ruling">Security-tier ruling</a></li>
+      <li><a href="#motion-spec">Motion spec (architect-locked at 7.1) — FRAME-ACCURATE from the 169-frame capture</a></li>
+      <li><a href="#out-of-scope">Out of scope (plan-007)</a></li>
+      <li><a href="#standing-invariants">Standing invariants preserved</a></li>
+      <li><a href="#dag">Cycle dependencies</a></li>
+      <li><a href="#timeline">Batch timeline</a></li>
+      <li><a href="#progress">Progress</a></li>
+      <li><a href="#read-next">Read next</a></li>
+      <li><a href="#conventions">Conventions</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+
+    <section id="context" class="section">
+      <h2>Context</h2>
+      <p><strong>What the user asked for.</strong> Today the DL/UL speed numerals “animate” only once — on entering the live state, a count-up ramp scans from <code>0</code> to the first value (the <code>CountUpText</code> widget + a post-frame <code>'0'</code>-priming trick in <code>SpeedTwin</code>). Live→live ticks then <strong>snap</strong> with no motion, and no other number in the app animates at all. The request: give every numeric readout a SwiftUI <code>.contentTransition(.numericText())</code>-style transition — a per-digit morph that fires on <strong>every</strong> value change, not just first load — and apply it to <strong>all</strong> numeric texts in the app.</p>
+<p><strong>What that means concretely — decoded from the actual pixels.</strong> An earlier attempt to spec this from web docs got the motion wrong twice (it landed on a plain “odometer slide + fade” and then explicitly dropped blur/scale/width). A frame-by-frame decode of the real effect (169 captured frames, see §Motion spec) is authoritative and shows a RICHER, layered per-column transition: a changed glyph column plays <strong>gaussian blur</strong> (heavy at mid-transit, sharp at rest) + <strong>scale</strong> (incoming grows 0.6→1.0, outgoing shrinks) + a <strong>downward vertical slide</strong> (new glyph enters from ABOVE, old exits BELOW — a FIXED direction, the same for increases and decreases, NOT a value-driven odometer) + an <strong>asymmetric cross-fade</strong> (outgoing gone by ~65 % t); changed columns resolve <strong>left-to-right (a stagger)</strong>; and the number <strong>width reflows</strong> over ~3–4 frames on a digit-count change. Unchanged columns stay frozen-sharp. It remains a <strong>presentation</strong> effect: the value passed in is unchanged, the exact target string always settles on screen, Semantics announces the raw value, reduced-motion is honoured — the same discipline <code>CountUpText</code> followed; plan-007 only changes the <em>motion</em>.</p>
+<p><strong>The shape of the work.</strong> One reusable primitive, then adoption:</p>
+<ol>
+<li><strong>The glyph-diff is pure logic</strong> and belongs in <code>lib/core/</code> beside <code>sparkline_geometry.dart</code> / <code>format.dart</code> — a right-aligned column diff of two strings returning, per NEW-string glyph column, the old glyph (or null if the number grew), a changed flag, and an overall roll direction (<code>+1</code> / <code>-1</code> / <code>0</code>) from a numeric compare. Pure Dart, no <code>flutter</code> import, fully unit-testable (the triangle: equal, single-digit change, grow, shrink, decimals, minus sign, non-numeric placeholder, empty). → <strong>Cycle 7.1</strong> (<code>lib/core</code>, arch-gated).</li>
+<li><strong>The widget, split into a cheap core + a perf-sensitive polish.</strong> <strong>7.2</strong> builds the <code>AnimatedNumericText</code> CORE roll off ONE shared <code>AnimationController</code>: per changed column a <code>Stack(outgoing, incoming)</code> doing the fixed top-enter/bottom-exit drift + scale + asymmetric color-alpha cross-fade, with a left-to-right stagger; unchanged columns stay static; at rest / under reduced motion it collapses to a single <code>Text</code> (zero saveLayer). <strong>7.2b</strong> adds the two saveLayer-bearing, on-device-tuned effects the frames prove real but that cost GPU at 1 Hz: the <strong>gaussian blur</strong> (cell-level <code>ImageFiltered</code>, gated on <code>isAnimating</code>, capped sigma, kill-switch) and the <strong>animated width reflow</strong> (FittedBox-safe, controller-driven), plus the perf tiering. Splitting them lets 7.3’s SpeedTwin adoption land on the cheap core first and gate blur behind the tiering decision. → <strong>Cycles 7.2 + 7.2b</strong> (<code>lib/ui</code>, arch deferred to 7.1). See §Motion spec.</li>
+<li><strong>Adoption, one surface per cycle</strong>, wrapping every live number in the primitive and (7.3) retiring <code>CountUpText</code>: <strong>7.3</strong> SpeedTwin (whole + fraction, drop the <code>'0'</code>-prime count-up hack), <strong>7.4</strong> BatteryTile (SoC %, CAP %), <strong>7.5</strong> DataUsageSection (used hero, percent, OF-caption, ▼rx ▲tx split, resets-day), <strong>7.6</strong> FooterTriplet (CLIENTS count, −dBm, uptime) + SpeedHistoryChart (PEAK value, elapsed window). See §Numeric-surface inventory for the exhaustive map that satisfies the “ALL numeric texts” requirement.</li>
+</ol>
+<p><strong>Why a new primitive and not an extension of <code>CountUpText</code>.</strong> <code>CountUpText</code> interpolates the <em>numeric value</em> (a tween from → to, re-rendered each frame via <code>toStringAsFixed</code>). The morph interpolates <em>glyph positions + blur/scale/opacity</em>, not the value — a categorically different mechanism. Bolting per-glyph motion onto the value-tween would be two animation models in one widget. The clean move is a purpose-built primitive; <code>CountUpText</code>’s sole caller is <code>SpeedTwin</code>, so 7.3 migrates it and deletes <code>CountUpText</code> (no dead code — review-checklist §Clarity).</p>
+<p><strong>Boundary honoured throughout.</strong> <code>lib/core/numeric_transition.dart</code> (7.1) is pure Dart — a <code>flutter</code>/<code>material</code>/<code>dart:ui</code> import there is an instant review BLOCKER. Formatting stays where it is (<code>splitRate</code> / <code>formatBytes</code> / <code>formatUptime</code> in <code>lib/core/format.dart</code> + <code>device_snapshot.dart</code>); the primitive animates the already-formatted string and never re-formats. ZERO new pubspec deps — the effect is built entirely from framework primitives already available: <code>AnimationController</code>, <code>Transform.translate</code> / <code>Transform.scale</code>, <code>ImageFiltered</code> + <code>ImageFilter.blur</code>, <code>ClipRect</code>, <code>Stack</code>, <code>RepaintBoundary</code>, plus <code>AnimatedSwitcher</code> for the neutral cross-fade only.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="stack" class="section">
+      <h2>Stack</h2>
+      <p>Unchanged platform (plan-001→006). One new pure-Dart core file + one new UI widget; the remaining cycles edit existing widgets. <strong>ZERO new pubspec deps.</strong></p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Layer</th>
+<th>Tech</th>
+<th>Touched by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core (pure Dart, <code>lib/core/</code>)</td>
+<td>Dart, no <code>flutter</code>/<code>material</code>/<code>dart:ui</code></td>
+<td>7.1 <code>numeric_transition.dart</code> (glyph diff)</td>
+</tr>
+<tr>
+<td>UI (<code>lib/ui/</code>)</td>
+<td>Flutter — <code>AnimationController</code>, <code>Transform.translate</code>/<code>Transform.scale</code>, <code>ImageFiltered</code>/<code>ImageFilter.blur</code>, <code>ClipRect</code>, <code>Stack</code>, <code>RepaintBoundary</code>, <code>FontFeature.tabularFigures</code>; <code>AnimatedSwitcher</code> (neutral cross-fade only)</td>
+<td>7.2 <code>animated_numeric_text.dart</code> core (new); 7.2b same file (blur + reflow); 7.3 <code>speed_twin.dart</code> + <code>motion.dart</code> (retire <code>CountUpText</code>); 7.4 <code>battery_tile.dart</code>; 7.5 <code>data_usage_section.dart</code>; 7.6 <code>footer_triplet.dart</code> + <code>speed_history_chart.dart</code></td>
+</tr>
+<tr>
+<td>Tests</td>
+<td><code>flutter_test</code>, <code>MediaQuery.disableAnimations</code>, <code>hasRunningAnimations</code></td>
+<td>one test file per cycle</td>
+</tr>
+</tbody>
+</table></div>
+<p>The pure-Dart <code>lib/core</code> boundary stands: a <code>flutter</code>/<code>material</code>/<code>dart:ui</code> import under <code>lib/core/</code> (7.1) is an instant review BLOCKER. Tabular figures already ship on the editorial display/headline styles (<code>theme.dart</code> <code>_editorialTextTheme</code>) and on the SpeedTwin whole-part style — the primitive must PRESERVE that feature, never strip it, so digit columns stay fixed-width mid-roll.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="tdd-cycle-format" class="section">
+      <h2>TDD cycle format</h2>
+      <p>See <code>.claude/rules/cycle-orchestration.md</code> (paired with <code>tdd.md</code> + <code>commit.md</code>). Reviewer separation, architect gate, NO-DEFER, subagent prompt skeleton, reviewer hallucination guard — unchanged. <strong>Architecture-review value on every cycle is mandatory</strong> (missing field → STOP).</p>
+<pre><code>CYCLE X.Y — [behaviour name]
+RED      (Model - Agent):          exact failing test assertions
+GREEN    (Model - Agent):          minimal code to pass
+REVIEW   (Model - code-reviewer):  issues list; never writes code
+REFACTOR (Model - Agent):          domain expert applies review feedback
+</code></pre>
+<p><strong>Model rules</strong> (standing project directive — overrides the default tier map: <strong>architect gates + REVIEW use <code>opus</code>; RED/GREEN/REFACTOR default <code>sonnet</code>; never <code>haiku</code></strong>):</p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Cycle kind</th>
+<th>RED</th>
+<th>GREEN</th>
+<th>REVIEW</th>
+<th>REFACTOR</th>
+<th>Security 2nd pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Primitive (7.1 core diff, 7.2 core roll, 7.2b blur+reflow)</td>
+<td><code>sonnet</code></td>
+<td><code>sonnet</code></td>
+<td><code>opus</code></td>
+<td><code>sonnet</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Adoption (7.3–7.6)</td>
+<td><code>sonnet</code></td>
+<td><code>sonnet</code></td>
+<td><code>opus</code></td>
+<td><code>sonnet</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>No cycle in plan-007 is security-tier (all presentation; no auth/secret/injection surface — see §Security-tier ruling), so no <code>security-reviewer</code> second pass. 7.1 still takes a top-tier (<code>opus</code>) architect gate because it introduces a NEW cross-cutting UI primitive with a per-tick animation cost — a genuine design decision, not the reuse-an-existing-helper case that made plan-006’s fixes <code>none</code>.</p>
+<p><strong>Agent roles:</strong></p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Agent</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>software-architect</code></td>
+<td>Architecture gate on 7.1 (<code>opus</code>) — locks the whole feature design; never RED/GREEN</td>
+</tr>
+<tr>
+<td><code>flutter-expert</code></td>
+<td>Dart core + Flutter UI + tests — RED, GREEN, REFACTOR (all cycles)</td>
+</tr>
+<tr>
+<td><code>code-reviewer</code></td>
+<td>REVIEW only (<code>opus</code>) — identifies issues, never writes code</td>
+</tr>
+<tr>
+<td><code>uiux-expert</code></td>
+<td>Consulted (not gating) on 7.2 for the roll direction / duration / distance feel; the <code>frontend-design</code> skill informs the motion spec</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Execution note.</strong> These cycles run via the <code>.claude/workflows/tdd-cycle.js</code> workflow (schema-validated verdicts; reviewer separation enforced; commits stay with the orchestrator). Reviewer-agent-id per pass is recorded as <code>wf:&lt;runId&gt;/review-pass-&lt;N&gt;</code>.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="numeric-surface-inventory" class="section">
+      <h2>Numeric-surface inventory — the "ALL numeric texts" map</h2>
+      <p>Every live numeric readout in the app, the widget it lives in, and the cycle that wraps it in <code>AnimatedNumericText</code>. Verified against source at plan-006 HEAD <code>7d07c98</code>. This table is the completeness contract for the user’s “MUST apply to all numeric texts” requirement — REVIEW on the final adoption cycle (7.6) checks it is exhaustive.</p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Surface</th>
+<th>File</th>
+<th>Numeric text(s)</th>
+<th>Style run</th>
+<th>Cycle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed DL/UL whole</td>
+<td><code>speed_twin.dart</code></td>
+<td><code>142</code>, <code>23</code> (66 px, tabular)</td>
+<td>own instance</td>
+<td>7.3</td>
+</tr>
+<tr>
+<td>Speed DL/UL fraction</td>
+<td><code>speed_twin.dart</code></td>
+<td><code>.3</code>, <code>.8</code> (27 px)</td>
+<td>own instance (different size → separate run)</td>
+<td>7.3</td>
+</tr>
+<tr>
+<td>Battery SoC</td>
+<td><code>battery_tile.dart</code></td>
+<td><code>${capacityPct}</code> (44 px)</td>
+<td>number-only, <code>%</code> static sibling</td>
+<td>7.4</td>
+</tr>
+<tr>
+<td>Battery charge cap</td>
+<td><code>battery_tile.dart</code></td>
+<td><code>CAP ${chargeLimitPct}%</code> caption</td>
+<td>whole caption string</td>
+<td>7.4</td>
+</tr>
+<tr>
+<td>Data used hero</td>
+<td><code>data_usage_section.dart</code></td>
+<td><code>${formatBytes(used)}</code> value (44 px)</td>
+<td>number-only, unit static sibling</td>
+<td>7.5</td>
+</tr>
+<tr>
+<td>Data percent</td>
+<td><code>data_usage_section.dart</code></td>
+<td><code>${percent}%</code> (20 px)</td>
+<td>whole string (<code>%</code> trailing static glyph)</td>
+<td>7.5</td>
+</tr>
+<tr>
+<td>Data OF-caption</td>
+<td><code>data_usage_section.dart</code></td>
+<td><code>OF ${formatBytes(limit)}</code></td>
+<td>whole caption string</td>
+<td>7.5</td>
+</tr>
+<tr>
+<td>Data split line</td>
+<td><code>data_usage_section.dart</code></td>
+<td><code>▼ ${formatBytes(rx)}  ▲ ${formatBytes(tx)}</code></td>
+<td>each byte value its own instance</td>
+<td>7.5</td>
+</tr>
+<tr>
+<td>Data reset-day</td>
+<td><code>data_usage_section.dart</code></td>
+<td><code>resets day ${clearDay}</code></td>
+<td>whole caption string</td>
+<td>7.5</td>
+</tr>
+<tr>
+<td>Clients count</td>
+<td><code>footer_triplet.dart</code></td>
+<td><code>${clients.count}</code></td>
+<td>number-only</td>
+<td>7.6</td>
+</tr>
+<tr>
+<td>Network signal</td>
+<td><code>footer_triplet.dart</code></td>
+<td><code>−${rsrp} dBm</code> detail</td>
+<td>whole detail string</td>
+<td>7.6</td>
+</tr>
+<tr>
+<td>Uptime</td>
+<td><code>footer_triplet.dart</code></td>
+<td><code>formatUptime(uptimeSecs)</code> (e.g. <code>3d 4h</code>)</td>
+<td>whole string (mixed digit/letter columns)</td>
+<td>7.6</td>
+</tr>
+<tr>
+<td>Chart PEAK</td>
+<td><code>speed_history_chart.dart</code></td>
+<td><code>PEAK ${whole}${frac} ${unit}</code> value</td>
+<td>value run (label <code>PEAK</code> static)</td>
+<td>7.6</td>
+</tr>
+<tr>
+<td>Chart elapsed</td>
+<td><code>speed_history_chart.dart</code></td>
+<td><code>−${m}:${ss}</code> window</td>
+<td>whole string</td>
+<td>7.6</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Deliberately NOT animated (with reason):</strong> the static uppercase labels (<code>U60</code>/<code>MONITOR</code>, <code>DOWNLOAD</code>/<code>UPLOAD</code>, <code>THROUGHPUT</code>/<code>NOW</code>, section eyebrows), the freshness dot/label (its own breathing/pulse motion, cycle 4.4 — untouched), and unit suffixes rendered as static siblings (<code>%</code>, <code>Mbps</code>, <code>GiB</code>) — these change tier only rarely and are not “numbers” rolling per tick. The em-dash / <code>—</code> placeholder and “collecting…” states are non-numeric: the primitive cross-fades on the numeric↔placeholder boundary rather than rolling (no digits to align). Where a unit sits INSIDE a single Text with its digits (percent <code>254%</code>, PEAK, uptime, dBm), the whole string is passed and the trailing letters ride as static glyph columns.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="security-ruling" class="section">
+      <h2>Security-tier ruling</h2>
+      <p><strong>No cycle in plan-007 is security-tier.</strong> Every cycle is presentation-only: a pure string→glyph-diff (7.1) and Flutter animation widgets (7.2–7.6). None touches authentication, secrets, cryptography, untrusted-input parsing into an injection sink, file upload, multi-tenant isolation, webhook signatures, or any LLM surface — none of the <code>.claude/rules/cycle-orchestration.md</code> §Security-tier list. The animated value is an already-formatted display string produced by the existing (already-reviewed) core formatters; the primitive never re-parses network input, never touches the token/secret path, and adds no I/O.</p>
+<p>7.1 still carries a top-tier (<code>opus</code>) <strong>architect gate</strong> — but as a QUALITY decision (a new cross-cutting primitive + a per-tick animation cost + an ADR), not a security requirement. This is the honest distinction from plan-006, whose fixes were <code>none</code> because they reused an existing reviewed helper; 7.1 introduces new logic + a new animation model, so it earns a gate. 7.2 defers to that verdict; 7.3–7.6 are <code>none</code> (mechanical adoption of the reviewed primitive).</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="motion-spec" class="section">
+      <h2>Motion spec (architect-locked at 7.1) — FRAME-ACCURATE from the 169-frame capture</h2>
+      <blockquote>
+<p><strong>Retention note (2026-07-19):</strong> <code>docs/rnd/swiftui-numerictext-animation/</code> now holds only the <strong>14 frames cited as exhibits</strong> below and in ADR-0014 (42–45, 70–71, 75, 103–104, 124–125, 144–146). The other 155 were pruned when the folder was brought under version control, and no copy survives. The decode described here was performed over the full 169 and its conclusions stand; it simply can no longer be re-derived from this repo. See §Open questions on the roll-direction item, which this forecloses.</p>
+<p><strong>This REPLACES the earlier web-doc-derived spec</strong> (and its “odometer” successor). A frame-by-frame decode of Apple’s <code>Text(n).contentTransition(.numericText())</code> — 169 frames @ 0.03 s in <code>docs/rnd/swiftui-numerictext-animation/</code>, workflow wf_41da3e60-cd6 — is authoritative and proves the prior locks wrong on FOUR points: <strong>blur, glyph scale, and animated width-flow are all REAL and present, and the roll is a FIXED top-enter/bottom-exit, not a value-direction odometer.</strong> The effect is a per-column <strong>blur + scale + asymmetric opacity cross-fade with a downward slide and animated width reflow</strong>, staggered left-to-right — not a plain slide+fade. Proof it is intrinsic (not GIF/capture blur): in the SAME frame the settled sibling digit and the razor-sharp blue reference button stay crisp while only the transiting column is smeared (frames 42–45, 75, 103, 124–125, 144–146). ADR-0014 is authored to match. The build splits: <strong>7.2</strong> = the core roll (drift + scale + fade + stagger, saveLayer-free at rest); <strong>7.2b</strong> = blur + animated reflow + perf tiering (the saveLayer-bearing, on-device-tuned half).</p>
+</blockquote>
+<h3 id="controller-architecture" tabindex="-1">Controller architecture</h3>
+<ul>
+<li><strong>One <code>AnimationController</code> per <code>AnimatedNumericText</code> instance</strong> (<code>SingleTickerProviderStateMixin</code>), <strong>~300 ms</strong>, base <code>easeOutCubic</code>. Every layer — per-column drift, scale, opacity, the stagger, the blur sigma, the reflow width — reads from this ONE clock (one dispose, one <code>hasRunningAnimations</code>, deterministic <code>pumpAndSettle</code>).</li>
+<li><strong>Left-to-right stagger:</strong> changed column <em>i</em> (counting changed columns from the LEFT) gets <code>CurvedAnimation(Interval(i*0.12, min(1, i*0.12+0.7), easeOutCubic))</code> → the observed ~3–5-frame (90–150 ms) cascade; the leftmost changed digit settles first (transient reads like <code>31</code> during 71→37, <code>47</code> during 37→4).</li>
+<li><strong>At rest / reduced motion:</strong> a single plain <code>Text(value)</code> — no Stack, no clip, no blur, no saveLayer (the perf floor; ~700 ms of every second on the DL/UL twin).</li>
+<li><code>AnimatedSwitcher</code> retained ONLY for <code>direction == 0</code> (<code>—</code>↔value, empty, mixed <code>3d 4h</code>) whole-string cross-fade (no slide/scale/blur).</li>
+</ul>
+<h3 id="compositing-order-outer-inner-one-changed-cell" tabindex="-1">Compositing order (outer→inner, one changed cell)</h3>
+<ul>
+<li><strong>RepaintBoundary</strong> [whole number] → <strong>Semantics(label:value)+ExcludeSemantics</strong> → <strong>Row(mainAxisSize.min, centerLeft)</strong> of columns (unchanged = plain <code>Text</code>; changed = cell) → <strong>row-level ClipRect</strong> with vertical slack (NOT per-glyph — <code>height:0.82</code> on the 66 px style crops ascenders) → per changed cell: <strong>SizedBox</strong>(tabular advance × full line box) → <strong>ImageFiltered blur</strong> (7.2b, gated on <code>isAnimating</code>) → <strong>Stack</strong>(outgoing, incoming) → per glyph: <strong>Transform.translate</strong> (drift) → <strong>Transform.scale</strong> → <strong>color-alpha fade</strong> (Text color opacity, NOT an <code>Opacity</code> widget — no per-glyph saveLayer) → <strong>Text</strong>.</li>
+</ul>
+<h3 id="direction-geometry-corrected-fixed-top-enter-not-a-value-odometer" tabindex="-1">Direction geometry (CORRECTED — fixed top-enter, NOT a value odometer)</h3>
+<ul>
+<li><strong>New glyph enters from ABOVE, old glyph exits BELOW — on BOTH increases and decreases.</strong> Every transition in the capture (increase 0→149, 56→76; decreases 149→59, 76→71, 71→37) is top-down. Do NOT flip by value sign — the prior “increase = both up / decrease = both down” odometer is contradicted by the frames.</li>
+<li>Incoming <code>dy: −0.55 → 0</code> (cell heights, easeOut); outgoing <code>dy: 0 → +0.55</code> (easeOut). The 7.1 <code>direction ∈ {+1,−1,0}</code> is still computed (it drives the neutral <code>0</code> cross-fade) but does NOT set the slide axis.</li>
+</ul>
+<h3 id="scale-7-2-build-it" tabindex="-1">Scale (7.2, BUILD IT)</h3>
+<ul>
+<li>Incoming glyph <code>scale 0.6 → 1.0</code>; outgoing <code>scale 1.0 → 0.55</code>. <code>Transform.scale</code> off the same column sub-animation, composed with the drift. The frames show incoming digits entering visibly small-and-high, then growing down into the cell (frames 42, 44, 45, 70–71, 103–104, 144–145).</li>
+</ul>
+<h3 id="offset-opacity-kinematics-7-2" tabindex="-1">Offset + opacity kinematics (7.2)</h3>
+<ul>
+<li>Position <code>easeOutCubic</code>. Opacity ASYMMETRIC: incoming <code>0 → 1</code> over full t; outgoing <code>1 → 0</code> gone by <strong>~65 % t</strong> (the exiting glyph is gone before the overlap peak — no muddy double-exposure). Fade via <strong>Text color-alpha</strong>, never an <code>Opacity</code> widget (no per-glyph saveLayer). This asymmetry is the one thing the prior spec had right.</li>
+</ul>
+<h3 id="blur-7-2b-build-it-the-signature-more" tabindex="-1">Blur (7.2b, BUILD IT — the signature “more”)</h3>
+<ul>
+<li>Heavy gaussian on the transiting glyph, <strong>peaking at mid-transit (t≈0.4–0.55), zero at both ends</strong> — <code>σ = peakSigma · sin(π·t)</code>. Near-isotropic with a mild vertical bias. Peak ≈ 4–8 px at 66 px (capped lower on the fast twin — see tiering).</li>
+<li>Applied <strong>once at the CELL level</strong> (wrapping the outgoing+incoming Stack, NOT per glyph): <code>ImageFiltered(imageFilter: ImageFilter.blur(sigmaX:σ, sigmaY:σ, tileMode: TileMode.decal))</code>, <strong>gated <code>enabled: _controller.isAnimating &amp;&amp; σ&gt;0.01</code></strong> so an idle number holds ZERO saveLayer. Force-off under reduced motion / the perf kill-switch. Paint-only — never participates in FittedBox measurement or tabular width.</li>
+</ul>
+<h3 id="width-reflow-7-2b-animate-it-fittedbox-safe" tabindex="-1">Width reflow (7.2b, ANIMATE IT — FittedBox-safe)</h3>
+<ul>
+<li>Digit-count changes reflow over <strong>~3–4 frames (~90–120 ms)</strong>, NOT a one-frame snap (0→149 widens, 149→59 narrows, 37→4 collapses — the width holds then lerps). Same-digit-count changes show NO width change (tabular holds advance constant).</li>
+<li>Drive the leading cell’s width off the same controller (grow <code>0→advance</code> / shrink <code>advance→0</code>), and <strong>reserve the FittedBox child constraint at the measured <code>max(from,to)</code> width</strong> so the FittedBox re-fits against a MONOTONE width and the settled digits never zoom/wobble. <strong>NEVER nest <code>AnimatedSize</code> inside the load-bearing <code>FittedBox(scaleDown)</code> guards</strong> (<code>speed_twin.dart</code> L333; <code>data_usage_section.dart</code> L297/L341/L388) — a per-frame-lerping child size makes the FittedBox re-fit every frame.</li>
+</ul>
+<h3 id="timing" tabindex="-1">Timing</h3>
+<ul>
+<li>Full onset→settle <strong>8–11 frames (~240–330 ms)</strong> for multi-digit / digit-count changes; <strong>5–7 frames (~150–210 ms)</strong> for a single glyph. Blur body ~5–7 frames. All &lt; the 1 s tick; a mid-roll change retargets (<code>forward(from:0)</code>).</li>
+</ul>
+<h3 id="width-stability" tabindex="-1">Width stability</h3>
+<ul>
+<li>The style <strong>MUST</strong> carry <code>FontFeature.tabularFigures()</code> (present on the surfaces that matter); the primitive forwards it verbatim. A non-tabular caller style makes the FittedBox rescale every frame → REVIEW note.</li>
+</ul>
+<h3 id="reduced-motion" tabindex="-1">Reduced motion</h3>
+<ul>
+<li><code>MediaQuery.disableAnimations</code> true → <code>build</code> returns plain <code>Text(value)</code>; <code>didUpdateWidget</code> sets <code>_controller.value = 1</code> (never <code>forward</code>) so no ticker starts and <code>hasRunningAnimations</code> stays false; <code>didChangeDependencies</code> snaps an in-flight controller to 1 on a runtime toggle. Blur force-off. Mirrors <code>StaleFade</code>/<code>CountUpText</code>. <strong>Do NOT</strong> use switcher-with-<code>Duration.zero</code> (a zero-duration controller can tick once → momentarily true). Final value always the exact string.</li>
+</ul>
+<h3 id="semantics" tabindex="-1">Semantics</h3>
+<ul>
+<li>Announce the final value once; <code>excludeSemantics</code> the glyph children (never per-frame glyph nodes or the transient stagger read). Under the surfaces’ composed <code>excludeSemantics</code> parents the primitive’s label is suppressed → no double-announce. Per-frame glyph exposure = BLOCKER a11y regression.</li>
+</ul>
+<h3 id="performance-tiering-blur-kept-but-bounded-the-user-decides-the-battery-fidelity-point" tabindex="-1">Performance tiering (blur KEPT but bounded — the user decides the battery/fidelity point)</h3>
+<ul>
+<li><strong>Slow surfaces (battery 5 s, clients 10 s, data 30 s, PEAK, uptime):</strong> FULL effect — blur + scale + drift + opacity + reflow. Concurrency ≈ 1 glyph, low cadence ⇒ ~free.</li>
+<li><strong>Fast 1 Hz DL/UL twin:</strong> scale + drift + asymmetric opacity + animated reflow run unconditionally (near-free — <code>Transform</code> + color-alpha, no extra layers). Blur ships <strong>cell-level, <code>enabled: isAnimating</code>, capped <code>blurSigma</code> (~3–4 px, exposed as a param), <code>TileMode.decal</code>, under the whole-number <code>RepaintBoundary</code></strong> — ~4 blurred cell-rasters for ~300 ms then plain <code>Text</code> for ~700 ms each second. A runtime kill-switch drops blur to 0 under battery-saver / sustained thermal / reduced-motion.</li>
+<li><strong>Honest cost:</strong> the dropped-frame risk is low (a 66 px σ≈4 gaussian on ~4 small cells fits the 16.6/8.3 ms budget); the real concern is THERMAL/BATTERY accumulation from a saveLayer+gaussian every second on an always-on tool. Bounded, not eliminated. The product call — default <code>blurSigma</code> on-capped vs off-with-flag on the twin — is an §Open question for the user + a thermal soak test.</li>
+<li>REVIEW gate: pump past duration → <code>hasRunningAnimations</code> false (deterministic under one controller); idle asserts ZERO saveLayer; no dropped frames on the changed flow; the animated reflow adds no overflow at 360 dp / 1.3×.</li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="out-of-scope" class="section">
+      <h2>Out of scope (plan-007)</h2>
+      <ul>
+<li><strong>On-device visual verification</strong> — a human deploy-pass (S22 Android + iPhone) confirming the morph reads well on real hardware at the real feed cadence. Automated gates run in-session; no agent drives a physical phone. Tracked, not a cycle.</li>
+<li><strong>Per-surface duration/curve tuning beyond the 7.1 lock</strong> — if the on-device pass wants a different feel per surface, that is a follow-up, not a re-architecture.</li>
+<li><strong>Animating non-numeric transitions</strong> (unit-tier swaps <code>Kbps</code>↔<code>Mbps</code>, charge-word changes, RAT-label changes) — out of scope; those stay instant. The primitive only rolls glyph columns of the passed string.</li>
+<li><strong>Chart trace animation</strong> — the sparkline path stays repaint-on-poll (ADR-0004); plan-007 animates text only, never the <code>CustomPainter</code> traces.</li>
+<li><strong>Any change to formatting, polling, or the core data model</strong> — plan-007 is skin-deep; it consumes the exact strings the formatters already produce.</li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="standing-invariants" class="section">
+      <h2>Standing invariants preserved</h2>
+      <ul>
+<li><strong>pure-Dart <code>lib/core</code> boundary</strong> upheld — 7.1’s <code>numeric_transition.dart</code> imports no <code>flutter</code>/<code>material</code>/<code>dart:ui</code>.</li>
+<li><strong>never-show-0 / last-known + stale</strong> honoured — the primitive animates whatever string it is given; <code>—</code> / placeholder states cross-fade, they never roll a fake <code>0</code>. The removed <code>'0'</code>-prime hack was the ONLY place a transient <code>0</code> appeared; deleting it makes the invariant cleaner, not weaker.</li>
+<li><strong>ADR-0009 per-tile freshness / ADR-0010 sticky footer</strong> UNTOUCHED — adoption wraps Text nodes in place; no layout, no stale-wiring, no footer-pin change. Adoption cycles must not grow a row’s height (tabular width-stability + same font size ⇒ same metrics) — REVIEW checks no new overflow at 1.3× text scale.</li>
+<li><strong>Reduced-motion respect</strong> — every animated surface already gates on <code>MediaQuery.disableAnimations</code>; the primitive centralises that, and adoption never introduces an un-gated animation.</li>
+<li><strong>Semantics composition</strong> (<code>excludeSemantics</code> composed labels on SpeedTwin / Battery / Data / Footer / Chart) — preserved verbatim; the primitive’s own Semantics sits UNDER those excluded parents, so nothing is announced twice.</li>
+<li><strong>no test weakening</strong> — 7.x cycles only ADD tests (and migrate <code>CountUpText</code>’s tests to the primitive in 7.3); no existing assertion is relaxed to fit the new motion.</li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="dag" class="section">
+      <h2>Cycle dependencies</h2>
+      <p>Each node is a cycle; an arrow means &ldquo;must ship first&rdquo;. The critical path is highlighted.</p>
+      <div class="figure">
+        <svg viewBox="0 0 1012 430" role="img" aria-labelledby="dag-t dag-d" font-size="13">
+    <title id="dag-t">Plan-007 cycle dependency graph</title>
+    <desc id="dag-d">Cycles laid out left to right by dependency depth. The critical path (7.1 → 7.2 → 7.2b → 7.3) is highlighted.</desc>
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <path d="M152 230 C 191 230, 191 230, 230 230" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M362 230 C 401 230, 401 90, 440 90" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M362 230 C 401 230, 401 160, 440 160" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M362 230 C 401 230, 401 230, 440 230" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M362 230 C 401 230, 401 300, 440 300" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M362 230 C 401 230, 401 370, 440 370" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M572 90 C 611 90, 611 195, 650 195" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M572 160 C 611 160, 611 265, 650 265" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M782 195 C 821 195, 821 230, 860 230" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/>
+    <g>
+        <rect x="20" y="205" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="86" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.1</text>
+        <text x="86" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="230" y="205" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="296" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.2</text>
+        <text x="296" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="440" y="65" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="506" y="86" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.2b</text>
+        <text x="506" y="102" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="440" y="135" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="506" y="156" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.3</text>
+        <text x="506" y="172" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="440" y="205" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="506" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.4</text>
+        <text x="506" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="440" y="275" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="506" y="296" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.5</text>
+        <text x="506" y="312" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="440" y="345" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="506" y="366" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.6</text>
+        <text x="506" y="382" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="650" y="170" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="716" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.7</text>
+        <text x="716" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="650" y="240" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="716" y="261" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.8</text>
+        <text x="716" y="277" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="860" y="205" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="926" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">7.9</text>
+        <text x="926" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g>
+  </svg>
+        <div class="legend">
+          <span><i class="sw crit"></i> critical path</span>
+          <span><i class="sw norm"></i> parallel-safe</span>
+          <span><i class="ln crit"></i> blocks (critical)</span>
+          <span><i class="ln"></i> blocks</span>
+        </div>
+        <p class="cap">Critical path: <b>7.1 → 7.2 → 7.2b → 7.3</b>.</p>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="timeline" class="section">
+      <h2>Batch timeline &amp; critical path</h2>
+      <p>Cycles within a batch are file-disjoint and run in parallel sessions. The critical path determines wall-time.</p>
+      <div class="figure">
+        <svg viewBox="0 0 760 300" role="img" aria-labelledby="tl-t tl-d" font-size="13">
+    <title id="tl-t">Plan-007 batch timeline</title>
+    <desc id="tl-d">3 batches over time; cycles within a batch run in parallel. Critical path: 7.1 → 7.2 → 7.2b → 7.3.</desc>
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <line x1="255" y1="64" x2="255" y2="264" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><line x1="505" y1="64" x2="505" y2="264" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><text x="130" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P7.A</text><text x="130" y="48" text-anchor="middle" class="dg-subtext" font-size="10">2–3 h · 3 parallel</text><g>
+          <rect x="20" y="88" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="36" y="111" class="dg-text" font-weight="700" font-size="12">7.1</text>
+          <text x="226" y="111" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="20" y="136" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="36" y="159" class="dg-text" font-weight="700" font-size="12">7.2</text>
+          <text x="226" y="159" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="20" y="184" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="36" y="207" class="dg-text" font-weight="700" font-size="12">7.2b</text>
+          <text x="226" y="207" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="380" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P7.B</text><text x="380" y="48" text-anchor="middle" class="dg-subtext" font-size="10">2–3.5 h · 4 parallel</text><g>
+          <rect x="270" y="64" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="286" y="87" class="dg-text" font-weight="700" font-size="12">7.3</text>
+          <text x="476" y="87" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="112" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="135" class="dg-text" font-weight="700" font-size="12">7.4</text>
+          <text x="476" y="135" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="160" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="183" class="dg-text" font-weight="700" font-size="12">7.5</text>
+          <text x="476" y="183" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="208" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="231" class="dg-text" font-weight="700" font-size="12">7.6</text>
+          <text x="476" y="231" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="630" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P7.C</text><text x="630" y="48" text-anchor="middle" class="dg-subtext" font-size="10">1.5–3 h · 3 parallel</text><g>
+          <rect x="520" y="88" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="536" y="111" class="dg-text" font-weight="700" font-size="12">7.7</text>
+          <text x="726" y="111" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="520" y="136" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="536" y="159" class="dg-text" font-weight="700" font-size="12">7.8</text>
+          <text x="726" y="159" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="520" y="184" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="536" y="207" class="dg-text" font-weight="700" font-size="12">7.9</text>
+          <text x="726" y="207" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><path d="M240 160 C 255 160, 255 160, 270 160" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><text x="380" y="288" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-size="11" font-weight="700">critical path · 7.1 → 7.2 → 7.2b → 7.3</text>
+  </svg>
+        <p class="cap">Critical path = <b>3 batches</b> vs <b>10 cycles</b> serial. <b>Low–moderate. The serial spine is 7.1 → 7.2 → 7.3 (each depends on the prior). The three remaining adoptions (7.4, 7.5, 7.6) depend only on 7.2 and are file-disjoint, so they COULD parallelise in worktrees — but the run executes them SEQUENTIALLY on main because each cycle's full `flutter test` gate is cross-attributable in a shared tree (the plan-004/005 lesson). One commit per cycle.</b> wall-time saved.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v">3</div><div class="k">Batches</div></div>
+        <div class="stat"><div class="v">10</div><div class="k">Cycles</div></div>
+        <div class="stat"><div class="v"><span class="accent">Low–moderate. The serial spine is 7.1 → 7.2 → 7.3 (each depends on the prior). The three remaining adoptions (7.4, 7.5, 7.6) depend only on 7.2 and are file-disjoint, so they COULD parallelise in worktrees — but the run executes them SEQUENTIALLY on main because each cycle's full `flutter test` gate is cross-attributable in a shared tree (the plan-004/005 lesson). One commit per cycle.</span></div><div class="k">Wall-time saved</div></div>
+        <div class="stat"><div class="v">4</div><div class="k">Critical-path hops</div></div>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="progress" class="section">
+      <h2>Progress</h2>
+      <p>Live status parsed from <code>plan-007.yaml</code>.</p>
+      <div class="panel">
+        <div class="dash">
+          <div class="donut-wrap" aria-hidden="true">
+            <svg width="200" height="200" viewBox="0 0 120 120" role="img" aria-label="Progress donut: 10 of 10 cycles done">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--surface-2)" stroke-width="14"/>
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="301.6 0.0" transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="donut-center">
+              <div class="big">10<span style="color:var(--ink-faint);font-size:1.4rem">/10</span></div>
+              <div class="small">Shipped</div>
+            </div>
+          </div>
+          <div class="dash-legend">
+            <div class="row"><span class="sw" style="background:var(--accent)"></span><span class="lbl">Shipped</span><span class="ct">10</span></div>
+            <div class="row"><span class="sw" style="background:var(--wip-fg)"></span><span class="lbl">In progress</span><span class="ct">0</span></div>
+            <div class="row"><span class="sw" style="background:var(--surface-2);border:1px solid var(--line-strong)"></span><span class="lbl">Not started</span><span class="ct">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Status table</h3>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Cycle</th><th>Description</th><th>Status</th><th>Shipped</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">7.1</td><td>Glyph-diff core — right-aligned per-column numeric diff</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.2</td><td>AnimatedNumericText core roll — drift + scale + fade + stagger</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.2b</td><td>AnimatedNumericText — blur + animated width reflow + perf tiering</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.3</td><td>SpeedTwin adopt + retire CountUpText</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.4</td><td>BatteryTile adopt — SoC % + charge cap</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.5</td><td>DataUsageSection adopt — hero, percent, captions, split</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.6</td><td>FooterTriplet + SpeedHistoryChart adopt (feature close)</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.7</td><td>De-muddy the fast-twin morph — lower blur sigma + de-overlap the fade</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.8</td><td>Fraction run tabular figures — stop the decimal shifting mid-roll</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">7.9</td><td>Digit-drop reflow — progressive width reclaim, no hold-then-snap</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="read-next" class="section">
+      <h2>Read next</h2>
+      <div class="card-grid">
+        <a class="linkcard" href="plan.html">
+          <span class="num">01 · THE PLAN</span>
+          <h3>The 10 cycles</h3>
+          <p>Every cycle in expandable detail: scope, the RED / GREEN / REVIEW / REFACTOR phases, and the verbatim code blocks. Plus the TDD loop diagram.</p>
+          <span class="go">View cycles</span>
+        </a>
+        <a class="linkcard" href="batches.html">
+          <span class="num">02 · THE RUNBOOK</span>
+          <h3>Parallel batch orchestration</h3>
+          <p>How to run this plan across parallel sessions: worktree setup, merge protocol, the file-ownership matrix, and the copy-paste session prompts.</p>
+          <span class="go">Open runbook</span>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="conventions" class="section">
+      <h2>Conventions in play</h2>
+      <p>Every cycle runs through the same disciplined loop, defined in the shared rules under <code>.agents/rules/</code>.</p>
+      <div class="conv-grid">
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/></svg> Architect gate</h4><p>Each cycle carries an architecture-review tier (<code>top</code>, <code>mid</code>, <code>none</code>, or <code>deferred</code>). Legacy provider aliases are normalized while loading. A fresh <code>software-architect</code> returns a <code>GO</code> / <code>NO-GO</code> verdict <strong>before RED</strong> for the non-trivial ones.</p></div>
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Reviewer separation</h4><p>REVIEW is performed by a fresh <code>code-reviewer</code> sub-agent &mdash; never self-review. Security-tier cycles add a <code>security-reviewer</code> second pass.</p></div>
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg> NO-DEFER</h4><p>Every <code>[BLOCKER]</code> and <code>[REFACTOR]</code> finding is resolved in the same cycle&rsquo;s REFACTOR pass. Scope discipline is not a reason to defer an in-scope finding.</p></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-007.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

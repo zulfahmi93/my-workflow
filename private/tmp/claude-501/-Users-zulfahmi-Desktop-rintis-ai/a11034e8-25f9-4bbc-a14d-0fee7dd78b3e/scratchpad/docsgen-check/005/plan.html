@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-005 — The cycles</title>
+<meta name="description" content="The 5 TDD cycles of u60-monitor plan-005.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-005</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html">Overview</a>
+      <a class="navlink" href="plan.html" aria-current="page">Cycles</a>
+      <a class="navlink" href="batches.html">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">The plan · 5 TDD cycles</p>
+    <h1>The cycles</h1>
+    <p class="lede">Each cycle runs the <strong>RED &rarr; GREEN &rarr; REVIEW &rarr; (REFACTOR &rarr; REVIEW)* &rarr; COMMIT</strong> loop. Code blocks are reproduced verbatim from <code>plan-005.yaml</code>.</p>
+    
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#tdd-loop">The TDD loop</a></li>
+      <li><a href="#c5-1">5.1 — DataUsageSnapshot + DataPlan…</a></li>
+      <li><a href="#c5-2">5.2 — formatBytes — binary IEC byte…</a></li>
+      <li><a href="#c5-3">5.3 — DataUsageStatus — used-vs-pla…</a></li>
+      <li><a href="#c5-4">5.4 — DataUsageSection editorial wi…</a></li>
+      <li><a href="#c5-5">5.5 — Screen integration — extend d…</a></li>
+      <li><a href="#open-q">Open questions</a></li>
+      <li><a href="#followups">Cycle follow-ups</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+
+    <section id="tdd-loop" class="section">
+      <h2>The TDD loop</h2>
+      <p>REVIEW is the gate. <strong>APPROVED</strong> goes straight to COMMIT; <strong>NEEDS FIX</strong> runs REFACTOR and loops back to REVIEW until approved.</p>
+      <div class="figure">
+        <svg viewBox="0 0 880 280" role="img" aria-labelledby="loop-t loop-d" font-size="13">
+    <title id="loop-t">TDD cycle loop</title>
+    <desc id="loop-d">RED flows to GREEN to REVIEW. From REVIEW, APPROVED flows forward to COMMIT; NEEDS FIX flows down to REFACTOR, which loops back up to REVIEW.</desc>
+    <defs>
+      <marker id="la" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="lac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <g><rect x="20" y="96" width="140" height="56" rx="12" fill="var(--surface-2)" stroke="var(--red)" stroke-width="2"/><text x="90" y="124" text-anchor="middle" fill="var(--red)" font-family="var(--mono)" font-weight="700">RED</text><text x="90" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">failing test</text></g>
+    <g><rect x="230" y="96" width="140" height="56" rx="12" fill="var(--surface-2)" stroke="var(--green)" stroke-width="2"/><text x="300" y="124" text-anchor="middle" fill="var(--green)" font-family="var(--mono)" font-weight="700">GREEN</text><text x="300" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">minimal pass</text></g>
+    <g><rect x="440" y="92" width="150" height="64" rx="12" fill="var(--surface-2)" stroke="var(--review)" stroke-width="2.5"/><text x="515" y="120" text-anchor="middle" fill="var(--review)" font-family="var(--mono)" font-weight="700">REVIEW</text><text x="515" y="138" text-anchor="middle" class="dg-subtext" font-size="9.5">the gate</text></g>
+    <g><rect x="720" y="96" width="140" height="56" rx="12" class="dg-node-crit" stroke-width="2"/><text x="790" y="124" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-weight="700">COMMIT</text><text x="790" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">one per cycle</text></g>
+    <g><rect x="440" y="210" width="150" height="52" rx="12" fill="var(--surface-2)" stroke="var(--refactor)" stroke-width="2"/><text x="515" y="234" text-anchor="middle" fill="var(--refactor)" font-family="var(--mono)" font-weight="700">REFACTOR</text><text x="515" y="251" text-anchor="middle" class="dg-subtext" font-size="9.5">apply review</text></g>
+    <path d="M160 124 H226" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <path d="M370 124 H436" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <path d="M590 124 H716" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#lac)"/>
+    <text x="650" y="114" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-size="10.5" font-weight="700">APPROVED</text>
+    <path d="M515 156 V206" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <text x="525" y="186" class="dg-subtext" font-size="10.5" fill="var(--refactor)">NEEDS FIX</text>
+    <path d="M440 236 C 380 236, 380 124, 436 124" fill="none" class="dg-edge" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#la)"/>
+    <text x="372" y="186" text-anchor="middle" class="dg-subtext" font-size="10" transform="rotate(-90 372 186)">loop until APPROVED</text>
+  </svg>
+        <p class="cap"><b>RED</b> &rarr; <b>GREEN</b> &rarr; <b>REVIEW</b> &rarr; (<b>REFACTOR</b> &rarr; REVIEW)* &rarr; <b>COMMIT</b></p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin:8px 0 0">
+        <button class="copy-btn" type="button" data-expand-all>Expand all</button>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+<details class="cycle-card section" id="c5-1" open>
+  <summary class="cycle-head">
+    <span class="cycle-id">5.1</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">DataUsageSnapshot + DataPlan core model (foundational gate)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill accent" title="FOUNDATIONAL gate — touches data sourcing (the extended /api/data-usage contract). Locks: the parse contract (u64|null tolerant, rx=download/tx=upload, used = month rx+tx, cumulative NEVER-accumulate + surface-reset); the `plan` block contract (month_limit_bytes/clear_day/remind_percent, all nullable, agent-sourced read-only); binary IEC byte units (KiB/MiB/GiB/TiB labels) (5.2); DataUsageStatus math — over NOT clamped, divide-by-zero guard, NEAR keyed on remind_percent||80% on fractionUsed, OVER ≥100% (5.3); 30s cadence; full-width read-only section placement + no-scroll/no-RenderFlex re-gate + NO new IntrinsicHeight (5.5); red-token activation + two-tone DL|UL bar (5.4); per-tile freshness (ADR-0009); the NOT-security-tier ruling; and the agent-endpoint prerequisite (read-only wrapper, no app write). Confirm lib/core import-clean. Verdict GO/NO-GO ≤ 400 words; files ADR-0011 + ADR-0012. opus per model-tier policy."><span class="dot"></span>architect: required (top)</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: ADR-0011 + ADR-0012 — the pure-Dart data…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Pure-Dart foundation in <code>lib/core</code> (no widget code) modelling the EXTENDED <code>GET /api/data-usage</code> envelope (usage + plan), kept testable in <code>test/core</code>:</p>
+<ul>
+<li><strong><code>DataUsagePeriod</code></strong> — <code>final int? rxBytes, txBytes;</code> <code>int? get totalBytes</code> (rx+tx, absent side as 0 when the other has data; both-null → null); <code>bool get hasData</code>. Doc-comment: <strong><code>totalBytes</code> = rx+tx within a period</strong>, distinct from <code>DataUsageSnapshot.total</code> (the firmware LIFETIME period). The MONTH period’s <code>totalBytes</code> is the cap-basis “Data Used”.</li>
+<li><strong><code>DataPlan</code></strong> — <code>final int? monthLimitBytes, clearDay, remindPercent;</code> parsed from the <code>plan</code> block (all nullable; null = firmware did not expose it). Doc-comment: read-only mirror of the modem’s Data Plan / Clear Date / Data Reminder; the app never writes these.</li>
+<li><strong><code>DataUsageSnapshot</code></strong> — <code>final DataUsagePeriod day, month, total; final DataPlan plan;</code> <code>factory fromAgentJson(Map json)</code>. Envelope checks mirror <code>clients_snapshot.dart</code>: <code>ok==true</code> else <code>AgentError</code>; <code>data</code> Map else <code>FormatException</code>; a missing period/plan key → all-null sub-object (NO throw — the Reading stays FRESH). Tolerant <code>_u64</code>/<code>_int</code> extractor modelled on <code>signal_snapshot</code>’s <code>parseInt</code>.</li>
+<li><strong>Cumulative-counter rule (doc + test):</strong> a lower value on the next parse (cycle rollover on the Clear Date / firmware reset) is surfaced as-is — never negative, never accumulated; correct regardless of when firmware resets.</li>
+</ul>
+<p>Optional refresh of <code>lib/core/core.dart</code>’s doc index. Keep <code>lib/core</code> import-clean. All prior core tests stay green.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — FOUNDATIONAL gate — touches data sourcing (the extended /api/data-usage contract). Locks: the parse contract (u64|null tolerant, rx=download/tx=upload, used = month rx+tx, cumulative NEVER-accumulate + surface-reset); the <code>plan</code> block contract (month_limit_bytes/clear_day/remind_percent, all nullable, agent-sourced read-only); binary IEC byte units (KiB/MiB/GiB/TiB labels) (5.2); DataUsageStatus math — over NOT clamped, divide-by-zero guard, NEAR keyed on remind_percent||80% on fractionUsed, OVER ≥100% (5.3); 30s cadence; full-width read-only section placement + no-scroll/no-RenderFlex re-gate + NO new IntrinsicHeight (5.5); red-token activation + two-tone DL|UL bar (5.4); per-tile freshness (ADR-0009); the NOT-security-tier ruling; and the agent-endpoint prerequisite (read-only wrapper, no app write). Confirm lib/core import-clean. Verdict GO/NO-GO ≤ 400 words; files ADR-0011 + ADR-0012. opus per model-tier policy.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-73" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-73">// test/core/data_usage_snapshot_test.dart — pure Dart, no flutter import.
+
+test('used = month rx+tx; rx=download tx=upload', () {
+  final s = DataUsageSnapshot.fromAgentJson({'ok': true, 'data': {
+    'month': {'rx_bytes': 104229835897, 'tx_bytes': 18334831643},
+  }});
+  expect(s.month.rxBytes, 104229835897);
+  expect(s.month.totalBytes, 104229835897 + 18334831643); // 114.15 GiB used (binary 2^30)
+});
+
+test('parses the plan block: limit/clearDay/remindPercent, all nullable', () {
+  final s = DataUsageSnapshot.fromAgentJson({'ok': true, 'data': {
+    'month': {'rx_bytes': 1, 'tx_bytes': 1},
+    'plan': {'month_limit_bytes': 48318382080, 'clear_day': 5, 'remind_percent': 75},
+  }});
+  expect(s.plan.monthLimitBytes, 48318382080);
+  expect(s.plan.clearDay, 5);
+  expect(s.plan.remindPercent, 75);
+});
+
+test('missing plan block -&gt; all-null DataPlan, NO throw (stays fresh)', () {
+  final s = DataUsageSnapshot.fromAgentJson({'ok': true, 'data': {'month': {}}});
+  expect(s.plan.monthLimitBytes, isNull);
+  expect(s.plan.clearDay, isNull);
+});
+
+test('ok:false -&gt; AgentError; non-Map data -&gt; FormatException', () {
+  expect(() =&gt; DataUsageSnapshot.fromAgentJson({'ok': false}), throwsA(isA&lt;AgentError&gt;()));
+  expect(() =&gt; DataUsageSnapshot.fromAgentJson({'ok': true, 'data': 5}), throwsA(isA&lt;FormatException&gt;()));
+});
+
+test('tolerant fields: u64/null/garbage/numeric-string; counter reset surfaced as-is', () {
+  final p = DataUsageSnapshot.fromAgentJson({'ok': true, 'data': {'day': {
+    'rx_bytes': '1500', 'tx_bytes': 'N/A'}}}).day;
+  expect(p.rxBytes, 1500);
+  expect(p.txBytes, isNull);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">create lib/core/data_usage_snapshot.dart (DataUsagePeriod + DataPlan + DataUsageSnapshot.fromAgentJson) modelled on signal_snapshot/clients_snapshot; tolerant u64/int|null parse; doc-comment period.totalBytes-vs-snapshot.total, used=month rx+tx, plan read-only-mirror, cumulative never-accumulate; keep lib/core import-clean; refresh core.dart doc index; full suite green</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c5-2">
+  <summary class="cycle-head">
+    <span class="cycle-id">5.2</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">formatBytes — binary IEC byte-volume helper</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="Single pure-function binary IEC byte-volume formatter (tiers 2^10/2^20/2^30/2^40, IEC labels KiB/MiB/GiB/TiB); deterministic, no I/O, no architecture surface; mirrors the existing formatRate. Unit/precision conventions pre-locked by the 5.1 verdict (ADR-0011); runs parallel in P5.A so cannot defer. Correctness gated by code-review. NOT security-tier."><span class="dot"></span>architect: none</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Append <code>formatBytes(int? bytes)</code> to <code>lib/core/format.dart</code> (pure Dart). BINARY IEC tiers <code>KiB=2^10</code>, <code>MiB=2^20</code>, <code>GiB=2^30</code>, <code>TiB=2^40</code>, LABELED <code>KiB</code>/<code>MiB</code>/<code>GiB</code>/<code>TiB</code> (the modem’s values are binary; we print the honest IEC suffix, not the modem’s loose “GB”). Adaptive unit, FIXED precision per unit for tabular stability: <code>&lt;1024</code> → <code>'&lt;n&gt; B'</code>; <code>&lt;2^20</code> → 1dp KiB; <code>&lt;2^30</code> → 1dp MiB; <code>&lt;2^40</code> → 2dp GiB; else 2dp TiB. <code>null</code> OR negative → <code>'—'</code> (U+2014), never <code>'0'</code>. Existing <code>formatRate</code>/<code>formatElapsedWindow</code> tests stay green.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — Single pure-function binary IEC byte-volume formatter (tiers 2^10/2^20/2^30/2^40, IEC labels KiB/MiB/GiB/TiB); deterministic, no I/O, no architecture surface; mirrors the existing formatRate. Unit/precision conventions pre-locked by the 5.1 verdict (ADR-0011); runs parallel in P5.A so cannot defer. Correctness gated by code-review. NOT security-tier.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-74" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-74">// appended to test/core/format_test.dart
+test('formatBytes: binary IEC tiers (KiB/MiB/GiB/TiB) + boundaries', () {
+  expect(formatBytes(0), '0 B');
+  expect(formatBytes(1023), '1023 B');              // just below the KiB boundary
+  expect(formatBytes(1024), '1.0 KiB');             // 2^10
+  expect(formatBytes(48318382080), '45.00 GiB');    // the plan = 45 GiB (live)
+  expect(formatBytes(122564667540), '114.15 GiB');  // used (rx+tx), binary
+  expect(formatBytes(1099511627776), '1.00 TiB');   // 2^40
+});
+test('formatBytes: null/negative -&gt; em-dash, never 0', () {
+  expect(formatBytes(null), '—');
+  expect(formatBytes(-5), '—');
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">append formatBytes to lib/core/format.dart per the precision table (BINARY IEC tiers 2^10/2^20/2^30/2^40, LABELED KiB/MiB/GiB/TiB); null/negative -&gt; em-dash; keep existing format tests green; ~12 appended tests</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c5-3">
+  <summary class="cycle-head">
+    <span class="cycle-id">5.3</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">DataUsageStatus — used-vs-plan percent math</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="Pure value type + guarded arithmetic (divide-by-zero, over-not-clamped, NEAR/OVER thresholds on fractionUsed); no I/O. Runs parallel in P5.A so cannot defer; the math rules are pre-locked by the 5.1 verdict (ADR-0012). Correctness gated by code-review. NOT security-tier."><span class="dot"></span>architect: none</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Create <code>lib/core/data_usage_status.dart</code> — pure Dart. A helper computing the plan status from the firmware-sourced used + plan: <code>double? fractionUsed(int? usedBytes, int? monthLimitBytes)</code> (null cap/used → null; <code>monthLimitBytes &lt;= 0</code> → null divide-by-zero guard; else <code>used / cap</code>, <strong>over-limit &gt; 1.0 NOT clamped</strong>); <code>int? percentUsed(...)</code> (<code>round(fraction*100)</code>, lower-clamp 0, <strong>no upper clamp</strong> — 254 allowed); <code>bool isNear(...)</code> ⇔ <code>fractionUsed &gt;= (remindPercent ?? 80)/100</code>; <code>bool isOver(...)</code> ⇔ <code>fractionUsed &gt;= 1.0</code>. Thresholds key on <code>fractionUsed</code> (double) so the displayed rounded <code>%</code> never contradicts the cue. Doc-comment the rules + byte-denomination.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — Pure value type + guarded arithmetic (divide-by-zero, over-not-clamped, NEAR/OVER thresholds on fractionUsed); no I/O. Runs parallel in P5.A so cannot defer; the math rules are pre-locked by the 5.1 verdict (ADR-0012). Correctness gated by code-review. NOT security-tier.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-75" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-75">// test/core/data_usage_status_test.dart — pure Dart.
+test('fractionUsed: guards + over not clamped (114.15/45 GiB ~ 2.54)', () {
+  expect(fractionUsed(null, 48318382080), isNull);
+  expect(fractionUsed(122564667540, null), isNull);
+  expect(fractionUsed(122564667540, 0), isNull);            // divide-by-zero guard
+  expect(fractionUsed(122564667540, 48318382080)! &gt; 2.5, isTrue); // NOT clamped
+});
+test('percentUsed no upper clamp; NEAR uses remindPercent||80, OVER&gt;=100, keyed on fraction', () {
+  expect(percentUsed(122564667540, 48318382080), 254);        // real plan 45 GiB, not clamped
+  expect(isOver(48318382080, 48318382080), isTrue);
+  expect(isNear(36238786560, 48318382080, remindPercent: 75), isTrue);  // exactly the 75% firmware threshold
+  expect(isNear(36238786559, 48318382080, remindPercent: 75), isFalse); // one byte below 75%
+  expect(isNear(38654705664, 48318382080), isTrue);           // fallback 80% threshold (no remindPercent)
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">create lib/core/data_usage_status.dart (fractionUsed/percentUsed/isNear/isOver with guards; NEAR=remindPercent||80, OVER&gt;=1.0, both on fractionUsed; over not clamped); doc-comment; ~10 pure tests incl boundary</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c5-4">
+  <summary class="cycle-head">
+    <span class="cycle-id">5.4</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">DataUsageSection editorial widget (read-only mirror, frontend-design)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <a class="pill info" href="#c5-1" title="Inherits the per-tile-freshness, red-token-activation, two-tone DL|UL bar, and read-only-mirror design verdict recorded in ADR-0011/0012 (cross-ref ADR-0008/0009) at the 5.1 gate. Read 5.1's verdict before RED. NOT security-tier (prop-driven widget, no I/O)."><span class="dot"></span>architect: deferred to 5.1</a>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Create <code>lib/ui/widgets/data_usage_section.dart</code> — a flat de-Carded editorial section, the structural TWIN of <code>BatteryTile</code>, READ-ONLY (no edit affordance). <strong>The implementer MUST invoke the <code>frontend-design:frontend-design</code> skill BEFORE writing any widget code</strong> (see <code>session.prompt</code>). Props: <code>DataUsageSection({DataUsageSnapshot? snapshot, bool isStale})</code>. Computes the hero used via <code>formatBytes(month.totalBytes)</code> (5.2), the proportion via <code>DataUsageStatus</code> (5.3), reads <code>snapshot.plan</code> (5.1). Tokens ONLY via <code>monitorColorsOf</code>. Renders every state (see RED). The limit bar is the signature: battery’s monochrome track geometry but a TWO-TONE DL|UL fill; NEAR (amber) / OVER (red — reserved token’s first on-screen use) escalate via geometry+text+colour TOGETHER. Null month total → a small <code>faint</code> <code>Data —</code> em-dash, NOT a 44px slab. NO-PLAN state (firmware plan null) → show used only + a faint <code>no plan set</code> caption, no bar. The reset-day caption reads the REAL <code>plan.clearDay</code> (“resets day 5”); the reminder uses <code>plan.remindPercent</code>. One composed <code>Semantics</code> node (<code>excludeSemantics:true</code>); NO count-up; reduced-motion structural.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> deferred to Cycle 5.1 — Inherits the per-tile-freshness, red-token-activation, two-tone DL|UL bar, and read-only-mirror design verdict recorded in ADR-0011/0012 (cross-ref ADR-0008/0009) at the 5.1 gate. Read 5.1’s verdict before RED. NOT security-tier (prop-driven widget, no I/O).</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-76" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-76">// test/ui/widgets/data_usage_section_test.dart — WidgetTester, MonitorColors-themed.
+testWidgets('renders states: LOADING, VALUE-under, OVER, NULL-usage, NO-PLAN, STALE', (t) async {
+  // OVER: used 114.15 GiB, plan 45 GiB -&gt; red full bar + notch + &quot;OVER&quot; + true 254% (not clamped).
+  // NO-PLAN: plan.monthLimitBytes null -&gt; used only + &quot;no plan set&quot;, no bar.
+  // NULL-usage: month rx/tx null -&gt; &quot;Data —&quot;, no bar.
+});
+testWidgets('reset-day caption reads real plan.clearDay (resets day 5)', (t) async { });
+testWidgets('over-limit % NOT clamped (shows true 254)', (t) async { });
+testWidgets('single composed Semantics node; colour never the sole cue; no &gt;=48dp edit affordance (read-only)', (t) async { });
+testWidgets('no RenderFlex overflow at 1.3x on ~180dp and ~360dp with wide values (114.15 / 45 GiB OVER)', (t) async { });
+testWidgets('reduced-motion: no count-up, static render', (t) async { });</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">INVOKE frontend-design:frontend-design FIRST. Create lib/ui/widgets/data_usage_section.dart reusing battery_tile's _section grammar + 44px-hero/19px-unit anatomy + monochrome track geometry, deviating to a two-tone DL|UL fill; formatBytes for figures, DataUsageStatus for proportion, snapshot.plan for limit/clearDay/remindPercent; READ-ONLY (no SET-LIMIT/edit); 'resets day N' from real clearDay; ~18 widget tests incl OVER/NO-PLAN/null-usage, over-not-clamped, 1.3x overflow at 180/360dp, single-Semantics, reduced-motion; manual smoke default + 1.3x light + dark</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c5-5">
+  <summary class="cycle-head">
+    <span class="cycle-id">5.5</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Screen integration — extend data-usage poll parse + wire section (frontend-design)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <a class="pill info" href="#c5-1" title="Inherits the placement (full-width section between the chart→battery hairline and the Spacer), no-new-IntrinsicHeight, no-scroll/no-RenderFlex re-gate, 6-poller, and per-tile-freshness verdict recorded in ADR-0011/0012 at the 5.1 gate (preserves ADR-0009, ADR-0010, Cycle-2.13/4.10). Read 5.1's verdict before RED. NOT security-tier (read-only GET poller)."><span class="dot"></span>architect: deferred to 5.1</a>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: plan-005 — the modem's real data-usage +…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Wire the feature into the screen. <strong>The implementer MUST invoke the <code>frontend-design:frontend-design</code> skill BEFORE editing the layout</strong> (see <code>session.prompt</code>).</p>
+<ul>
+<li><strong><code>lib/app.dart</code></strong> — add <code>AppEnv.dataUsageInterval</code> (production <code>const Duration(seconds: 30)</code>, injectable); a stable <code>_dataUsageController</code> (<code>StreamController&lt;Reading&lt;DataUsageSnapshot&gt;&gt;</code>, OUTLIVES pollers), <code>_dataUsagePoller</code> + <code>_dataUsageSub</code> + <code>_onDataUsageReading</code> (forward + <code>_checkAuthError</code>), registered in <code>_startPollers</code> (path <code>/api/data-usage</code>, parse <code>DataUsageSnapshot.fromAgentJson</code> — now incl. the <code>plan</code> block), <code>_disposePollers</code>, <code>dispose</code> — a 6th poller under the one shared <code>AgentClient</code>. Pass <code>dataUsageStream</code> into <code>SpeedScreen</code>.</li>
+<li><strong><code>lib/ui/speed_screen.dart</code></strong> — add the new constructor param; insert a <code>StreamBuilder&lt;Reading&lt;DataUsageSnapshot&gt;&gt;</code> rendering <code>DataUsageSection</code> with its OWN <code>isStale</code> (ADR-0009 — NOT the speed <code>feedState</code>), between the chart→battery hairline and the <code>Spacer</code>; NO new <code>IntrinsicHeight</code>. Read-only — no sheet, no onTap.</li>
+</ul>
+<p>Re-run the Cycle-2.13 no-scroll + Cycle-4.10 no-RenderFlex gate at default AND 1.3x on ~360×640; size the section to ~1/3 of the battery section. Full suite green; manual smoke the full screen at default + 1.3x.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> deferred to Cycle 5.1 — Inherits the placement (full-width section between the chart→battery hairline and the Spacer), no-new-IntrinsicHeight, no-scroll/no-RenderFlex re-gate, 6-poller, and per-tile-freshness verdict recorded in ADR-0011/0012 at the 5.1 gate (preserves ADR-0009, ADR-0010, Cycle-2.13/4.10). Read 5.1’s verdict before RED. NOT security-tier (read-only GET poller).</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-77" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-77">// extend test/support/fake_multi_client.dart: /api/data-usage stub now returns day/month/total + a configurable plan block
+// (month_limit_bytes / clear_day / remind_percent each settable to u64/int / JSON null / omitted).
+test('6th poller hits /api/data-usage at dataUsageInterval, parses plan, recovers after re-auth', () async { });
+testWidgets('DATA section between chart-&gt;battery hairline and Spacer; FooterTriplet stays bottom-pinned', (t) async { });
+testWidgets('per-tile freshness: stale data-usage while speed LIVE dims ONLY the section (ADR-0009)', (t) async { });
+testWidgets('counter reset stays FRESH: high month then lower -&gt; section NOT StaleFade-dimmed', (t) async { });
+testWidgets('OVER state end-to-end: month 114.15 GiB + plan 45 GiB -&gt; red bar + 254% + resets day 5', (t) async { });
+testWidgets('no spurious scroll at default AND no RenderFlex overflow at 1.3x on ~360x640', (t) async { });</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">INVOKE frontend-design:frontend-design FIRST. app.dart: AppEnv.dataUsageInterval (30s) + 6th poller (controller outlives pollers; registered in _startPollers/_disposePollers/dispose) under the shared client, parsing the extended DataUsageSnapshot incl. plan. speed_screen.dart: new param + StreamBuilder&lt;Reading&lt;DataUsageSnapshot&gt;&gt; rendering DataUsageSection (own isStale) between chart-&gt;battery hairline and the Spacer; NO new IntrinsicHeight; read-only. Extend FakeMultiClient + app_flow private fake with the plan block. Update existing integrated/speed_screen SpeedScreen constructions. Re-run no-scroll + 1.3x overflow gate; ~12 tests; manual full-screen smoke default + 1.3x</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+    <hr class="section-rule">
+
+    <section id="open-q" class="section">
+      <h2>Open questions</h2>
+      <div class="table-wrap"><table class="data">
+    <thead><tr><th>Question</th><th>Why it matters</th><th>Resolution</th></tr></thead>
+    <tbody><tr><td>Source the limit app-locally, or read the firmware’s real Data Plan?</td><td>A narrow grep first suggested no firmware quota endpoint (→ app-local cap). A photo of the modem’s Data-usage screen + the <code>zwrt_data</code> ubus enumeration proved the firmware owns a real plan + clear-date, readable via <code>get_wwandst_monthlimit</code>/<code>get_wwandst_clearday</code>.</td><td>RESOLVED (user): read the REAL firmware plan + clear-date (read-only mirror). The app-local cap / <code>shared_preferences</code> / editor sheet are dropped. A tiny read-only agent wrapper exposes the plan; the app writes nothing.</td></tr>
+<tr><td>Which <code>/api/data-usage</code> period = the modem’s ‘Data Used’?</td><td>Decides the cap basis.</td><td>RESOLVED (live probe): <code>month</code> rx+tx (97.07 + 17.08 = 114.15 GiB binary 2^30, the same value the modem’s screen shows loosely as 114.13 GB). <code>month</code> == <code>total</code> on this device currently. Use <code>month.totalBytes</code>.</td></tr>
+<tr><td>GB units — decimal (1e9) or binary (2^30)?</td><td>The modem’s own Data-usage screen is BINARY: it stores 45 GiB as month_limit_bytes=48318382080 and labels it ‘45 GB’, and ‘Data Used 114.13 GB’ matches rx+tx in GiB (not decimal GB). Decimal would mislabel the plan as ~48 GB and disagree with the device.</td><td>RESOLVED (user): BINARY math (2^30), LABELED with the honest IEC suffix ‘GiB’ (NOT the modem’s loose ‘GB’ — truth over pixel-mirroring). formatBytes (5.2) locked to 2^10/2^20/2^30/2^40 with KiB/MiB/GiB/TiB labels. 48318382080 -&gt; ‘45.00 GiB’; 122564667540 -&gt; ‘114.15 GiB’; used/plan ratio = 254%.</td></tr>
+<tr><td>Warn threshold — fixed or from firmware?</td><td>The firmware exposes a Data Reminder (75% on this device).</td><td>RESOLVED: use <code>plan.remind_percent</code> when present, else fall back to 80%. OVER = ≥100%. Keyed on fractionUsed so the rounded % never contradicts the cue.</td></tr>
+<tr><td>Setting the plan from the app?</td><td><code>set_wwandst_monthlimit</code>/<code>set_wwandst_clearday</code> exist; a write would let the app change the modem’s plan.</td><td>RESOLVED: OUT OF SCOPE for v1 (read-only mirror). A future write cycle is security-tier (modem state change → opus architect + security-reviewer).</td></tr></tbody>
+  </table></div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="followups" class="section">
+      <h2>Cycle follow-ups</h2>
+      <p style="font-size:.92rem;color:var(--ink-3)">NITs logged, won&rsquo;t-fix, or deferred-structural; populated post-REVIEW per cycle.</p>
+      <div class="table-wrap"><table class="data">
+    <thead><tr><th>Source</th><th>Item</th><th>Tracked</th></tr></thead>
+    <tbody><tr><td>future (ADR-0002)</td><td>BINDING INVARIANT (ADR-0002): any future cycle adding a UI/path to set a non-default agent base URL MUST validate it (http(s) + private/LAN host) in that same cycle BEFORE the Bearer password is sent, AND becomes security-tier. plan-005 adds no such setter — read-only GET only — so the invariant stays dormant and carried.</td><td>Future base-URL-UI cycle (ADR-0002 invariant) — carried, not discharged</td></tr>
+<tr><td>agent prerequisite</td><td>open-u60-pro extended <code>GET /api/data-usage</code> with the <code>plan</code> block (month_limit_bytes via get_wwandst_monthlimit→uci, clear_day via clearday, remind_percent via month_limit_ratio) — a read-only Rust wrapper (§Agent change). DONE: deployed + live-verified on the modem (branch add-data-plan-to-data-usage, commit 0d04e0f); wireless SSH (dropbear:2222) installed. Remaining: an optional upstream PR to jesther-ai (user’s gh has no push there → fork flow).</td><td>open-u60-pro change (read-only) DEPLOYED + verified; optional upstream PR outstanding</td></tr>
+<tr><td>future (write)</td><td>Set the Data Plan / Clear Date from the app (<code>set_wwandst_monthlimit</code> / <code>set_wwandst_clearday</code>). A modem state-change = SECURITY-TIER (opus architect + security-reviewer). Deliberately out of scope for the v1 read-only mirror.</td><td>Future write cycle (security-tier) — only if the user asks</td></tr>
+<tr><td>deploy pass</td><td>On-device Samsung S22 (Android) + iPhone (iOS) device-verify smokes after plan-005 lands AND the extended agent is deployed: the DATA section at default + 1.3x (no scroll/clip), real used/plan/reset-day beside live speed, per-tile stale on a data-usage poll cut, the OVER <code>red</code> activation legibility on AMOLED (this device is genuinely ~254% over), and the NO-PLAN / null-usage states. Needs the extended agent on the modem; no agent drives a physical phone.</td><td>Post-plan human deploy pass (device smoke) — agent deployed + wireless SSH restored; now gated only on a human running the built app on a device</td></tr>
+<tr><td>5.4 review (advisory)</td><td>lib/ui/theme.dart doc-comments (~L55, L67) still call the <code>red</code> token ‘reserved low-SoC cue (unused on this screen)’ — STALE: Cycle 5.4 activates red for the over-plan cue (ADR-0008 first on-screen use). theme.dart was out of 5.4’s diff.</td><td>RESOLVED in Cycle 5.5 — theme.dart red-token comment refreshed (only one such comment existed; it now documents the over-plan activation)</td></tr></tbody>
+  </table></div>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-005.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

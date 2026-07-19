@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-001 — The cycles</title>
+<meta name="description" content="The 8 TDD cycles of u60-monitor plan-001.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-001</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html">Overview</a>
+      <a class="navlink" href="plan.html" aria-current="page">Cycles</a>
+      <a class="navlink" href="batches.html">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">The plan · 8 TDD cycles</p>
+    <h1>The cycles</h1>
+    <p class="lede">Each cycle runs the <strong>RED &rarr; GREEN &rarr; REVIEW &rarr; (REFACTOR &rarr; REVIEW)* &rarr; COMMIT</strong> loop. Code blocks are reproduced verbatim from <code>plan-001.yaml</code>.</p>
+    
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#tdd-loop">The TDD loop</a></li>
+      <li><a href="#c1-1">1.1 — App scaffold + scoped clearte…</a></li>
+      <li><a href="#c1-2">1.2 — Byte-rate formatting</a></li>
+      <li><a href="#c1-3">1.3 — SpeedSnapshot model + agent-e…</a></li>
+      <li><a href="#c1-4">1.4 — Agent client + lazy bearer au…</a></li>
+      <li><a href="#c1-6">1.6 — Credential + base-URL store</a></li>
+      <li><a href="#c1-5">1.5 — SpeedPoller — 1s reading stre…</a></li>
+      <li><a href="#c1-7">1.7 — Live speed screen</a></li>
+      <li><a href="#c1-8">1.8 — End-to-end wire-up — first-ru…</a></li>
+      <li><a href="#open-q">Open questions</a></li>
+      <li><a href="#followups">Cycle follow-ups</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+
+    <section id="tdd-loop" class="section">
+      <h2>The TDD loop</h2>
+      <p>REVIEW is the gate. <strong>APPROVED</strong> goes straight to COMMIT; <strong>NEEDS FIX</strong> runs REFACTOR and loops back to REVIEW until approved.</p>
+      <div class="figure">
+        <svg viewBox="0 0 880 280" role="img" aria-labelledby="loop-t loop-d" font-size="13">
+    <title id="loop-t">TDD cycle loop</title>
+    <desc id="loop-d">RED flows to GREEN to REVIEW. From REVIEW, APPROVED flows forward to COMMIT; NEEDS FIX flows down to REFACTOR, which loops back up to REVIEW.</desc>
+    <defs>
+      <marker id="la" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="lac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <g><rect x="20" y="96" width="140" height="56" rx="12" fill="var(--surface-2)" stroke="var(--red)" stroke-width="2"/><text x="90" y="124" text-anchor="middle" fill="var(--red)" font-family="var(--mono)" font-weight="700">RED</text><text x="90" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">failing test</text></g>
+    <g><rect x="230" y="96" width="140" height="56" rx="12" fill="var(--surface-2)" stroke="var(--green)" stroke-width="2"/><text x="300" y="124" text-anchor="middle" fill="var(--green)" font-family="var(--mono)" font-weight="700">GREEN</text><text x="300" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">minimal pass</text></g>
+    <g><rect x="440" y="92" width="150" height="64" rx="12" fill="var(--surface-2)" stroke="var(--review)" stroke-width="2.5"/><text x="515" y="120" text-anchor="middle" fill="var(--review)" font-family="var(--mono)" font-weight="700">REVIEW</text><text x="515" y="138" text-anchor="middle" class="dg-subtext" font-size="9.5">the gate</text></g>
+    <g><rect x="720" y="96" width="140" height="56" rx="12" class="dg-node-crit" stroke-width="2"/><text x="790" y="124" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-weight="700">COMMIT</text><text x="790" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">one per cycle</text></g>
+    <g><rect x="440" y="210" width="150" height="52" rx="12" fill="var(--surface-2)" stroke="var(--refactor)" stroke-width="2"/><text x="515" y="234" text-anchor="middle" fill="var(--refactor)" font-family="var(--mono)" font-weight="700">REFACTOR</text><text x="515" y="251" text-anchor="middle" class="dg-subtext" font-size="9.5">apply review</text></g>
+    <path d="M160 124 H226" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <path d="M370 124 H436" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <path d="M590 124 H716" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#lac)"/>
+    <text x="650" y="114" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-size="10.5" font-weight="700">APPROVED</text>
+    <path d="M515 156 V206" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <text x="525" y="186" class="dg-subtext" font-size="10.5" fill="var(--refactor)">NEEDS FIX</text>
+    <path d="M440 236 C 380 236, 380 124, 436 124" fill="none" class="dg-edge" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#la)"/>
+    <text x="372" y="186" text-anchor="middle" class="dg-subtext" font-size="10" transform="rotate(-90 372 186)">loop until APPROVED</text>
+  </svg>
+        <p class="cap"><b>RED</b> &rarr; <b>GREEN</b> &rarr; <b>REVIEW</b> &rarr; (<b>REFACTOR</b> &rarr; REVIEW)* &rarr; <b>COMMIT</b></p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin:8px 0 0">
+        <button class="copy-btn" type="button" data-expand-all>Expand all</button>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+<details class="cycle-card section" id="c1-1" open>
+  <summary class="cycle-head">
+    <span class="cycle-id">1.1</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">App scaffold + scoped cleartext platform config</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill accent" title="lib/core (pure Dart, no flutter imports) vs lib/ui boundary + cleartext exception MUST be scoped to 192.168.0.1 / NSAllowsLocalNetworking and NEVER a blanket usesCleartextTraffic / NSAllowsArbitraryLoads (the classic insecure default) + pubspec dependency set + min SDK targets"><span class="dot"></span>architect: required (top)</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the Flutter project + the network p…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Scope: <code>flutter create</code> an app targeting Android + iOS — applicationId / bundle id <code>dev.zulfahmi.u60monitor</code>, display name “U60 Monitor”. Establish the <code>lib/core/</code> (pure Dart) vs <code>lib/ui/</code> directory boundary with a placeholder <code>U60MonitorApp</code> that boots to a “U60 Monitor” scaffold. Declare runtime deps (<code>http</code>, <code>flutter_secure_storage</code>) and dev deps (<code>fake_async</code>, <code>clock</code>) in <code>pubspec.yaml</code> — <strong>this is the only cycle that edits pubspec deps</strong>; later cycles needing a new dep is an out-of-bounds STOP.</p>
+<p><strong>Cleartext config (the security-relevant part — architect-gated):</strong> Android <code>res/xml/network_security_config.xml</code> permitting <code>cleartextTrafficPermitted=&quot;true&quot;</code> for a <code>&lt;domain&gt;192.168.0.1&lt;/domain&gt;</code> ONLY (not a global <code>&lt;base-config&gt;</code>), referenced from <code>AndroidManifest.xml</code> via <code>android:networkSecurityConfig</code>; iOS <code>Info.plist</code> <code>NSAppTransportSecurity</code> → <code>NSAllowsLocalNetworking=true</code> (scoped) — <strong>must not</strong> ship <code>NSAllowsArbitraryLoads=true</code>. The architect locks “scoped, not blanket” so the insecure default never ships.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — lib/core (pure Dart, no flutter imports) vs lib/ui boundary + cleartext exception MUST be scoped to 192.168.0.1 / NSAllowsLocalNetworking and NEVER a blanket usesCleartextTraffic / NSAllowsArbitraryLoads (the classic insecure default) + pubspec dependency set + min SDK targets</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-1" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-1">test('android network-security-config permits cleartext for 192.168.0.1 only (not global)', () {
+  final xml = File('android/app/src/main/res/xml/network_security_config.xml').readAsStringSync();
+  expect(xml, contains('192.168.0.1'));
+  expect(xml, contains('cleartextTrafficPermitted=&quot;true&quot;'));
+  // scoped to a &lt;domain-config&gt;, never a blanket &lt;base-config cleartextTrafficPermitted=&quot;true&quot;&gt;
+  expect(xml, isNot(matches(RegExp(r'&lt;base-config[^&gt;]*cleartextTrafficPermitted\s*=\s*&quot;true&quot;'))));
+});
+
+test('AndroidManifest references the network-security-config and is not globally cleartext', () {
+  final mf = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
+  expect(mf, contains('android:networkSecurityConfig'));
+  expect(mf, isNot(contains('android:usesCleartextTraffic=&quot;true&quot;')));
+});
+
+test('iOS Info.plist allows LOCAL networking, not blanket arbitrary loads', () {
+  final plist = File('ios/Runner/Info.plist').readAsStringSync();
+  expect(plist, contains('NSAllowsLocalNetworking'));
+  expect(plist, isNot(contains('NSAllowsArbitraryLoads')));
+});
+
+testWidgets('app boots to the u60-monitor scaffold', (tester) async {
+  await tester.pumpWidget(const U60MonitorApp());
+  expect(find.byType(U60MonitorApp), findsOneWidget);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">`flutter create` + write the scoped configs + placeholder `U60MonitorApp`; `flutter test` green, `flutter analyze` clean</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer` (note: architect-opus gated the network posture; verify scoping held)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-2">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.2</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Byte-rate formatting (bytes/s → Mbps display)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="pure deterministic formatting function — no system/integration surface."><span class="dot"></span>architect: none</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the display layer the speed screen…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Scope: pure functions in <code>lib/core/format.dart</code>. <code>bytesPerSecToMbps(double bps) → double</code> (<code>×8/1e6</code>) and <code>formatRate(double bps) → String</code> — adaptive units (Mbps with one decimal at/above 1 Mbps; Kbps below; guards 0 and negatives to <code>&quot;0.0 Mbps&quot;</code>). No Flutter imports. This is the cheap, well-bounded cycle: cover the conversion, the unit boundary, zero, negative, and a large value.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — pure deterministic formatting function — no system/integration surface.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-2" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-2">test('bytesPerSecToMbps converts via x8 / 1e6', () {
+  expect(bytesPerSecToMbps(3037500), closeTo(24.3, 0.05));
+  expect(bytesPerSecToMbps(0), 0);
+});
+
+test('formatRate shows one-decimal Mbps at/above 1 Mbps', () {
+  expect(formatRate(3037500), '24.3 Mbps'); // 3.0375 MB/s -&gt; 24.3 Mbps
+  expect(formatRate(125000), '1.0 Mbps');   // exactly 1 Mbps boundary
+});
+
+test('formatRate drops to Kbps below 1 Mbps', () {
+  expect(formatRate(12500), '100 Kbps');     // 12.5 KB/s -&gt; 100 Kbps
+});
+
+test('formatRate guards zero and negative to 0.0 Mbps', () {
+  expect(formatRate(0), '0.0 Mbps');
+  expect(formatRate(-1), '0.0 Mbps');
+});
+
+test('formatRate handles a large value without overflow', () {
+  expect(formatRate(125000000), '1000.0 Mbps'); // 1 Gbps
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">two pure fns; no deps; `flutter analyze` clean</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-3">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.3</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">SpeedSnapshot model + agent-envelope parse</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="DTO + JSON parse of a fixed, documented envelope — no system design surface."><span class="dot"></span>architect: none</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the typed model the poller (1.5) em…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Scope: <code>lib/core/speed_snapshot.dart</code> — an immutable <code>SpeedSnapshot</code> (<code>downloadBytesPerSec</code> = rx, <code>uploadBytesPerSec</code> = tx, plus rx/tx bytes + elapsedMs) and <code>SpeedSnapshot.fromAgentJson(Map)</code> parsing the <code>{ok:true,data:{...}}</code> envelope. On <code>{ok:false,error}</code> throw a typed <code>AgentError(message)</code>; on missing/malformed <code>data</code> throw <code>FormatException</code>. Pure Dart. <strong>rx = download, tx = upload</strong> — assert this mapping explicitly in a test (the single easiest bug to ship).</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — DTO + JSON parse of a fixed, documented envelope — no system design surface.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-3" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-3">const okBody = '{&quot;ok&quot;:true,&quot;data&quot;:{&quot;rx_bytes&quot;:10,&quot;tx_bytes&quot;:20,'
+    '&quot;rx_speed&quot;:3037500.0,&quot;tx_speed&quot;:126400.0,&quot;elapsed_ms&quot;:1000}}';
+
+test('maps rx-&gt;download and tx-&gt;upload (no transposition)', () {
+  final s = SpeedSnapshot.fromAgentJson(jsonDecode(okBody));
+  expect(s.downloadBytesPerSec, 3037500.0);
+  expect(s.uploadBytesPerSec, 126400.0);
+  expect(s.elapsedMs, 1000);
+});
+
+test('throws AgentError on an ok:false envelope', () {
+  expect(
+    () =&gt; SpeedSnapshot.fromAgentJson(jsonDecode('{&quot;ok&quot;:false,&quot;error&quot;:&quot;busy&quot;}')),
+    throwsA(isA&lt;AgentError&gt;().having((e) =&gt; e.message, 'message', 'busy')),
+  );
+});
+
+test('throws FormatException when data is missing or malformed', () {
+  expect(() =&gt; SpeedSnapshot.fromAgentJson(jsonDecode('{&quot;ok&quot;:true}')),
+      throwsA(isA&lt;FormatException&gt;()));
+  expect(() =&gt; SpeedSnapshot.fromAgentJson(jsonDecode('{&quot;ok&quot;:true,&quot;data&quot;:{&quot;rx_speed&quot;:&quot;x&quot;}}')),
+      throwsA(isA&lt;FormatException&gt;()));
+});
+
+test('coerces integer-valued speeds to double', () {
+  final s = SpeedSnapshot.fromAgentJson(
+      jsonDecode('{&quot;ok&quot;:true,&quot;data&quot;:{&quot;rx_bytes&quot;:0,&quot;tx_bytes&quot;:0,&quot;rx_speed&quot;:0,&quot;tx_speed&quot;:0,&quot;elapsed_ms&quot;:0}}'));
+  expect(s.downloadBytesPerSec, 0.0);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">immutable model + factory; typed `AgentError`; defensive `num`→`double` coercion</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-4">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.4</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Agent client + lazy bearer auth (no-password fallback + transparent re-login)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill accent" title="auth state machine — try unauthenticated first (no-password mode), POST /api/auth/login on 401, cache token in memory, and on ANY subsequent 401 (1h TTL / modem reboot) re-login ONCE and retry; bounded retry (no infinite loop on bad password); token never logged; password supplied via an injected provider, never hardcoded"><span class="dot"></span>architect: required (top)</span>
+        <span class="pill warn"><span class="dot"></span>security tier</span>
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the authenticated HTTP boundary the…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p><strong>Security tier.</strong> Threat model required. Attacker / failure surface: a bearer token written to logs or crash reports; an infinite login loop hammering the agent on a wrong password; a stale token after the modem reboots silently failing the app; the password embedded in code or a fixture. Mitigations: token held in memory only and excluded from any log/<code>toString</code>; <code>login()</code> attempted at most ONCE per request (a 401 after a fresh login → surface <code>AuthFailure</code>, do not loop); no-password mode handled (unauthenticated call succeeds, no login attempted); password obtained only via an injected <code>Future&lt;String?&gt; Function()</code> provider (the secure store in 1.8), never a literal.</p>
+<p>Scope: <code>lib/core/agent_client.dart</code> — <code>AgentClient</code> wrapping <code>package:http</code> with <code>getJson(path)</code> (and a <code>postJson</code>), base URL injected, an optional password provider. Implements: unauthenticated attempt → on 401, if a password is available, <code>POST /api/auth/login</code>, cache token, retry the original request once with <code>Authorization: Bearer &lt;token&gt;</code>; on a second 401 throw <code>AuthFailure</code>; on no-password-and-401 throw <code>AuthRequired</code>. All tests use the in-process Dart <code>HttpServer</code> fake — zero real network.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — auth state machine — try unauthenticated first (no-password mode), POST /api/auth/login on 401, cache token in memory, and on ANY subsequent 401 (1h TTL / modem reboot) re-login ONCE and retry; bounded retry (no infinite loop on bad password); token never logged; password supplied via an injected provider, never hardcoded</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-4" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-4">test('no-password mode: unauthenticated GET succeeds, no login attempted', () async {
+  final agent = await FakeAgent.start(password: null); // allows unauth
+  final c = AgentClient(baseUrl: agent.url);
+  final body = await c.getJson('/api/network/speed');
+  expect(body['ok'], true);
+  expect(agent.loginCount, 0);
+  await agent.stop();
+});
+
+test('password mode: 401 triggers one login then retries successfully', () async {
+  final agent = await FakeAgent.start(password: 'pw');
+  final c = AgentClient(baseUrl: agent.url, passwordProvider: () async =&gt; 'pw');
+  final body = await c.getJson('/api/network/speed');
+  expect(body['ok'], true);
+  expect(agent.loginCount, 1);
+  expect(agent.lastBearer, isNotNull);
+  await agent.stop();
+});
+
+test('mid-session token expiry (agent reboot) → transparent re-login', () async {
+  final agent = await FakeAgent.start(password: 'pw');
+  final c = AgentClient(baseUrl: agent.url, passwordProvider: () async =&gt; 'pw');
+  await c.getJson('/api/network/speed');        // login #1
+  agent.invalidateTokens();                      // reboot wipes in-memory tokens
+  await c.getJson('/api/network/speed');        // 401 → login #2 → ok
+  expect(agent.loginCount, 2);
+  await agent.stop();
+});
+
+test('wrong password surfaces AuthFailure and does NOT loop', () async {
+  final agent = await FakeAgent.start(password: 'right');
+  final c = AgentClient(baseUrl: agent.url, passwordProvider: () async =&gt; 'wrong');
+  await expectLater(c.getJson('/api/network/speed'), throwsA(isA&lt;AuthFailure&gt;()));
+  expect(agent.loginCount, lessThanOrEqualTo(1));
+  await agent.stop();
+});
+
+test('password mode with no provider → AuthRequired (do not send empty login)', () async {
+  final agent = await FakeAgent.start(password: 'pw');
+  final c = AgentClient(baseUrl: agent.url); // no provider
+  await expectLater(c.getJson('/api/network/speed'), throwsA(isA&lt;AuthRequired&gt;()));
+  await agent.stop();
+});
+
+test('bearer token is never present in client toString / logs', () async {
+  final agent = await FakeAgent.start(password: 'pw');
+  final c = AgentClient(baseUrl: agent.url, passwordProvider: () async =&gt; 'pw');
+  await c.getJson('/api/network/speed');
+  expect(c.toString(), isNot(contains(agent.lastBearer!)));
+  await agent.stop();
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">minimal `AgentClient` over `package:http`; in-memory token; once-only login retry; `FakeAgent` HttpServer stub</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>SECURITY-REVIEW<span class="meta">`opus` — `security-reviewer` (token handling, retry-loop bound, no-secret-in-logs)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-6">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.6</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Credential + base-URL store (secure storage)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill accent" title="agent password is a secret — must live in flutter_secure_storage (Keychain/Keystore), never SharedPreferences/plaintext; null = no-password mode (not an error); base URL default + override; clear() wipes the secret"><span class="dot"></span>architect: required (top)</span>
+        <span class="pill warn"><span class="dot"></span>security tier</span>
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the secret store the wire-up (1.8)…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p><strong>Security tier.</strong> Threat model required. Surface: the agent password persisted in plaintext (SharedPreferences / a file) and read off a rooted/backed-up device; the secret surviving an uninstall via cloud backup; the secret logged. Mitigations: persist ONLY via <code>flutter_secure_storage</code> (iOS Keychain <code>first_unlock</code> accessibility, Android EncryptedSharedPreferences/Keystore); never log the value; <code>clear()</code> removes it. <code>null</code>/absent password is a valid state (no-password mode), not an error.</p>
+<p>Scope: <code>lib/data/credential_store.dart</code> — <code>CredentialStore</code> over an injected <code>FlutterSecureStorage</code> (faked in tests). API: <code>Future&lt;void&gt; savePassword(String)</code>, <code>Future&lt;String?&gt; password()</code> (null when unset), <code>Future&lt;void&gt; clear()</code>, plus <code>baseUrl()</code> returning the stored override or the default <code>http://192.168.0.1:9090</code>. The <code>password()</code> getter is exactly the provider <code>AgentClient</code> (1.4) expects.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — agent password is a secret — must live in flutter_secure_storage (Keychain/Keystore), never SharedPreferences/plaintext; null = no-password mode (not an error); base URL default + override; clear() wipes the secret</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-5" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-5">test('saves then reads the password back from secure storage', () async {
+  final store = CredentialStore(storage: FakeSecureStorage());
+  await store.savePassword('pw');
+  expect(await store.password(), 'pw');
+});
+
+test('password() is null when nothing is stored (no-password mode is valid)', () async {
+  final store = CredentialStore(storage: FakeSecureStorage());
+  expect(await store.password(), isNull);
+});
+
+test('baseUrl defaults to the agent LAN address when unset', () async {
+  final store = CredentialStore(storage: FakeSecureStorage());
+  expect(await store.baseUrl(), 'http://192.168.0.1:9090');
+});
+
+test('clear() removes the stored password', () async {
+  final store = CredentialStore(storage: FakeSecureStorage());
+  await store.savePassword('pw');
+  await store.clear();
+  expect(await store.password(), isNull);
+});
+
+test('writes go to secure storage, never to a plaintext key store', () async {
+  final fake = FakeSecureStorage();
+  final store = CredentialStore(storage: fake);
+  await store.savePassword('pw');
+  expect(fake.writes, contains('pw')); // and the fake IS the secure backend
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">thin wrapper over `flutter_secure_storage`; injectable for tests; default base URL constant</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>SECURITY-REVIEW<span class="meta">`opus` — `security-reviewer` (storage backend, accessibility flags, no plaintext)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-5">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.5</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">SpeedPoller — 1s reading stream with stale + reconnect</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill wip" title="stream/timer lifecycle — emit a SpeedReading each tick over an injected clock; on fetch error keep last-known + isStale=true (never emit a fake 0 / never crash the stream); a 401 is handled inside AgentClient (1.4) so the poller just sees success/failure; dispose cancels the timer with no further emissions; single-subscription vs broadcast"><span class="dot"></span>architect: required (mid)</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the data stream the speed screen (1…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Scope: <code>lib/core/speed_poller.dart</code> — <code>SpeedPoller</code> taking an <code>AgentClient</code> + interval + (injected) clock. Exposes a <code>Stream&lt;SpeedReading&gt;</code> where <code>SpeedReading{ snapshot: SpeedSnapshot?, isStale: bool, error: Object? }</code>. Behaviour: every <code>interval</code>, <code>GET /api/network/speed</code> → parse via <code>SpeedSnapshot.fromAgentJson</code> → emit <code>SpeedReading(snapshot, isStale:false)</code>. On any fetch/parse error, emit <code>SpeedReading(last snapshot, isStale:true, error)</code> — keep the last-known value, never emit 0, never close the stream on a transient error. <code>dispose()</code>/cancel stops the timer; no emissions afterward. Tested deterministically with <code>fake_async</code> + <code>clock</code> — no real waiting.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (mid) — stream/timer lifecycle — emit a SpeedReading each tick over an injected clock; on fetch error keep last-known + isStale=true (never emit a fake 0 / never crash the stream); a 401 is handled inside AgentClient (1.4) so the poller just sees success/failure; dispose cancels the timer with no further emissions; single-subscription vs broadcast</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-6" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-6">test('emits one reading per tick', () {
+  fakeAsync((async) {
+    final poller = SpeedPoller(client: FakeOkClient(), interval: const Duration(seconds: 1));
+    final seen = &lt;SpeedReading&gt;[];
+    final sub = poller.stream.listen(seen.add);
+    async.elapse(const Duration(seconds: 3));
+    expect(seen.length, 3);
+    expect(seen.every((r) =&gt; !r.isStale), isTrue);
+    sub.cancel();
+  });
+});
+
+test('on fetch error, keeps last-known value and marks stale (never 0)', () {
+  fakeAsync((async) {
+    final client = FlakyClient(failOnCall: 2); // call 1 ok, call 2 throws
+    final poller = SpeedPoller(client: client, interval: const Duration(seconds: 1));
+    final seen = &lt;SpeedReading&gt;[];
+    final sub = poller.stream.listen(seen.add);
+    async.elapse(const Duration(seconds: 2));
+    expect(seen[1].isStale, isTrue);
+    expect(seen[1].snapshot, same(seen[0].snapshot)); // last-known retained
+    expect(seen[1].error, isNotNull);
+    sub.cancel();
+  });
+});
+
+test('a transient error does not close the stream (recovers next tick)', () {
+  fakeAsync((async) {
+    final client = FlakyClient(failOnCall: 2);
+    final poller = SpeedPoller(client: client, interval: const Duration(seconds: 1));
+    final seen = &lt;SpeedReading&gt;[];
+    final sub = poller.stream.listen(seen.add);
+    async.elapse(const Duration(seconds: 3));
+    expect(seen.last.isStale, isFalse); // tick 3 recovered
+    sub.cancel();
+  });
+});
+
+test('dispose cancels the timer — no emissions afterward', () {
+  fakeAsync((async) {
+    final poller = SpeedPoller(client: FakeOkClient(), interval: const Duration(seconds: 1));
+    final seen = &lt;SpeedReading&gt;[];
+    final sub = poller.stream.listen(seen.add);
+    async.elapse(const Duration(seconds: 2));
+    poller.dispose();
+    async.elapse(const Duration(seconds: 5));
+    expect(seen.length, 2);
+    sub.cancel();
+  });
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">`Timer.periodic` over injected clock; last-known cache; `SpeedReading` value type; no real delays in tests</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-7">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.7</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Live speed screen (Download / Upload + loading / stale states)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert + uiux-expert</span>
+        <span class="pill wip" title="screen state machine — bind a SpeedReading stream to Download/Upload cards; render LOADING (first frame, no snapshot yet), VALUE, and STALE (last-known + a visible stale badge, never 0); accessibility semantics for both readings; no business logic in the widget (formatting via lib/core/format.dart)"><span class="dot"></span>architect: required (mid)</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the one screen the MVP ships</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Scope (UI cycle — <code>(app)</code>): <code>lib/ui/speed_screen.dart</code> — a <code>SpeedScreen</code> consuming a <code>Stream&lt;SpeedReading&gt;</code>. Renders a Download card (rx) and an Upload card (tx), each via <code>formatRate</code> (1.2). States: LOADING (no snapshot yet → spinner + “Connecting…”); VALUE (fresh reading); STALE (snapshot present + <code>isStale</code> → show the last-known number plus a clear “stale / reconnecting” badge, NEVER 0 and NEVER a crash). Semantics labels on both cards (“Download speed”, “Upload speed”) for screen readers. No networking/auth in the widget — it only consumes the stream. Manual smoke on a device/emulator per the GREEN UI gate.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (mid) — screen state machine — bind a SpeedReading stream to Download/Upload cards; render LOADING (first frame, no snapshot yet), VALUE, and STALE (last-known + a visible stale badge, never 0); accessibility semantics for both readings; no business logic in the widget (formatting via lib/core/format.dart)</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-7" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-7">testWidgets('LOADING: spinner before the first reading', (t) async {
+  final ctrl = StreamController&lt;SpeedReading&gt;();
+  await t.pumpWidget(wrap(SpeedScreen(readings: ctrl.stream)));
+  expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  expect(find.textContaining('Connecting'), findsOneWidget);
+  await ctrl.close();
+});
+
+testWidgets('VALUE: renders download (rx) and upload (tx) in Mbps', (t) async {
+  final ctrl = StreamController&lt;SpeedReading&gt;();
+  await t.pumpWidget(wrap(SpeedScreen(readings: ctrl.stream)));
+  ctrl.add(reading(rx: 3037500, tx: 126400)); // 24.3 / 1.0 Mbps
+  await t.pump();
+  expect(find.text('24.3 Mbps'), findsOneWidget); // download
+  expect(find.text('1.0 Mbps'), findsOneWidget);  // upload
+  expect(find.textContaining('Download'), findsOneWidget);
+  expect(find.textContaining('Upload'), findsOneWidget);
+  await ctrl.close();
+});
+
+testWidgets('STALE: keeps last value and shows a stale badge, never 0', (t) async {
+  final ctrl = StreamController&lt;SpeedReading&gt;();
+  await t.pumpWidget(wrap(SpeedScreen(readings: ctrl.stream)));
+  ctrl.add(reading(rx: 3037500, tx: 126400));
+  await t.pump();
+  ctrl.add(staleReadingFrom(rx: 3037500, tx: 126400)); // isStale:true, same snapshot
+  await t.pump();
+  expect(find.text('24.3 Mbps'), findsOneWidget); // last-known retained
+  expect(find.textContaining(RegExp('stale|reconnect', caseSensitive: false)), findsOneWidget);
+  expect(find.text('0.0 Mbps'), findsNothing);
+  await ctrl.close();
+});
+
+testWidgets('a11y: both cards expose semantics labels', (t) async {
+  final ctrl = StreamController&lt;SpeedReading&gt;();
+  await t.pumpWidget(wrap(SpeedScreen(readings: ctrl.stream)));
+  ctrl.add(reading(rx: 3037500, tx: 126400));
+  await t.pump();
+  expect(find.bySemanticsLabel(RegExp('Download speed')), findsOneWidget);
+  expect(find.bySemanticsLabel(RegExp('Upload speed')), findsOneWidget);
+  await ctrl.close();
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">`StreamBuilder&lt;SpeedReading&gt;`; `SpeedCard` widget; `formatRate` for display; `Semantics` labels; spinner on loading</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer` (apply §UI cycles checklist)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c1-8">
+  <summary class="cycle-head">
+    <span class="cycle-id">1.8</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">End-to-end wire-up — first-run auth + live screen on device</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert + test-engineer</span>
+        <span class="pill accent" title="composition of the auth boundary with the secret store + a first-run password-entry UX — the credential flows from CredentialStore (1.6) into the AgentClient (1.4) provider; a 401 with no stored password prompts ONCE; on AuthFailure the prompt re-opens (wrong password) without looping the agent; integration proven against an in-process fake agent across no-password / password / mid-session-reboot / unreachable"><span class="dot"></span>architect: required (top)</span>
+        <span class="pill warn"><span class="dot"></span>security tier</span>
+        
+        <span class="pill"><span class="dot"></span>Closes: new — the composed app; install on the ph…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p><strong>Security tier.</strong> Threat model required. Surface: the wire-up could log the password while passing it from store → client; an <code>AuthFailure</code> could loop the password prompt and hammer the agent; the password could be requested before the no-password path is tried (annoying + leaks that a password exists). Mitigations: the password flows only via the injected provider closure (never logged); on <code>AuthRequired</code>/<code>AuthFailure</code> the UI prompts once, stores via <code>CredentialStore</code>, and retries — bounded, no auto-loop; unauthenticated is always attempted first.</p>
+<p>Scope: <code>lib/app.dart</code> composition — build <code>AgentClient</code> with <code>passwordProvider: credentialStore.password</code>, feed it to <code>SpeedPoller</code>, render <code>SpeedScreen</code> on its stream. First-run/empty-credential UX: a minimal password sheet shown only on <code>AuthRequired</code>/<code>AuthFailure</code>, saving to <code>CredentialStore</code>, then retrying. <code>integration_test/</code> drives the full app against an in-process <code>FakeAgent</code> covering: (1) no-password agent streams immediately; (2) password agent prompts once → logs in → streams; (3) mid-session token wipe (reboot) → transparent reconnect, screen never blanks to 0; (4) unreachable agent → error/stale surface, last-known retained. Then a manual install on the real phone against the real modem.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — composition of the auth boundary with the secret store + a first-run password-entry UX — the credential flows from CredentialStore (1.6) into the AgentClient (1.4) provider; a 401 with no stored password prompts ONCE; on AuthFailure the prompt re-opens (wrong password) without looping the agent; integration proven against an in-process fake agent across no-password / password / mid-session-reboot / unreachable</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-8" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-8">testWidgets('no-password agent: app streams live speed without a prompt', (t) async {
+  final agent = await FakeAgent.start(password: null);
+  await t.pumpWidget(U60MonitorApp(env: testEnv(agent)));
+  await t.pump(const Duration(seconds: 1));
+  expect(find.textContaining('Mbps'), findsWidgets);
+  expect(find.byType(PasswordSheet), findsNothing);
+  await agent.stop();
+});
+
+testWidgets('password agent: prompts once, logs in, then streams', (t) async {
+  final agent = await FakeAgent.start(password: 'pw');
+  await t.pumpWidget(U60MonitorApp(env: testEnv(agent))); // no stored password
+  await t.pumpAndSettle();
+  expect(find.byType(PasswordSheet), findsOneWidget);
+  await t.enterText(find.byType(TextField), 'pw');
+  await t.tap(find.text('Connect'));
+  await t.pump(const Duration(seconds: 1));
+  expect(find.textContaining('Mbps'), findsWidgets);
+  await agent.stop();
+});
+
+testWidgets('agent reboot mid-session: reconnects, screen never blanks to 0', (t) async {
+  final agent = await FakeAgent.start(password: 'pw', storedPassword: 'pw');
+  await t.pumpWidget(U60MonitorApp(env: testEnv(agent)));
+  await t.pump(const Duration(seconds: 1));
+  agent.invalidateTokens();
+  await t.pump(const Duration(seconds: 2));
+  expect(find.text('0.0 Mbps'), findsNothing); // last-known retained through reconnect
+  expect(find.textContaining('Mbps'), findsWidgets);
+  await agent.stop();
+});
+
+testWidgets('wrong password re-opens the prompt without looping the agent', (t) async {
+  final agent = await FakeAgent.start(password: 'right');
+  await t.pumpWidget(U60MonitorApp(env: testEnv(agent)));
+  await t.pumpAndSettle();
+  await t.enterText(find.byType(TextField), 'wrong');
+  await t.tap(find.text('Connect'));
+  await t.pumpAndSettle();
+  expect(find.byType(PasswordSheet), findsOneWidget); // re-prompts
+  expect(agent.loginCount, lessThanOrEqualTo(2));     // bounded, no loop
+  await agent.stop();
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">compose store→client→poller→screen in `lib/app.dart`; `PasswordSheet` on AuthRequired/AuthFailure; `integration_test` against `FakeAgent`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`sonnet` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>SECURITY-REVIEW<span class="meta">`opus` — `security-reviewer` (credential flow, no password in logs, bounded prompt retry)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+    <hr class="section-rule">
+
+    <section id="open-q" class="section">
+      <h2>Open questions</h2>
+      <div class="table-wrap"><table class="data">
+    <thead><tr><th>Question</th><th>Why it matters</th><th>Resolution</th></tr></thead>
+    <tbody><tr><td>Bundle / org id + app display name?</td><td>Android applicationId + iOS bundle id are set at scaffold (1.1) and painful to change post-install.</td><td>RESOLVED: applicationId / bundle id <code>dev.zulfahmi.u60monitor</code>, display name “U60 Monitor”.</td></tr>
+<tr><td>iOS distribution — free 7-day re-sign or paid $99/yr Apple Developer?</td><td>Decides whether the iOS install survives past a week without re-signing; affects 1.8 manual-install step.</td><td>RESOLVED: free personal team (7-day re-sign, max 3 apps) — no paid account. 1.8 manual-install accepts weekly re-sign on iOS; Android sideload is permanent.</td></tr></tbody>
+  </table></div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="followups" class="section">
+      <h2>Cycle follow-ups</h2>
+      <p style="font-size:.92rem;color:var(--ink-3)">NITs logged, won&rsquo;t-fix, or deferred-structural; populated post-REVIEW per cycle.</p>
+      <div class="table-wrap"><table class="data">
+    <thead><tr><th>Cycle</th><th>Item</th><th>Tracked</th></tr></thead>
+    <tbody><tr><td>1.5</td><td>Poller back-off after repeated AuthFailure — the per-getJson login bound is 1, but the 1s poller re-invokes each tick, so a persistent 401 (wrong stored password) is ~1 login POST/sec at the agent (self-DoS of the LAN modem). Raised by the Cycle 1.4 security review.</td><td>DONE — Cycle 1.5 (auth-halt: timer cancelled on AuthFailure/AuthRequired)</td></tr>
+<tr><td>1.5</td><td>Harden the success-path jsonDecode(response.body) in AgentClient.getJson — a non-JSON 200 success body currently throws FormatException; the auth client delegates malformed-success-body handling to the poller, so Cycle 1.5 owns it. Raised by the Cycle 1.4 security review.</td><td>DONE — Cycle 1.5 (poller broad-catch absorbs FormatException → last-known + stale, stream stays open)</td></tr>
+<tr><td>future</td><td>BINDING INVARIANT (ADR-0002): any future cycle adding a UI/path to set a non-default agent base URL MUST validate it (http(s) + private/LAN host) in that same cycle, before the Bearer password is sent to it. Deferred from 1.8 — not exploitable in plan-001 (no setter UI; saveBaseUrl test-only; redirect needs direct storage tampering = device compromise). Raised by the 1.6 security review; deferral confirmed by the 1.8 security review.</td><td>Future base-URL-UI cycle (ADR-0002 invariant)</td></tr>
+<tr><td>future</td><td>First-run PasswordSheet back-button dismiss leaves the app on ‘Reconnecting…’ until restart (poller auth-halted, sheet won’t auto-reappear). Add a re-trigger affordance or make the first-run sheet a non-dismissable gate. UX, not security. Raised by the 1.8 security review (N3).</td><td>DONE — non-dismissable gate (user-chosen): PopScope(canPop:false) blocks back, isDismissible/enableDrag false block tap/drag, Connect disabled until non-empty; credential flow untouched</td></tr>
+<tr><td>1.6</td><td>FakeSecureStorage.writes is un-keyed; switch to a key-tagged view if a future cycle needs a per-key secure-backend assertion. NIT from the Cycle 1.6 review.</td><td>DONE — added writesFor(key); the 1.6 test now proves the secret routes to agent_password specifically (no bleed to agent_base_url)</td></tr>
+<tr><td>1.7</td><td>The speed screen STALE branch must guard a null snapshot — a first-tick AuthFailure/error leaves the poller’s last-known null, so STALE can carry a null snapshot; render spinner + stale badge, never crash, never 0. Raised by the Cycle 1.5 architect gate.</td><td>DONE — Cycle 1.7 (STALE_NULL renders spinner + Reconnecting…, tested)</td></tr>
+<tr><td>1.8</td><td>After re-auth, dispose the old SpeedPoller before constructing a new one — after an auth-halt the timer is cancelled but the controller stays open; a dangling subscription without dispose would leak. Raised by the Cycle 1.5 architect gate.</td><td>DONE — Cycle 1.8 (_SpeedHome cancels sub + disposes the old poller before building the new one; also in State.dispose)</td></tr></tbody>
+  </table></div>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-001.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

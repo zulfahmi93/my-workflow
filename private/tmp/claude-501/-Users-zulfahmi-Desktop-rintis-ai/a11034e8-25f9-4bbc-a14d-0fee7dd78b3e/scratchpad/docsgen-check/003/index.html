@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-003 — Overview</title>
+<meta name="description" content="Close the open plan-001 / plan-002 follow-ups plus the 8 post-plan-002 verification findings in six small TDD cycles: fold the legacy SpeedPoller onto the proven generic Poller&lt;T&gt;, tokenize the signal-tile stale dot, snap one-shot motion on a runtime reduced-motion toggle, require explicit chart trace colours, close the AgentClient http.Client on re-auth, and tighten the StatusStrip count finder. ZERO new pubspec deps, ZERO security-tier cycles; the dormant ADR-0002 base-URL invariant is not triggered.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-003</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html" aria-current="page">Overview</a>
+      <a class="navlink" href="plan.html">Cycles</a>
+      <a class="navlink" href="batches.html">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">Build plan 003</p>
+    <h1>u60-monitor — Polish &amp; Debt Paydown (plan-003)</h1>
+    <p class="lede">Close the open plan-001 / plan-002 follow-ups plus the 8 post-plan-002 verification findings in six small TDD cycles: fold the legacy SpeedPoller onto the proven generic Poller&lt;T&gt;, tokenize the signal-tile stale dot, snap one-shot motion on a runtime reduced-motion toggle, require explicit chart trace colours, close the AgentClient http.Client on re-auth, and tighten the StatusStrip count finder. ZERO new pubspec deps, ZERO security-tier cycles; the dormant ADR-0002 base-URL invariant is not triggered.</p>
+    <div class="hero-meta">
+      <span><b>6</b> TDD cycles</span>
+      <span><b>2</b> parallel batches</span>
+      <span><b>~50% — Batch B's five polish cycles (3.2–3.6) are write-disjoint and free of shared test-resource collision, collapsing to ~1 wall-step; the only hard serial edge is 3.1 → 3.5 (3.5 shares lib/app.dart + test/app_flow_test.dart with the collapse). The serial spine is just two cycles: 3.1 → 3.5.</b> wall-time saved</span>
+      <span><b>6 / 6</b> shipped</span>
+    </div>
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#context">Context</a></li>
+      <li><a href="#stack">Stack</a></li>
+      <li><a href="#tdd-cycle-format">TDD cycle format</a></li>
+      <li><a href="#out-of-scope">Out of scope (plan-003)</a></li>
+      <li><a href="#dag">Cycle dependencies</a></li>
+      <li><a href="#timeline">Batch timeline</a></li>
+      <li><a href="#progress">Progress</a></li>
+      <li><a href="#read-next">Read next</a></li>
+      <li><a href="#conventions">Conventions</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+
+    <section id="context" class="section">
+      <h2>Context</h2>
+      <p><strong>plan-003 is the polish + debt-paydown plan</strong> for u60-monitor. plan-001 shipped the live-speed MVP and plan-002 shipped the Glance Dashboard (history sparkline, battery, signal, status strip) on one no-scroll S22 screen. Both plans deferred a tail of small, in-scope follow-ups so the headline feature cycles stayed un-churned. plan-003 discharges that tail.</p>
+<p><strong>Source of truth — four gather passes feed exactly 12 actionable items, deduplicated into 6 cycles:</strong></p>
+<ol>
+<li><strong>plan-001 follow-ups</strong> — 9 items, all but one already resolved in Cycles 1.5–1.8 / post-run. The sole still-open item is the dormant base-URL setter invariant (ADR-0002), carried forward, <strong>not</strong> discharged here.</li>
+<li><strong>plan-002 follow-ups</strong> — 19 items (14 plan rows + 5 cycle-note deviations). The actionable subset: collapse SpeedPoller onto <code>Poller&lt;SpeedSnapshot&gt;</code> (FU-02), refresh the <code>core.dart</code> barrel-doc (FU-03), tighten the StatusStrip finder (FU-06), add <code>AgentClient.close()</code> (FU-07), delete dead <code>FakeMultiClient</code> edge flags (FU-08), tidy the <code>shouldRepaint</code> comment (FU-15). The four on-device S22 smokes (FU-09/10/13/14) and the dormant invariants (FU-01, FU-17) need no code.</li>
+<li><strong>8 verification findings</strong> — F1 (signal-tile stale dot ignores the <code>staleIndicator</code> token), F2 (motion widgets miss <code>didChangeDependencies</code>), F3 (chart painter’s <code>MonitorColors.light</code> fallback footgun), F5 (stale <code>shouldRepaint</code> comment), F6 (a haptic reduced-motion regression guard), F7 (an understated contrast comment) are folded into the cycles; F4 (cycle-note schema has no per-pass reviewer slot) and F8 (two prior commit subjects exceed 50 chars) are non-code, tracked in §Open questions / §Cycle follow-ups.</li>
+<li><strong>Code-scope feasibility</strong> — confirmed the SpeedPoller collapse is GREEN with zero coverage loss (<code>poller_test.dart</code> is a verified test-by-test superset of <code>speed_poller_test.dart</code>; <code>speed_snapshot_test.dart</code> covers the parse path) and grounded the reduced-motion fix as defensive-consistency, not a steady-state bug, for the one-shot widgets.</li>
+</ol>
+<p><strong>Six cycles, two batches.</strong> Batch A = <strong>3.1</strong> solo (the one medium item — the core polling-contract collapse, opus architect gate before RED). Batch B = <strong>3.2–3.6</strong> — write-disjoint polish/debt cycles. 3.5 carries a file-level dep on 3.1 (both write <code>lib/app.dart</code> + <code>test/app_flow_test.dart</code>); 3.2/3.3/3.4/3.6 are genuinely disjoint and staged after A only for clean review sequencing. Critical path = 3.1 → 3.5.</p>
+<p><strong>ZERO new pubspec deps</strong> — every cycle edits or deletes existing files; no package is added (an out-of-bounds STOP if one is). <strong>ZERO security-tier cycles</strong> — every cycle lands on the audited read-only display/telemetry boundary (<code>lib/ui</code> cosmetic colour/motion, the chart, test files) or adds pure resource hygiene. Cycle 3.5 is the only one touching an auth-sensitive file (<code>lib/core/agent_client.dart</code>), but it adds only an http connection-pool <code>close()</code> and changes <strong>no</strong> auth/token/password/base-url code path — the Cycle-1.4-locked auth flow is untouched — so the <code>code-reviewer</code> gate suffices (no <code>security-reviewer</code> second pass); the reviewer must still confirm no auth-path regression.</p>
+<p><strong>The ADR-0002 base-URL invariant is NOT triggered.</strong> plan-003 adds no base-URL / Settings setter; <code>saveBaseUrl</code> stays test-only and <code>baseUrl()</code> returns the default <code>192.168.0.1:9090</code>. The invariant is the only genuinely security-tier item across all four gather sources and it is dormant — carried into §Cycle follow-ups + ADR-0002, not discharged. If any future cycle wires a user-suppliable base URL, that cycle becomes security-tier (opus architect gate + <code>security-reviewer</code>) and must validate http(s) scheme + private/LAN host in-cycle before the Bearer password is sent.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="stack" class="section">
+      <h2>Stack</h2>
+      <p>Unchanged from plan-001 / plan-002 — this is a polish plan, not a new surface.</p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Layer</th>
+<th>Tech</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>App</td>
+<td>Flutter + Dart</td>
+<td>one codebase → Android + iOS</td>
+</tr>
+<tr>
+<td>Core</td>
+<td>pure Dart in <code>lib/core/</code></td>
+<td>no <code>flutter</code>/<code>material</code>/<code>dart:ui</code> imports; the generic <code>Poller&lt;T&gt;</code> + <code>Reading&lt;T&gt;</code> already exist and back four of the five metric streams</td>
+</tr>
+<tr>
+<td>HTTP</td>
+<td><code>package:http</code> via <code>AgentClient</code></td>
+<td>Cycle 3.5 adds <code>close()</code> for connection-pool release on re-auth — additive, no auth-flow change</td>
+</tr>
+<tr>
+<td>UI</td>
+<td><code>lib/ui/</code> widgets + <code>MonitorColors</code> ThemeExtension</td>
+<td>3.2 tokenizes the signal stale dot; 3.3 hardens motion lifecycle; 3.4 requires explicit chart colours</td>
+</tr>
+<tr>
+<td>Time (tests)</td>
+<td><code>package:fake_async</code> + <code>package:clock</code></td>
+<td>already present; no new dep</td>
+</tr>
+<tr>
+<td>Test fakes</td>
+<td><code>FakeMultiClient</code>, <code>FakeAgent</code>, <code>FakeSecureStorage</code></td>
+<td>3.5 deletes dead <code>FakeMultiClient</code> edge flags + adds a <code>closed</code> close-spy</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>No new pubspec deps.</strong> Unlike plan-002 (whose Cycle 2.1 was the sole sanctioned pubspec-touch), plan-003 has <strong>no</strong> pubspec-touch cycle at all — any dep add is an out-of-bounds STOP. The frozen-pubspec rule from plan-001/plan-002 stands.</p>
+<p><strong>Architecture rule (unchanged + enforced):</strong> pure-Dart core stays free of <code>flutter</code>/<code>material</code>/<code>dart:ui</code>; a flutter import under <code>lib/core/</code> is an instant review BLOCKER. Cycle 3.1 re-points the speed stream onto the generic <code>Poller&lt;T&gt;</code>/<code>Reading&lt;T&gt;</code> already living in <code>lib/core/</code> — it removes the duplicated <code>SpeedPoller</code>/<code>SpeedReading</code> skeleton, it does not add a new core surface.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="tdd-cycle-format" class="section">
+      <h2>TDD cycle format</h2>
+      <p>See <code>.claude/rules/cycle-orchestration.md</code> (paired with <code>tdd.md</code> + <code>commit.md</code>). Reviewer separation, architect gate, NO-DEFER, subagent prompt skeleton, reviewer hallucination guard — all unchanged. <strong>Architecture-review value on every cycle is mandatory</strong> (missing field → STOP). No cycle is security-tier; the architect (3.1) and the reviewer (all cycles) must still confirm this per cycle, not assume it.</p>
+<pre><code>CYCLE X.Y — [behaviour name]
+RED      (Model - Agent):          exact failing test assertions (or, for 3.1, the migration compile-break)
+GREEN    (Model - Agent):          minimal code to pass
+REVIEW   (Model - code-reviewer):  issues list; never writes code
+REFACTOR (Model - Agent):          domain expert applies review feedback
+</code></pre>
+<p><strong>Model rules</strong> (per user directive — overrides the default tier map for this plan: <strong>architect gates + REVIEW use <code>opus</code>; RED/GREEN/REFACTOR default <code>sonnet</code>; never <code>haiku</code></strong>):</p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Cycle complexity</th>
+<th>RED</th>
+<th>GREEN</th>
+<th>REVIEW</th>
+<th>REFACTOR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Architecture-gated structural refactor (3.1)</td>
+<td><code>sonnet</code> (architect <code>opus</code>)</td>
+<td><code>sonnet</code></td>
+<td><code>opus</code></td>
+<td><code>sonnet</code></td>
+</tr>
+<tr>
+<td>Cosmetic / motion / resource-hygiene polish (3.2–3.6)</td>
+<td><code>sonnet</code></td>
+<td><code>sonnet</code></td>
+<td><code>opus</code></td>
+<td><code>sonnet</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Agent roles:</strong></p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Agent</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>software-architect</code></td>
+<td>Architecture gate on 3.1 only (<code>opus</code>) — never RED/GREEN</td>
+</tr>
+<tr>
+<td><code>flutter-expert</code></td>
+<td>Dart core + Flutter UI — RED, GREEN, REFACTOR (all cycles)</td>
+</tr>
+<tr>
+<td><code>uiux-expert</code></td>
+<td>Optional co-owner on the visual/motion cycles (3.2, 3.3) when a token/interaction call is needed</td>
+</tr>
+<tr>
+<td><code>code-reviewer</code></td>
+<td>REVIEW only — identifies issues, never writes code</td>
+</tr>
+</tbody>
+</table></div>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="out-of-scope" class="section">
+      <h2>Out of scope (plan-003)</h2>
+      <ul>
+<li><strong>A base-URL / Settings setter</strong> — deliberately not added (keeps the whole plan out of the security tier per ADR-0002). The invariant is carried, not discharged. If ever added, that cycle is security-tier with in-cycle http(s)+private/LAN validation.</li>
+<li><strong>Sparkline “draw-in” / point-append animation</strong> — a standing won’t-do invariant (FU-17): a frame-driven draw-in would breach the chart’s no-<code>ImplicitlyAnimatedWidget</code> guard and exceed the ≤1/s repaint budget. Cycle 3.4 explicitly preserves this guard.</li>
+<li><strong>The two-up half-width Row for Battery + Signal</strong> — the current full-width vertical stack is an architect-sanctioned fallback (BatteryTile text overflows ~108dp at 1.3× text scale). Restoring the Row needs typography rework + a UX call + an <code>integrated_screen_test</code> re-run — too much for a polish plan (open question, not a cycle).</li>
+<li><strong>MonitorHeader named-header semantics</strong> — <code>excludeSemantics:true</code> deliberately suppresses the app-name title so the composed Semantics announces only the load-bearing state (Live/Stale/Reconnecting). No a11y directive to override; left as a documented deliberate omission.</li>
+<li><strong>Precise connected-client count</strong> — agent-side, not ours. <code>/api/wifi/status clients_total</code> leaks the WiFi PSK; a precise count needs a count-only endpoint added to the zte-agent in open-u60-pro (a separate repo). The <code>dhcp_leases</code>-length count stays.</li>
+<li><strong>On-device Samsung S22 deploy &amp; device-verify smokes</strong> — the deferred plan-002 device smokes (and the plan-001 1.8 iOS install/trust step) are a manual human deploy pass; no agent can drive a physical phone. Tracked as a single §Cycle-follow-ups note, not a TDD cycle.</li>
+<li><strong>cycle-note schema per-pass reviewer roster (F4)</strong> — a repo-wide docs-gen tooling change affecting every project’s cycle notes; out of u60-monitor’s plan-003 scope (open question for a separate infra task).</li>
+<li><strong>Any new pubspec dep</strong> — there is no pubspec-touch cycle; a mid-plan dep add is an out-of-bounds STOP.</li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="dag" class="section">
+      <h2>Cycle dependencies</h2>
+      <p>Each node is a cycle; an arrow means &ldquo;must ship first&rdquo;. The critical path is highlighted.</p>
+      <div class="figure">
+        <svg viewBox="0 0 382 430" role="img" aria-labelledby="dag-t dag-d" font-size="13">
+    <title id="dag-t">Plan-003 cycle dependency graph</title>
+    <desc id="dag-d">Cycles laid out left to right by dependency depth. The critical path (3.1 → 3.5) is highlighted.</desc>
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <path d="M152 90 C 191 90, 191 230, 230 230" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/>
+    <g>
+        <rect x="20" y="65" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="86" y="86" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">3.1</text>
+        <text x="86" y="102" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="135" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="156" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">3.2</text>
+        <text x="86" y="172" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="205" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">3.3</text>
+        <text x="86" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="275" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="296" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">3.4</text>
+        <text x="86" y="312" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="230" y="205" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="296" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">3.5</text>
+        <text x="296" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="345" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="366" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">3.6</text>
+        <text x="86" y="382" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g>
+  </svg>
+        <div class="legend">
+          <span><i class="sw crit"></i> critical path</span>
+          <span><i class="sw norm"></i> parallel-safe</span>
+          <span><i class="ln crit"></i> blocks (critical)</span>
+          <span><i class="ln"></i> blocks</span>
+        </div>
+        <p class="cap">Critical path: <b>3.1 → 3.5</b>.</p>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="timeline" class="section">
+      <h2>Batch timeline &amp; critical path</h2>
+      <p>Cycles within a batch are file-disjoint and run in parallel sessions. The critical path determines wall-time.</p>
+      <div class="figure">
+        <svg viewBox="0 0 510 348" role="img" aria-labelledby="tl-t tl-d" font-size="13">
+    <title id="tl-t">Plan-003 batch timeline</title>
+    <desc id="tl-d">2 batches over time; cycles within a batch run in parallel. Critical path: 3.1 → 3.5.</desc>
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <line x1="255" y1="64" x2="255" y2="312" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><text x="130" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P3.A</text><text x="130" y="48" text-anchor="middle" class="dg-subtext" font-size="10">60–90 min · solo</text><g>
+          <rect x="20" y="160" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="36" y="183" class="dg-text" font-weight="700" font-size="12">3.1</text>
+          <text x="226" y="183" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="380" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P3.B</text><text x="380" y="48" text-anchor="middle" class="dg-subtext" font-size="10">120–180 min · 5 parallel</text><g>
+          <rect x="270" y="64" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="87" class="dg-text" font-weight="700" font-size="12">3.2</text>
+          <text x="476" y="87" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="112" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="135" class="dg-text" font-weight="700" font-size="12">3.3</text>
+          <text x="476" y="135" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="160" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="183" class="dg-text" font-weight="700" font-size="12">3.4</text>
+          <text x="476" y="183" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="208" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="286" y="231" class="dg-text" font-weight="700" font-size="12">3.5</text>
+          <text x="476" y="231" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="256" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="286" y="279" class="dg-text" font-weight="700" font-size="12">3.6</text>
+          <text x="476" y="279" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><path d="M240 184 C 255 184, 255 184, 270 184" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><text x="255" y="336" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-size="11" font-weight="700">critical path · 3.1 → 3.5</text>
+  </svg>
+        <p class="cap">Critical path = <b>2 batches</b> vs <b>6 cycles</b> serial. <b>~50% — Batch B's five polish cycles (3.2–3.6) are write-disjoint and free of shared test-resource collision, collapsing to ~1 wall-step; the only hard serial edge is 3.1 → 3.5 (3.5 shares lib/app.dart + test/app_flow_test.dart with the collapse). The serial spine is just two cycles: 3.1 → 3.5.</b> wall-time saved.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v">2</div><div class="k">Batches</div></div>
+        <div class="stat"><div class="v">6</div><div class="k">Cycles</div></div>
+        <div class="stat"><div class="v"><span class="accent">~50% — Batch B's five polish cycles (3.2–3.6) are write-disjoint and free of shared test-resource collision, collapsing to ~1 wall-step; the only hard serial edge is 3.1 → 3.5 (3.5 shares lib/app.dart + test/app_flow_test.dart with the collapse). The serial spine is just two cycles: 3.1 → 3.5.</span></div><div class="k">Wall-time saved</div></div>
+        <div class="stat"><div class="v">2</div><div class="k">Critical-path hops</div></div>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="progress" class="section">
+      <h2>Progress</h2>
+      <p>Live status parsed from <code>plan-003.yaml</code>.</p>
+      <div class="panel">
+        <div class="dash">
+          <div class="donut-wrap" aria-hidden="true">
+            <svg width="200" height="200" viewBox="0 0 120 120" role="img" aria-label="Progress donut: 6 of 6 cycles done">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--surface-2)" stroke-width="14"/>
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="301.6 0.0" transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="donut-center">
+              <div class="big">6<span style="color:var(--ink-faint);font-size:1.4rem">/6</span></div>
+              <div class="small">Shipped</div>
+            </div>
+          </div>
+          <div class="dash-legend">
+            <div class="row"><span class="sw" style="background:var(--accent)"></span><span class="lbl">Shipped</span><span class="ct">6</span></div>
+            <div class="row"><span class="sw" style="background:var(--wip-fg)"></span><span class="lbl">In progress</span><span class="ct">0</span></div>
+            <div class="row"><span class="sw" style="background:var(--surface-2);border:1px solid var(--line-strong)"></span><span class="lbl">Not started</span><span class="ct">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Status table</h3>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Cycle</th><th>Description</th><th>Status</th><th>Shipped</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">3.1</td><td>Collapse SpeedPoller onto Poller&lt;SpeedSnapshot&gt;</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">3.2</td><td>Tokenize the signal-tile stale dot; fix contrast comment</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">3.3</td><td>Snap one-shot motion on a reduced-motion toggle; lock recovery haptic</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">3.4</td><td>Require explicit chart trace colours; tidy shouldRepaint comment</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">3.5</td><td>Close the AgentClient http.Client on re-auth; drop dead fake flags</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">3.6</td><td>Tighten the StatusStrip client-count finder</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="read-next" class="section">
+      <h2>Read next</h2>
+      <div class="card-grid">
+        <a class="linkcard" href="plan.html">
+          <span class="num">01 · THE PLAN</span>
+          <h3>The 6 cycles</h3>
+          <p>Every cycle in expandable detail: scope, the RED / GREEN / REVIEW / REFACTOR phases, and the verbatim code blocks. Plus the TDD loop diagram.</p>
+          <span class="go">View cycles</span>
+        </a>
+        <a class="linkcard" href="batches.html">
+          <span class="num">02 · THE RUNBOOK</span>
+          <h3>Parallel batch orchestration</h3>
+          <p>How to run this plan across parallel sessions: worktree setup, merge protocol, the file-ownership matrix, and the copy-paste session prompts.</p>
+          <span class="go">Open runbook</span>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="conventions" class="section">
+      <h2>Conventions in play</h2>
+      <p>Every cycle runs through the same disciplined loop, defined in the shared rules under <code>.agents/rules/</code>.</p>
+      <div class="conv-grid">
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/></svg> Architect gate</h4><p>Each cycle carries an architecture-review tier (<code>top</code>, <code>mid</code>, <code>none</code>, or <code>deferred</code>). Legacy provider aliases are normalized while loading. A fresh <code>software-architect</code> returns a <code>GO</code> / <code>NO-GO</code> verdict <strong>before RED</strong> for the non-trivial ones.</p></div>
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Reviewer separation</h4><p>REVIEW is performed by a fresh <code>code-reviewer</code> sub-agent &mdash; never self-review. Security-tier cycles add a <code>security-reviewer</code> second pass.</p></div>
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg> NO-DEFER</h4><p>Every <code>[BLOCKER]</code> and <code>[REFACTOR]</code> finding is resolved in the same cycle&rsquo;s REFACTOR pass. Scope discipline is not a reason to defer an in-scope finding.</p></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-003.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

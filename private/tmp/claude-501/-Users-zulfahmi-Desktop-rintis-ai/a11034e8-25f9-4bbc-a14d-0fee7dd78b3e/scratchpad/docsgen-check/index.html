@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · build documentation</title>
+<meta name="description" content="u60-monitor is a lightweight Flutter app (Android + iOS) showing live cellular upload / download speed from a ZTE U60 Pro 5G modem — a thin client over the on-modem zte-agent. Each plan below is a sequence of disciplined TDD cycles. Pick a plan to read its cycles and parallel runbook.">
+<link rel="stylesheet" href="assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">docs</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="index.html" aria-current="page">All plans</a>
+      <a class="navlink" href="001/index.html">plan-001</a>
+      <a class="navlink" href="002/index.html">plan-002</a>
+      <a class="navlink" href="003/index.html">plan-003</a>
+      <a class="navlink" href="004/index.html">plan-004</a>
+      <a class="navlink" href="005/index.html">plan-005</a>
+      <a class="navlink" href="006/index.html">plan-006</a>
+      <a class="navlink" href="007/index.html">plan-007</a>
+      <a class="navlink" href="008/index.html">plan-008</a>
+      <a class="navlink" href="009/index.html">plan-009</a>
+      <a class="navlink" href="010/index.html">plan-010</a>
+      <a class="navlink" href="011/index.html">plan-011</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">u60-monitor · build documentation</p>
+    <h1>Build plans for u60-monitor</h1>
+    <p class="lede">u60-monitor is a lightweight Flutter app (Android + iOS) showing live cellular upload / download speed from a ZTE U60 Pro 5G modem — a thin client over the on-modem zte-agent. Each plan below is a sequence of disciplined TDD cycles. Pick a plan to read its cycles and parallel runbook.</p>
+    <div class="hero-meta">
+      <span><b>11</b> plans</span>
+      <span><b>85</b> total cycles</span>
+      <span><b>61</b> shipped</span>
+    </div>
+  </div>
+</section>
+<main id="main" class="layout no-toc">
+
+  <div class="content">
+
+    <section class="section">
+      <h2>Plans</h2>
+      <div class="card-grid">
+        <a class="linkcard" href="001/index.html">
+          <span class="num">PLAN-001</span>
+          <h3>u60-monitor — Build Plan (plan-001)</h3>
+          <p>Live up/down speed MVP: a Flutter (Android + iOS) thin client over the on-modem zte-agent. Pure-Dart core (format + parse + lazy-auth + 1s poller) under a one-screen UI with loading / stale / reconnect states. 8 TDD cycles across 5 batches.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">8 / 8 shipped · 5 batches</span>
+        </a>
+        <a class="linkcard" href="002/index.html">
+          <span class="num">PLAN-002</span>
+          <h3>u60-monitor — Glance Dashboard (plan-002)</h3>
+          <p>Extend the live-speed glance tool with three features on ONE no-scroll S22 screen: a 2-minute up/down history sparkline, battery SoC + charge state (incl. charge-cap pause), and 4G/5G signal type + strength — plus operator / uptime / connected-clients glance fields. 15 TDD cycles, 6 batches, zero new pubspec deps, zero security-tier feature cycles.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">15 / 15 shipped · 6 batches</span>
+        </a>
+        <a class="linkcard" href="003/index.html">
+          <span class="num">PLAN-003</span>
+          <h3>u60-monitor — Polish &amp; Debt Paydown (plan-003)</h3>
+          <p>Close the open plan-001 / plan-002 follow-ups plus the 8 post-plan-002 verification findings in six small TDD cycles: fold the legacy SpeedPoller onto the proven generic Poller&lt;T&gt;, tokenize the signal-tile stale dot, snap one-shot motion on a runtime reduced-motion toggle, require explicit chart trace colours, close the AgentClient http.Client on re-auth, and tighten the StatusStrip count finder. ZERO new pubspec deps, ZERO security-tier cycles; the dormant ADR-0002 base-URL invariant is not triggered.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">6 / 6 shipped · 2 batches</span>
+        </a>
+        <a class="linkcard" href="004/index.html">
+          <span class="num">PLAN-004</span>
+          <h3>u60-monitor — Editorial Redesign (plan-004)</h3>
+          <p>Implement the Claude-Design editorial restyle of the speed screen in ten foundation-first TDD cycles: bundle Space Grotesk + Space Mono offline, swap the teal Material seed for a fixed-hex editorial token set (lime download / sky upload), restyle the feed-state header, build a side-by-side speed twin with count-up, extend the existing CustomPainter sparkline (peak label + mm:ss axis + reconnecting em-dash) — keeping charting in-house per ADR-0007 — restyle the battery section with a charge-cap tick, fold signal + uptime + clients into a new 3-cell footer, and assemble the editorial screen PRESERVING plan-002's per-tile freshness. ZERO new pubspec PACKAGE deps (fonts are local assets); ZERO security-tier cycles; ADR-0002 base-URL invariant stays dormant.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">10 / 10 shipped · 5 batches</span>
+        </a>
+        <a class="linkcard" href="005/index.html">
+          <span class="num">PLAN-005</span>
+          <h3>u60-monitor — Data Usage &amp; Data Plan mirror (plan-005)</h3>
+          <p>Surface the modem's OWN data-management screen — this-cycle usage, the firmware Data Plan (monthly limit), the Clear Date (cycle reset day), and the over-limit warning — as a glanceable, READ-ONLY editorial section, in five file-disjoint TDD cycles: a pure-Dart DataUsageSnapshot (usage + plan) model, binary IEC formatBytes (KiB/MiB/GiB/TiB labels), a DataUsageStatus percent helper, a new DataUsageSection widget whose limit bar ACTIVATES the reserved `red` token when over-plan, and a poller wired into the screen ABOVE the sticky footer. The limit + reset day are READ from firmware (the agent gains a tiny read-only wrapper over the existing `zwrt_data` ubus get_wwandst_monthlimit / get_wwandst_clearday) — the app writes NOTHING to the modem. NOT security-tier; ADR-0002 base-URL invariant stays dormant; ZERO new pubspec deps. Every UI cycle MUST invoke the frontend-design:frontend-design skill before writing widget code.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">5 / 5 shipped · 3 batches</span>
+        </a>
+        <a class="linkcard" href="006/index.html">
+          <span class="num">PLAN-006</span>
+          <h3>u60-monitor — Post-ship debt &amp; latent-bug sweep (plan-006)</h3>
+          <p>Close the residual open follow-ups that survived the plan-001→005 sweep + the post-plan-005 on-device fix round, as three file-disjoint TDD cycles: 6.1 fixes a latent 3G decimal-parse bug (ecio parsed with the integer parser, silently dropping WCDMA Ec/Io — the same class as the Cycle-B SINR fix); 6.2 makes the chart PEAK label adaptive (bps/Kbps/Mbps/Gbps) to match Cycle-C's adaptive DL/UL twin, instead of a hardcoded Mbps that reads '0 Mbps' at low throughput; 6.3 (security-tier) bounds the login's secure-store password read with a timeout so a hung read cannot stall the shared single-flight login (and thus all six pollers), and closes the sec-A warm-expiry concurrent-re-login coverage gap with a regression test. Every open code/test follow-up verified against source at HEAD 87d623c; everything else in the backlog is closed, superseded, human-only, or a dormant invariant (see §Fix inventory). ZERO new pubspec deps.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">3 / 3 shipped · 2 batches</span>
+        </a>
+        <a class="linkcard" href="007/index.html">
+          <span class="num">PLAN-007</span>
+          <h3>u60-monitor — Numeric-text content transitions (plan-007)</h3>
+          <p>Replace the first-load-only count-up ramp with a faithful SwiftUI `.contentTransition(.numericText())` morph that fires on EVERY value change, applied to every live numeric readout in the app. The motion is decoded FROM PIXELS (a 169-frame frame-by-frame capture, `docs/rnd/swiftui-numerictext-animation/`): each changed glyph column does blur + scale + downward slide + asymmetric cross-fade, digits resolve left-to-right (a stagger), and the number width reflows on a digit-count change. Built as one reusable primitive over THREE cycles — 7.1 a pure-Dart right-aligned glyph-diff (`lib/core/numeric_transition.dart`, unit-tested), 7.2 the `AnimatedNumericText` core roll (drift+scale+fade+stagger, saveLayer-free at rest), 7.2b its blur + animated reflow + perf tiering — then adopted across all five numeric surfaces over four cycles (7.3 SpeedTwin, retiring the old `CountUpText`; 7.4 BatteryTile; 7.5 DataUsageSection; 7.6 FooterTriplet + SpeedHistoryChart). The enter-live '0'-baseline count-up hack is removed. ZERO new pubspec deps.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:100%"></span></div></div>
+          <span class="go">10 / 10 shipped · 3 batches</span>
+        </a>
+        <a class="linkcard" href="008/index.html">
+          <span class="num">PLAN-008</span>
+          <h3>u60-monitor — Live speed from cumulative counters (plan-008)</h3>
+          <p>The headline DL/UL number is not live: the app displays the agent's `rx_speed`/`tx_speed`, which is a ~15-second rolling mean, so a burst takes ~15 s to register and ~15 s to decay. This plan derives the rate IN-APP by differencing the cumulative `rx_bytes`/`tx_bytes` counters that `SpeedSnapshot` already parses and nothing consumes. Because the counter only advances on the agent's own 1 Hz sampler grid, a 1 Hz client poll provably cannot recover the elapsed tick count (`T_c + δ &lt; 470 ms` has no solution at 1 Hz) and aliases into a ±100% flap — so the speed lane OVERSAMPLES at 250 ms, re-anchors only when a counter actually moves, and divides by the exactly-recovered integer tick count `round(elapsed.inMilliseconds/1000).clamp(1,3)`. Oversampling never escapes the new pure-Dart `SpeedRateDeriver`: holds are suppressed and stale readings throttled, so the UI stream and the history ring keep today's ~1 Hz cadence and `SpeedHistory` is not modified at all. The agent's averages are retained as a one-sample seed/fallback on five guarded paths. 10 cycles, none security-tier. ZERO new pubspec deps.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:40%"></span></div></div>
+          <span class="go">4 / 10 shipped · 5 batches</span>
+        </a>
+        <a class="linkcard" href="009/index.html">
+          <span class="num">PLAN-009</span>
+          <h3>u60-monitor — Docs &amp; guides (plan-009)</h3>
+          <p>Make the written record match the code. The project's ONLY local guide has never been edited — one commit (`ca360f4`, 2026-06-26), drifted through 77 commits, 6 plans and 14 ADRs — and per the root `AGENTS.md` it is the first thing every agent reads, so its 11 defects propagate into every future cycle. Worst: it points at `.claude/rules/`, a directory that NO LONGER EXISTS (moved to `.agents/rules/`), and 74 more occurrences of that dead path sit across the seven plan YAMLs including inside subagent "Mandatory reads" blocks that would fail to resolve mid-cycle; its section headed "verified against agent source — do not guess" documents 2 of 7 endpoints. Six cycles: rewrite the guide as `AGENTS.md`, sweep the dead path, correct five stale ADRs, replace the `flutter create` README, and close two ADR guard gaps that are enforced only by prose (one of which is already being violated in shipped code). ZERO code behaviour change. Scope is exactly the documentation items of `docs/open-issues-2026-07-19.md`.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:0%"></span></div></div>
+          <span class="go">0 / 6 shipped · 3 batches</span>
+        </a>
+        <a class="linkcard" href="010/index.html">
+          <span class="num">PLAN-010</span>
+          <h3>u60-monitor — Morph fidelity (plan-010)</h3>
+          <p>plan-007 spent ten cycles building a frame-accurate numeric morph, and on five surfaces it silently does not run. `ADR-0014:179-187` is a forward-lock: unit-bearing single-number surfaces MUST pass the CLEAN numeric run with the unit as a static sibling. At HEAD every named exemplar violates it — `'$percent%'`, `'PEAK $peakLabel'`, `'CAP ${pct}%'`, `'−N dBm'`, `'OF ${formatBytes(limit)}'` and the two `formatBytes` volume readouts all reach the primitive as combined strings, `double.tryParse` fails, `direction == 0`, and `didUpdateWidget` returns without starting the ticker. The result is a whole-string cross-fade where digits should roll. No test fails; the effect just quietly stopped working, and `plan-007.yaml:83` states the CONTRADICTING rule so a reader hits wrong guidance first. Also: `_shrinkOverlay` paints unclipped into negative x with no assertion on where it lands, and `_kHeadroom = 1.12` is type-level unreachable while ADR-0007 still calls it live design. 7 cycles. ZERO new deps.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:0%"></span></div></div>
+          <span class="go">0 / 7 shipped · 3 batches</span>
+        </a>
+        <a class="linkcard" href="011/index.html">
+          <span class="num">PLAN-011</span>
+          <h3>u60-monitor — Data truth &amp; auth hardening (plan-011)</h3>
+          <p>Four security-tier cycles and one data-truth cycle, all verified at HEAD 1ef8038. The app renders a live data cap for a plan the firmware may consider INACTIVE, because `parsePlan()` models three of the four fields the agent emits and never reads `enabled` — a never-lie violation that fails soft only because this device happens to report `enabled:true`. `saveBaseUrl` is a bare `_storage.write` with zero validation and `AgentClient`'s constructor is an unguarded `Uri.parse`, so the ADR-0002 binding invariant — re-carried unfulfilled by six consecutive plans — is still undischarged; this plan lands the validator DEFENSIVELY, with no setter UI, and retires it permanently. `agent_client.dart:161` documents in its own words that the single-flight login guard is safe only under an unenforced one-client-per-credential assumption and 'needs revisiting'; neither closure route was ever taken. And `build.gradle.kts:30-32` still signs release builds with the shared debug key under a live TODO, which blocks any real distribution. 5 cycles, 4 security-tier. ZERO new deps.</p>
+          <div class="plan-progress" aria-hidden="true"><div class="bar"><span style="width:0%"></span></div></div>
+          <span class="go">0 / 5 shipped · 3 batches</span>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section class="section">
+      <h2>At a glance</h2>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Plan</th><th>Theme</th><th>Cycles</th><th>Batches</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">plan-001</td><td>u60-monitor — Build Plan</td><td>8</td><td>5</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="001/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-002</td><td>u60-monitor — Glance Dashboard</td><td>15</td><td>6</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="002/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-003</td><td>u60-monitor — Polish &amp; Debt P…</td><td>6</td><td>2</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="003/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-004</td><td>u60-monitor — Editorial Redes…</td><td>10</td><td>5</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="004/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-005</td><td>u60-monitor — Data Usage &amp; Da…</td><td>5</td><td>3</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="005/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-006</td><td>u60-monitor — Post-ship debt…</td><td>3</td><td>2</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="006/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-007</td><td>u60-monitor — Numeric-text co…</td><td>10</td><td>3</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td><a href="007/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-008</td><td>u60-monitor — Live speed from…</td><td>10</td><td>5</td><td><span class="pill wip"><span class="dot"></span>4/10 in progress</span></td><td><a href="008/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-009</td><td>u60-monitor — Docs &amp; guides</td><td>6</td><td>3</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td><a href="009/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-010</td><td>u60-monitor — Morph fidelity</td><td>7</td><td>3</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td><a href="010/index.html">Open →</a></td></tr>
+            <tr><td class="mono">plan-011</td><td>u60-monitor — Data truth &amp; au…</td><td>5</td><td>3</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td><a href="011/index.html">Open →</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section class="section">
+      <h2>How these docs are built</h2>
+      <p>This site is generated by a shared, config-driven Node tool at <code>tools/docs-gen/</code>. Each plan is a single source-of-truth YAML file (<code>plan-NNN.yaml</code>) holding cycles, prompts, diagram graph, and live status in one place, validated against <code>schema/plan.schema.json</code> on every build. Re-run <code>npm run build</code> to regenerate.</p>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-001 · plan-002 · plan-003 · plan-004 · plan-005 · plan-006 · plan-007 · plan-008 · plan-009 · plan-010 · plan-011</span>
+  </div>
+</footer>
+<script src="assets/app.js"></script>
+</body>
+</html>

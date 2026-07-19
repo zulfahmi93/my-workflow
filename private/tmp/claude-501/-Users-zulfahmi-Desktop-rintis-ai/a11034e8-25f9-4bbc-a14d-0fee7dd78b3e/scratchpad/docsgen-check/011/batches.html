@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-011 — Parallel runbook</title>
+<meta name="description" content="The parallel batch orchestration runbook for u60-monitor plan-011.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-011</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html">Overview</a>
+      <a class="navlink" href="plan.html">Cycles</a>
+      <a class="navlink" href="batches.html" aria-current="page">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">The runbook · 3 batches</p>
+    <h1>plan-011 runbook — data truth &amp; auth hardening</h1>
+    <p class="lede">The canonical source for running plan-011 cycles across parallel sessions. One prompt block per fresh <code>/clear</code> session, each in its own git worktree.</p>
+    
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#how-to-use">How to use</a></li>
+      <li><a href="#common-contract-applies-to-every-session">Common contract (applies to every session)</a></li>
+      <li><a href="#worktree-convention">Worktree convention</a></li>
+      <li><a href="#inter-batch-verification">Inter-batch verification</a></li>
+      <li><a href="#stop-conditions-across-all-batches">Stop conditions (across all batches)</a></li>
+      <li><a href="#final-state">Final state</a></li>
+      <li><a href="#batch-summary">Batch summary</a></li>
+      <li><a href="#p11.a">P11.A — auth core (security-tier, serial)</a></li>
+      <li><a href="#p11.b">P11.B — data truth</a></li>
+      <li><a href="#p11.c">P11.C — distribution and secrets hygiene</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+<section class="section"><p>plan-011 closes the security and data-truth items of <span class="ref" title="source ref: open-issues-2026-07-19.md"><code>docs/open-issues-2026-07-19.md</code></span>. Five cycles, four security-tier, ZERO new deps. The headline is that the ADR-0002 base-URL invariant — carried unfulfilled by six consecutive plans — gets discharged defensively rather than carried a seventh time, and that the app stops asserting a data plan the firmware may consider inactive.</p>
+</section>
+<hr class="section-rule">
+<section id="how-to-use" class="section">
+        <h2>How to use</h2>
+        <p><strong>Sequencing.</strong> Run SEQUENTIALLY on main, one commit per cycle: <strong>11.1</strong> (base-URL validator) → <strong>11.2</strong> (confused deputy) → <strong>11.3</strong> (<code>plan.enabled</code>) → <strong>11.4</strong> (release signing) → <strong>11.5</strong> (<code>.env</code>).</p>
+<p><strong>11.1 → 11.2 is a hard order:</strong> both edit <code>lib/core/agent_client.dart</code>. 11.3, 11.4 and 11.5 are genuinely file-disjoint and could parallelize, but the run stays sequential — each cycle’s gate runs the whole <code>flutter test</code> suite (cross-attributable in a shared tree), and four of five cycles carry a security-reviewer second pass, where clean attribution matters most. The nested repo’s worktrees must be managed MANUALLY in any case.</p>
+<p>Commit scopes: <code>core</code> (11.1, 11.2, 11.3), <code>infra</code> (11.4), <code>chore</code>/<code>docs</code> (11.5).</p>
+<p><strong>Relationship to the other plans.</strong> plan-009 cycle 9.1 rewrites the project guide, which both 11.4 (signing setup notes) and 11.5 (<code>.env</code> in Local-dev quirks) want to add to — whichever lands second reconciles. plan-010 is file-disjoint from this plan entirely.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="common-contract-applies-to-every-session" class="section">
+        <h2>Common contract (applies to every session)</h2>
+        <p><strong>Architect gate:</strong> <code>required (opus)</code> on <strong>11.1</strong>, <strong>11.2</strong> and <strong>11.4</strong>; <code>deferred to 11.1</code> on <strong>11.5</strong>; <code>none</code> on <strong>11.3</strong>. <strong>MODEL-TIER POLICY: architect gates + ALL REVIEW + security 2nd pass on <code>opus</code>; RED/GREEN/REFACTOR default <code>sonnet</code>; never <code>haiku</code>.</strong></p>
+<p><strong>Four of five cycles are security-tier</strong> (11.1, 11.2, 11.4, 11.5) and each takes the <code>security-reviewer</code> second pass — BOTH reviewers APPROVED before COMMIT — and each records a threat model in its cycle note (<code>attacker-can</code> / <code>mitigation-blocks</code> / <code>residual-risk</code>), per the plan-006 6.3 precedent. 11.3 is not security-tier; see §Security-tier ruling for why.</p>
+<p><strong>Two recurring must-checks across this plan</strong>, because both defects share a shape — a guard that appears present but silently degrades:</p>
+<ul>
+<li><strong>No silent fallback, anywhere.</strong> A rejected base URL must not quietly become the default (11.1); an absent keystore must not quietly become the debug key (11.4). In both cases the fallback looks like success while producing exactly the condition the cycle was meant to prevent, which is strictly worse than a visible failure.</li>
+<li><strong>Absence is not falsehood.</strong> A missing <code>enabled</code> field must not be read as <code>false</code> (11.3), or every agent build predating the field silently loses its plan display.</li>
+</ul>
+<p><strong>Workflow execution.</strong> Cycles run via <code>.claude/workflows/tdd-cycle.js</code> (<code>{ project: &quot;u60-monitor&quot;, projectPath: &quot;projects/personal/u60-monitor&quot;, plan: &quot;011&quot;, cycle, greenAgent: &quot;Flutter Expert&quot;, redAgent: &quot;Flutter Expert&quot;, securityTier }</code>). 11.4’s verification is command-driven rather than unit-testable and its outputs are recorded in the cycle note. Commits stay OUTSIDE the workflow.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="worktree-convention" class="section">
+        <h2>Worktree convention</h2>
+        <p>Not applicable — cycles run sequentially on <code>main</code>. (Harness note, carried from plan-004/007/008/009/010: <code>isolation:worktree</code> creates an app-less ROOT-repo worktree because <code>/projects/</code> is gitignored at the monorepo root — the nested u60-monitor repo’s worktrees must be managed MANUALLY.)</p>
+
+      </section>
+<hr class="section-rule">
+<section id="batch-summary" class="section">
+        <h2>Batch summary</h2>
+        <div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Batch</th>
+<th>Sessions</th>
+<th>Wall-time hint</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P11.A</strong></td>
+<td>11.1 ‖ 11.2</td>
+<td>4–6 h</td>
+<td>Both edit <code>lib/core/agent_client.dart</code> → STRICTLY SERIAL, no parallelism available. 11.1 lands the base-URL validator at BOTH entry points (credential store + client constructor) and discharges the ADR-0002 invariant six plans have carried. 11.2 resolves the confused-deputy risk the code itself flags as needing revisiting — close it or formally accept it with a pinning test; restating the deferral is not an outcome. Both: opus architect gate REQUIRED + security-reviewer second pass REQUIRED. Both must preserve the ADR-0013 single-sync-turn login invariant.</td>
+</tr>
+<tr>
+<td><strong>P11.B</strong></td>
+<td>11.3</td>
+<td>1–2 h</td>
+<td>11.3 = parse the agent’s <code>plan.enabled</code> and gate NO-PLAN on it, so the app stops rendering a live cap for a plan the firmware considers inactive. The ONLY non-security-tier cycle. File-disjoint from P11.A. The battery domain’s <code>charge_limit_enabled</code> handling is the in-repo precedent for both the parse and the gating.</td>
+</tr>
+<tr>
+<td><strong>P11.C</strong></td>
+<td>11.4 ‖ 11.5</td>
+<td>1.5–2.5 h</td>
+<td>11.4 = a real Android release signing config, replacing the debug key that has been in place since the cycle-1.1 scaffold and blocks any distribution; <code>android/.gitignore:12-14</code> already ignores the keystore artifacts, so half the work exists. 11.5 = dispose of the plaintext <code>.env</code> (verified read by nothing). Both security-tier for the second pass, both file-disjoint from everything else. 11.4’s key MUST NOT be committed and the release build MUST fail loudly, not fall back to debug, when the keystore is absent.</td>
+</tr>
+</tbody>
+</table></div>
+
+      </section>
+<hr class="section-rule">
+<section id="inter-batch-verification" class="section">
+        <h2>Inter-batch verification</h2>
+        <p>After each cycle: full <code>flutter test</code> green + <code>flutter analyze</code> clean + zero <code>flutter</code>/<code>material</code>/<code>dart:ui</code> import under <code>lib/core</code> + a fresh <code>code-reviewer</code> (opus) <code>APPROVED</code> + (security-tier) a <code>security-reviewer</code> (opus) <code>APPROVED</code>; update the cycle <code>status:</code> in plan-011.yaml; file <code>docs/cycles/11.X.yaml</code> with its threat model (<code>npm run validate-cycle-note</code>); regenerate docs (<code>npm run build -- u60-monitor</code>; <code>html/</code> gitignored). One commit per cycle per <code>commit.md</code>.</p>
+<p>Three checks specific to this plan:</p>
+<ul>
+<li><strong><code>git status</code> shows no key material</strong> after 11.4 — no <code>*.jks</code>, no <code>*.keystore</code>, no <code>key.properties</code>. Check the actual working tree, not just the diff.</li>
+<li><strong>No secret value appears in any cycle note, commit message or agent report</strong> — 11.4 and 11.5 both handle files that carry or imply credentials. Key names only.</li>
+<li><strong>ADR-0013’s login invariants survive 11.1 AND 11.2</strong> — <code>_login()</code> non-<code>async</code>, <code>whenComplete</code> clears <code>_loginInFlight</code> on every path including any new rejection path. Both cycles touch that file.</li>
+</ul>
+
+      </section>
+<hr class="section-rule">
+<section id="stop-conditions-across-all-batches" class="section">
+        <h2>Stop conditions (across all batches)</h2>
+        <ul>
+<li><strong>11.1 guards only ONE entry point</strong> (setter or constructor, not both) → BLOCKER. They fail differently and one open path defeats the invariant.</li>
+<li><strong>11.1 silently falls back to the default base URL on rejection</strong> → BLOCKER. That masks a tampered store — the subtler bug.</li>
+<li><strong>A credential is sent to a URL before validation</strong> → BLOCKER; that is the invariant’s entire point.</li>
+<li><strong>11.2 restates the deferral a third time</strong> instead of closing or formally accepting → STOP. Not an available outcome.</li>
+<li><strong>11.2’s CLOSE route requires <code>_login()</code> to become <code>async</code></strong> → STOP and escalate; that breaks the ADR-0013 single-sync-turn invariant and must not be traded away.</li>
+<li><strong>11.3 reads an ABSENT <code>enabled</code> as <code>false</code></strong> → BLOCKER; it silently strips the plan display from every older agent build.</li>
+<li><strong>11.4’s release build silently falls back to the debug key</strong> when the keystore is absent → BLOCKER. Verify by running it, not by reading the config.</li>
+<li><strong>Any key material, password or <code>.env</code> value is committed, printed, or echoed into build output, a cycle note, a commit message or a report</strong> → BLOCKER.</li>
+<li><strong>An agent generates key material</strong> on the owner’s behalf (11.4) → STOP; that is an owner action.</li>
+<li><strong>11.5 finds a LIVE credential in <code>.env</code></strong> → surface it and recommend rotation; rotation is an owner action, not an agent one.</li>
+<li><strong>A base-URL setter UI is added</strong> (out of scope for this plan) → STOP; that is its own security-tier cycle.</li>
+<li><strong><code>/api/network/client-traffic</code> work creeps in</strong> (A7) → STOP; deliberately out of scope on both privacy and verifiability grounds.</li>
+<li>Any <code>dependencies:</code> add (none planned) → out-of-bounds STOP.</li>
+</ul>
+
+      </section>
+<hr class="section-rule">
+<section id="final-state" class="section">
+        <h2>Final state</h2>
+        <p>Test trajectory: baseline 381 (higher if plans 008/009/010 landed first) → roughly +7 (11.1) +3 (11.2) +5 (11.3) +0 (11.4, command-verified) +0 (11.5) ≈ <strong>+15</strong>.</p>
+<p>The ADR-0002 base-URL invariant is <strong>discharged</strong>, not carried a seventh time: both <code>saveBaseUrl</code> and the <code>AgentClient</code> constructor reject non-<code>http(s)</code> schemes and non-LAN hosts explicitly, before any credential leaves the device, with no silent fallback — and any future settings cycle becomes routine rather than dangerous. The confused-deputy risk the code itself flagged is either closed in code or formally accepted with a test that pins the constraint, and its comment no longer says “needs revisiting”. The app honours the firmware’s <code>plan.enabled</code> flag, so it can no longer assert a data plan the device considers inactive, while older agents that never sent the field behave exactly as before. Android release builds are signed with a real key that is never committed, and fail loudly rather than silently debug-signing. The plaintext <code>.env</code> is disposed of either way.</p>
+<p>ZERO new deps. No git remote — never push.</p>
+<p>Remaining from the backlog: the housekeeping plan (§D3 nits + A14 test hardening), the root-monorepo items (§D4/D5/D6, A17, A20), A7’s client-count switch (owner privacy call + unverifiable endpoint), and the on-device deploy pass.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="p11.a" class="section">
+      <h2>P11.A — auth core (security-tier, serial)</h2>
+      
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 11.1 (base-URL validator, security-tier)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-152" aria-label="Copy prompt for Session — Cycle 11.1 (base-URL validator, security-tier)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-152">
+You are the Cycle 11.1 orchestrator for u60-monitor (plan-011). SECURITY-TIER cycle. Land the ADR-0002 base-URL validator DEFENSIVELY — no setter UI — and discharge a binding invariant that six consecutive plans have carried without fulfilling. Fresh context. Architecture review **REQUIRED (opus)**. Run ARCHITECT (opus, GO/NO-GO ≤ 400 words) → RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → SECURITY-REVIEWER second pass (opus, APPROVED) → stop before COMMIT. Report ≤ 220 words. Reviewer separation mandatory. If `Agent` unavailable → STOP + `AUTONOMOUS_RUN_STATUS.md`.
+
+Mandatory reads: root `AGENTS.md` + project guide; `.agents/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-011.yaml` this cycle + **§What the base-URL validator must do** (the spec) + §security-ruling; `docs/adr/0002-wire-up-and-base-url-invariant.md` (the invariant being discharged); `docs/adr/0013-polling-cadence-and-login-guard.md` (the login invariants you must preserve); `lib/data/credential_store.dart:97`; `lib/core/agent_client.dart:62` and `_login`/`_performLogin`; `test/data/credential_store_test.dart:67` (the ONLY caller of saveBaseUrl today).
+
+LOCKED: **BOTH entry points or neither is closed** — `saveBaseUrl` AND the `AgentClient` constructor. They fail differently: an unguarded setter persists a bad value forever; an unguarded client sends the Bearer password to it. **Rejection is EXPLICIT** — throw or return a typed failure, **NEVER a silent fallback to the default**, which would mask a tampered store and is the subtler bug. Scheme `http`/`https` only; host private/LAN only (RFC1918 + link-local + loopback + IPv6 equivalents). The **hostname-vs-literal-IP** question is the architect's explicit call — a hostname cannot be range-checked without resolving, which is a network call inside a validator AND a TOCTOU window; default lean is reject. **Add NO setter UI.** Preserve ADR-0013: `_login()` stays NON-`async`, `whenComplete` clears `_loginInFlight` on every path including rejection.
+
+Record the threat model (attacker-can / mitigation-blocks / residual-risk) in the cycle note, and amend ADR-0002 to record the discharge so later plans stop carrying it.
+
+Anti-hallucination guard for REVIEW:
+```
+grep -n &quot;saveBaseUrl\|Uri.parse\|_baseUrl&quot; lib/data/credential_store.dart lib/core/agent_client.dart
+grep -rn &quot;import 'package:flutter&quot; lib/core/   # expect 0
+flutter analyze &amp;&amp; flutter test
+```
+
+Gate: full `flutter test` green; `flutter analyze` clean; zero `flutter` import under `lib/core`; both `code-reviewer` AND `security-reviewer` APPROVED.
+
+Commit: `feat(core): validate the agent base URL`. Body explains the invariant + the discharge — security commit bodies are normal tone, not caveman. Stage `lib/data/credential_store.dart`, `lib/core/agent_client.dart`, the touched tests, `docs/adr/0002-*.md`, `docs/plan-011.yaml`, `docs/cycles/11.1.yaml`. Trailer:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 11.2 (confused deputy, security-tier)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-153" aria-label="Copy prompt for Session — Cycle 11.2 (confused deputy, security-tier)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-153">
+You are the Cycle 11.2 orchestrator for u60-monitor (plan-011). SECURITY-TIER cycle. `agent_client.dart:155-161` says in its own words that the single-flight login guard is safe only under an unenforced one-client-per-credential assumption and &quot;needs revisiting&quot;. Neither closure route was ever taken, and ADR-0013:53-56 restated the deferral rather than accepting it. Fresh context. Architecture review **REQUIRED (opus)**. Run ARCHITECT (opus, GO/NO-GO ≤ 400 words naming the chosen route) → RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → SECURITY-REVIEWER second pass (opus, APPROVED) → stop before COMMIT. Report ≤ 220 words. Reviewer separation mandatory. If `Agent` unavailable → STOP + `AUTONOMOUS_RUN_STATUS.md`.
+
+Mandatory reads: root `AGENTS.md` + project guide; `.agents/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-011.yaml` this cycle + **§The 11.2 fork** + §security-ruling; `docs/adr/0013-polling-cadence-and-login-guard.md:53-56`; `lib/core/agent_client.dart:153-169`; `lib/app.dart:275` (re-auth builds a FRESH client — evidence on reachability); `test/core/agent_client_test.dart:312` and `test/app_multipoller_test.dart:76` (both pin the SHARING — the risky direction — and nothing pins the constraint that makes sharing safe).
+
+LOCKED: **restating the deferral a third time is NOT an available outcome.** CLOSE it (bind a credential FINGERPRINT — never the password, never logged — to the in-flight login so a joiner verifies before joining) or ACCEPT it (a test that PINS one-client-per-credential + ADR-0013 amended from deferral to explicit acceptance with residual risk stated). **Prefer ACCEPT unless the architect finds a REACHABLE multi-credential path** — one modem, one fixed storage key, fresh client on re-auth; principal-tracking for a situation the architecture forbids is speculative generality.
+
+**Either route preserves ADR-0013:** `_login()` stays NON-`async` (read→call→write one synchronous turn) and `whenComplete` clears `_loginInFlight` on every path. **If CLOSE would require `_login()` to become `async`, STOP and escalate** — do not trade the invariant away. Whichever route, the `:155-161` comment must no longer say &quot;needs revisiting&quot;: either it is closed, or it points at the ADR that accepted it.
+
+Record the threat model (attacker-can / mitigation-blocks / residual-risk) in the cycle note.
+
+Gate: full `flutter test` green; `flutter analyze` clean; zero `flutter` import under `lib/core`; both `code-reviewer` AND `security-reviewer` APPROVED.
+
+Commit: `fix(core): resolve the login confused-deputy risk` (or `test(core): pin one-client-per-credential` on the ACCEPT route). Body explains the risk and the chosen resolution — normal tone. Stage `lib/core/agent_client.dart`, `test/core/agent_client_test.dart`, `docs/adr/0013-*.md`, `docs/plan-011.yaml`, `docs/cycles/11.2.yaml`. Trailer:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+    </section>
+<hr class="section-rule">
+<section id="p11.b" class="section">
+      <h2>P11.B — data truth</h2>
+      
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 11.3 (plan.enabled)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-154" aria-label="Copy prompt for Session — Cycle 11.3 (plan.enabled)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-154">
+You are the Cycle 11.3 orchestrator for u60-monitor (plan-011). The app renders a live data cap, percentage, bar and OVER/red escalation for a plan the firmware may consider INACTIVE, because `parsePlan()` models three of the four fields the agent emits and never reads `enabled`. A never-lie violation that fails soft. Fresh context. Architecture review **none** (one boolean from a response already consumed, with an exact in-repo precedent). Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 180 words. If `Agent` unavailable → STOP.
+
+Mandatory reads: root `AGENTS.md` + project guide; `.agents/rules/{cycle-orchestration,tdd,review-checklist}.md`; `docs/plan-011.yaml` this cycle; **`~/Desktop/tools/open-u60-pro/zte-agent/src/handlers.rs:197-202` — the CONTRACT; confirm the field name and semantics yourself, the backlog is only a lead**; `lib/core/data_usage_snapshot.dart:168-177`; `lib/ui/widgets/data_usage_section.dart:22`; `docs/cycles/5.1.yaml:53` (the three-field architect lock this drifts from); **`lib/core/battery_snapshot.dart` + `test/core/battery_snapshot_test.dart:11,18,21` — the in-repo precedent for parsing and gating on an `enabled` flag; follow that shape**.
+
+LOCKED: handle the **TRI-STATE**. `enabled: true` → today's behaviour. `enabled: false` → present as NO-PLAN (no cap, no percentage, no bar, no OVER/red — all of them, not just the cap). **`enabled` ABSENT → exactly today's behaviour** (fall back to `monthLimitBytes == null`). Reading absence as false would silently strip the plan display from every agent build predating the field — that is the subtle case and it needs its own test.
+
+Unreachable on this device (`enabled:true`), so hardware confirmation needs the plan toggled in the modem UI — note it as a follow-up, do not block on it.
+
+Gate: full `flutter test` green; `flutter analyze` clean; zero `flutter` import under `lib/core`; the tri-state covered.
+
+Commit: `fix(core): honour the firmware data-plan enabled flag`. Stage `lib/core/data_usage_snapshot.dart`, `lib/ui/widgets/data_usage_section.dart`, the touched tests, `docs/plan-011.yaml`, `docs/cycles/11.3.yaml`. Trailer:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+    </section>
+<hr class="section-rule">
+<section id="p11.c" class="section">
+      <h2>P11.C — distribution and secrets hygiene</h2>
+      
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 11.4 (release signing, security-tier)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-155" aria-label="Copy prompt for Session — Cycle 11.4 (release signing, security-tier)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-155">
+You are the Cycle 11.4 orchestrator for u60-monitor (plan-011). SECURITY-TIER cycle. `android/app/build.gradle.kts:30-32` still signs release builds with the shared debug key under a live TODO, unchanged since the cycle-1.1 scaffold — debug keys have a well-known password, so this blocks any real distribution. Fresh context. Architecture review **REQUIRED (opus)**. Run ARCHITECT (opus, GO/NO-GO ≤ 400 words) → RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → SECURITY-REVIEWER second pass (opus, APPROVED) → stop before COMMIT. Report ≤ 200 words. Reviewer separation mandatory. If `Agent` unavailable → STOP.
+
+Mandatory reads: root `AGENTS.md` + project guide; `.agents/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-011.yaml` this cycle + §security-ruling; `android/app/build.gradle.kts` (esp. **:18 the STALE applicationId TODO and :26-33 the LIVE signing TODO**); `android/.gitignore:12-14` (the artifacts are already ignored — half the work exists).
+
+LOCKED, three properties:
+1. **Nothing secret is committed or printed** — not the keystore, not passwords, not `key.properties`, and Gradle must not echo them into build output.
+2. **Absent keystore → the release build FAILS LOUDLY.** Never a silent fallback to debug. A fallback recreates the exact defect while looking fixed, and fails in the direction that ships an effectively-unsigned artifact. **Verify this by RUNNING it, not by reading the config.**
+3. **The debug path is unaffected** — `flutter run` and `flutter test` keep working with no keystore present.
+
+**Do NOT generate key material.** Creating the keystore is an owner action; an agent must not mint keys on their behalf. This cycle makes a signed build possible, it does not produce one.
+
+Delete the stale `applicationId` TODO at **line 18 only** — line 30's is the live one you are resolving.
+
+Record all four verification commands with their ACTUAL output in the cycle note (release build without key.properties → fails; with a throwaway one → succeeds and `apksigner verify --print-certs` shows the release cert; debug + test still work; `git status` clean).
+
+Gate: full `flutter test` green; `flutter analyze` clean; `git status` shows no key material; both `code-reviewer` AND `security-reviewer` APPROVED.
+
+Commit: `fix(infra): sign release builds with a real key`. Body explains why debug-key signing blocks distribution — normal tone. Stage `android/app/build.gradle.kts`, any doc note, `docs/plan-011.yaml`, `docs/cycles/11.4.yaml`. **Never stage key material.** Trailer:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 11.5 (.env disposition, security-tier)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-156" aria-label="Copy prompt for Session — Cycle 11.5 (.env disposition, security-tier)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-156">
+You are the Cycle 11.5 orchestrator for u60-monitor (plan-011). SECURITY-TIER cycle (subject matter). A plaintext `.env` (43 bytes) sits in the project root — correctly gitignored and verified read by NOTHING (no `flutter_dotenv`; the only credential path is `flutter_secure_storage`). Hygiene, not exposure. Fresh context. Architecture review **deferred to 11.1**. Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → SECURITY-REVIEWER second pass (opus, APPROVED) → stop before COMMIT. Report ≤ 140 words. If `Agent` unavailable → STOP.
+
+Mandatory reads: root `AGENTS.md` + project guide; `.agents/rules/{cycle-orchestration,commit,review-checklist}.md`; `docs/plan-011.yaml` this cycle; `.gitignore`; `pubspec.yaml`.
+
+**Read `.env` before deciding.** If it holds a LIVE credential, treat it as one regardless of git status — a gitignored plaintext password on disk is still a plaintext password on disk, and rotation is an OWNER action you must surface rather than perform.
+
+Then: **DELETE** if genuinely dead (confirm nothing reads it), or **KEEP + DOCUMENT** in the guide's Local-dev quirks with a placeholder `.env.example` committed alongside.
+
+**NEVER commit or print its contents** — not in a cycle note, not in a commit message, not in your report. Refer to key names only.
+
+Coordination: plan-009 cycle 9.1's §guide-content-spec already includes mentioning `.env`. If 9.1 landed, extend it; if not, whichever lands second reconciles.
+
+Gate: full `flutter test` green; no `.env` value in any committed file or report; `.env` still gitignored and unstaged; both reviewers APPROVED.
+
+Commit: `chore: remove the unused plaintext .env` (or `docs: document the local-dev .env`). Stage only the disposition artifacts, `docs/plan-011.yaml`, `docs/cycles/11.5.yaml`. Trailer:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-011.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

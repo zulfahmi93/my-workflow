@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-008 — Overview</title>
+<meta name="description" content="The headline DL/UL number is not live: the app displays the agent's `rx_speed`/`tx_speed`, which is a ~15-second rolling mean, so a burst takes ~15 s to register and ~15 s to decay. This plan derives the rate IN-APP by differencing the cumulative `rx_bytes`/`tx_bytes` counters that `SpeedSnapshot` already parses and nothing consumes. Because the counter only advances on the agent's own 1 Hz sampler grid, a 1 Hz client poll provably cannot recover the elapsed tick count (`T_c + δ &lt; 470 ms` has no solution at 1 Hz) and aliases into a ±100% flap — so the speed lane OVERSAMPLES at 250 ms, re-anchors only when a counter actually moves, and divides by the exactly-recovered integer tick count `round(elapsed.inMilliseconds/1000).clamp(1,3)`. Oversampling never escapes the new pure-Dart `SpeedRateDeriver`: holds are suppressed and stale readings throttled, so the UI stream and the history ring keep today's ~1 Hz cadence and `SpeedHistory` is not modified at all. The agent's averages are retained as a one-sample seed/fallback on five guarded paths. 10 cycles, none security-tier. ZERO new pubspec deps.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-008</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html" aria-current="page">Overview</a>
+      <a class="navlink" href="plan.html">Cycles</a>
+      <a class="navlink" href="batches.html">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">Build plan 008</p>
+    <h1>u60-monitor — Live speed from cumulative counters (plan-008)</h1>
+    <p class="lede">The headline DL/UL number is not live: the app displays the agent’s <code>rx_speed</code>/<code>tx_speed</code>, which is a ~15-second rolling mean, so a burst takes ~15 s to register and ~15 s to decay. This plan derives the rate IN-APP by differencing the cumulative <code>rx_bytes</code>/<code>tx_bytes</code> counters that <code>SpeedSnapshot</code> already parses and nothing consumes. Because the counter only advances on the agent’s own 1 Hz sampler grid, a 1 Hz client poll provably cannot recover the elapsed tick count (<code>T_c + δ &lt; 470 ms</code> has no solution at 1 Hz) and aliases into a ±100% flap — so the speed lane OVERSAMPLES at 250 ms, re-anchors only when a counter actually moves, and divides by the exactly-recovered integer tick count <code>round(elapsed.inMilliseconds/1000).clamp(1,3)</code>. Oversampling never escapes the new pure-Dart <code>SpeedRateDeriver</code>: holds are suppressed and stale readings throttled, so the UI stream and the history ring keep today’s ~1 Hz cadence and <code>SpeedHistory</code> is not modified at all. The agent’s averages are retained as a one-sample seed/fallback on five guarded paths. 10 cycles, none security-tier. ZERO new pubspec deps.</p>
+    <div class="hero-meta">
+      <span><b>10</b> TDD cycles</span>
+      <span><b>5</b> parallel batches</span>
+      <span><b>Low — the spine is inherently serial. 8.2→8.3→8.4 are the SAME file (speed_rate_deriver.dart) and strictly ordered; 8.5→8.6→8.7 is an ordering chosen deliberately so a harness break, a wiring break and a cadence break stay distinguishable. 8.1 (docs) and 8.8 (format.dart + speed_screen.dart) are genuinely file-disjoint from the deriver cycles and could parallelize in worktrees, but the run executes SEQUENTIALLY on main because each cycle's full-suite `flutter test` gate is cross-attributable in a shared tree (the plan-004/005/006 lesson). Roughly 10 commits, one per cycle.</b> wall-time saved</span>
+      <span><b>4 / 10</b> shipped</span>
+    </div>
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#context">Context</a></li>
+      <li><a href="#stack">Stack</a></li>
+      <li><a href="#tdd-cycle-format">TDD cycle format</a></li>
+      <li><a href="#architect-verdict">Architect verdict — the gate for this plan</a></li>
+      <li><a href="#locked-design">The locked design — SpeedRateDeriver</a></li>
+      <li><a href="#edge-case-table">Edge-case table (locked)</a></li>
+      <li><a href="#history-and-peak">SpeedHistory, chart and PEAK ruling</a></li>
+      <li><a href="#harness-defect">Latent test-harness defect (must land before wiring)</a></li>
+      <li><a href="#blast-radius">Blast radius (verified, not estimated)</a></li>
+      <li><a href="#numbering-note">Plan + ADR numbering (resolved, not open)</a></li>
+      <li><a href="#out-of-scope">Out of scope (plan-008)</a></li>
+      <li><a href="#standing-invariants">Standing invariants preserved</a></li>
+      <li><a href="#dag">Cycle dependencies</a></li>
+      <li><a href="#timeline">Batch timeline</a></li>
+      <li><a href="#progress">Progress</a></li>
+      <li><a href="#read-next">Read next</a></li>
+      <li><a href="#conventions">Conventions</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+
+    <section id="context" class="section">
+      <h2>Context</h2>
+      <p><strong>The defect.</strong> The project guide previously stated that <code>GET /api/network/speed</code>’s <code>rx_speed</code>/<code>tx_speed</code> are “a rolling ~1s average of <code>rmnet_data0</code>”. Both halves were wrong, and the misconception is what hid the bug for seven plans.</p>
+<p>Verified in the agent source (<code>open-u60-pro/zte-agent/src/system.rs:272–380</code>, a separate repo this project never modifies):</p>
+<ul>
+<li><code>SPEED_RING_SIZE = 16</code>. A background thread samples <code>/sys/class/net/{rmnet_data0,rmnet_ipa0}/statistics/{rx,tx}_bytes</code> <strong>once per second</strong> into a 16-slot ring.</li>
+<li><code>rx_speed</code> = <code>(newest.rx_bytes - oldest.rx_bytes) / secs</code>, i.e. a mean over the <strong>whole ring</strong>. A 16-slot ring spans <strong>15 intervals</strong>, so the window is <strong>~15 s, not ~16 s</strong> — the agent’s own inline comment <code>// 16 samples × 1s = 16s window</code> is off by one. Use <code>elapsed_ms / 15</code> for any period arithmetic, <strong>once <code>elapsed_ms ≥ ~14 000</code></strong> — a deliberately conservative gate, not “the ring is full”: a fully-filled 16-slot ring spans 15 intervals and reaches <code>elapsed_ms ≈ 15 000</code>, whereas ~14 000 is 15 samples spanning 14 intervals, one slot short. During the ~15 s fill after an agent restart the ring holds <code>n&lt;16</code> samples spanning <code>n-1</code> intervals, so <code>elapsed_ms/15</code> understates the per-tick period.</li>
+<li>It sums <strong>two</strong> interfaces (<code>rmnet_data0</code> + <code>rmnet_ipa0</code>), not <code>rmnet_data0</code> alone.</li>
+<li><code>elapsed_ms</code> is that same ~15 000 ms window, <strong>not</strong> a per-tick interval.</li>
+</ul>
+<p>The app polls at 1 Hz and displays that mean. So the “live” number ramps over ~15 s, peaks after the burst has already ended, and decays for ~15 s afterwards. Short bursts barely move it. <code>SpeedSnapshot.rxBytes</code> / <code>txBytes</code> / <code>elapsedMs</code> are already parsed (<code>lib/core/speed_snapshot.dart:23-25</code>) and consumed by <strong>nothing</strong> in <code>lib/</code>.</p>
+<p><strong>The fix, and why it is not a one-liner.</strong> Differencing a cumulative counter is arithmetic. The trap is the denominator.</p>
+<p>The numerator is <em>exact</em> — <code>rx_bytes</code> is a monotone kernel counter, so no bytes are lost or double-counted however the client and agent grids interleave. But the counter the app receives is <strong>quantized to the agent’s 1 Hz sampler</strong> and is up to 1 s stale at request time: it is <code>newest.rx_bytes</code> from the agent’s ring, sampled by the agent’s own thread, not read at request time. A poll at time <code>p</code> therefore observes the counter as of the latest agent tick <code>a_k ≤ p</code>, with detection lag <code>φ = p − a_k ∈ [0, T_c + δ)</code>.</p>
+<p>Anchoring on tick <em>i</em> and observing the next movement on tick <em>j</em>:</p>
+<pre><code>t_j − t_i = (j−i)·T_a + (φ_j − φ_i)
+</code></pre>
+<p><code>round((t_j − t_i)/1000)</code> recovers <code>(j−i)</code> exactly iff <code>|(j−i)·(T_a − 1000) + (φ_j − φ_i)| &lt; 500 ms</code>. With <code>(j−i) ≤ 3</code> and <code>T_a − 1000 ≤ 10 ms</code> the drift term is ≤ 30 ms, so the condition collapses to the <strong>ruling inequality</strong>:</p>
+<pre><code>T_c + δ &lt; 470 ms
+</code></pre>
+<p>At <code>T_c = 1000 ms</code> this fails outright — that failure <em>is</em> the beat: some polls see no counter change (rate reads 0), the next sees two ticks’ worth (rate reads ~2×). A naive <code>Δbytes / secondsSincePreviousPoll</code> at 1 Hz would ship a number that flaps ±100%, which is <strong>worse than the status quo</strong>. At 500 ms it still fails; at 333 ms the margin is 37 ms — not admissible. <strong>Admissible range is <code>T_c ≤ 300 ms</code>; locked at 250 ms</strong> (margin 120 ms at δ = 100 ms).</p>
+<p>So the cadence change is not an optimisation. It is the enabling condition, and there is no cheaper cadence that preserves correctness.</p>
+<p><strong>Two rules, both required.</strong> RULE 1 — the anchor <code>(rxBytes, txBytes, localTime)</code> moves <strong>only</strong> on a poll where a counter actually advanced, so every measured window is tick-to-tick, never poll-to-poll. RULE 2 — the denominator is the <strong>recovered integer tick count</strong> <code>round(elapsed.inMilliseconds/1000).clamp(1,3)</code>, never the raw wall interval; <code>clock.now()</code> is used only to <em>select an integer</em> and never divides. In steady state the elapsed time between anchor moves is <code>T_a ± T_c</code> = 1.002 ± 0.25 s, which always rounds to 1 — the anchor rides the agent’s grid, so <strong>there is no phase to wrap</strong>. The beat is structurally impossible, not damped.</p>
+<p><strong>One joint anchor, not two.</strong> <code>rx</code> and <code>tx</code> come from the <em>same</em> agent sample, so movement of <strong>either</strong> counter proves a tick occurred, which makes a zero delta on the other counter a <strong>true zero</strong> (a tick that carried no bytes) rather than an unobserved tick. Pure-download traffic therefore reports upload = <code>0.0</code> exactly, at full responsiveness, with no hold and no per-direction machinery.</p>
+<p><strong>Two real fabrication paths the guards exist to close</strong> — both verified reachable in the agent source, neither hypothetical:</p>
+<ol>
+<li><code>SpeedTracker::new</code> seeds <code>latest</code> to <strong>all zeros including <code>elapsed_ms: 0</code></strong>, and the background thread only overwrites after its first <code>sleep(1s)</code> <em>and</em> <code>buf.len() &gt;= 2</code>. So for up to a second after any agent restart, <code>GET /api/network/speed</code> <strong>succeeds (200)</strong> and returns <code>rx_bytes: 0</code>. Naive differencing then sees <code>0 → &lt;full cumulative counter&gt;</code> and prints <strong>gigabytes per second</strong> into a PEAK label with a two-minute memory. <code>elapsed_ms == 0</code> is an exact fingerprint for this (after the first tick it is ≥ 1000 even at literal zero traffic), and the warm-up poll must <strong>clear</strong> the anchor rather than become one.</li>
+<li><code>read_rmnet_bytes()</code> sums two interfaces under a per-interface <code>if let (Some, Some)</code> guard and falls through to <code>(0, 0)</code> when both sysfs and <code>/proc/net/dev</code> fail. One interface dropping out subtracts its <em>entire cumulative history</em> from the sum; a total read failure gives 0-then-restore. Both are decreases followed by large positive jumps.</li>
+</ol>
+<p>Guards are ~10 lines. But a design that ships without them replaces a slow-but-true number with an occasionally confident lie, which is the never-lie rule inverted.</p>
+<p><strong>Design provenance.</strong> The locked design is the output of a 4-design / 4-judge panel (minimalist / signal-processing / state-machine / skeptic proposals, judged on correctness, responsiveness-vs-stability, testability, simplicity) followed by a binding architect verdict that verified every load-bearing claim against source and overruled two of the four judges on evidence. That verdict IS the architect gate for this whole plan — see §Architect verdict. No cycle re-gates.</p>
+<p><strong>What is NOT touched.</strong> <code>lib/core/speed_history.dart</code> is not modified: no capacity change, no API change, its 10 tests untouched. <code>Poller&lt;T&gt;</code> and <code>Reading&lt;T&gt;</code> are untouched — speed-specific derivation inside the generic poller would be an instant review BLOCKER. <code>SpeedSnapshot</code> gets a doc-comment correction only, no field or constructor change. <code>splitRate</code> is unchanged. ADR-0005 needs no amendment.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="stack" class="section">
+      <h2>Stack</h2>
+      <p>Unchanged platform (plan-001→007). One new pure-Dart core file, two new test files, and five small edits to existing files. <strong>ZERO new pubspec deps</strong> — <code>package:clock</code> and <code>fake_async</code> are already dependencies.</p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Layer</th>
+<th>Tech</th>
+<th>Touched by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Core (pure Dart, <code>lib/core/</code>)</td>
+<td>Dart, no <code>flutter</code>/<code>material</code>/<code>dart:ui</code>; imports only <code>package:clock/clock.dart</code>, <code>reading.dart</code>, <code>speed_snapshot.dart</code></td>
+<td>8.2/8.3/8.4 <code>speed_rate_deriver.dart</code> (NEW, ~110 lines) · 8.8 <code>format.dart</code> (additive) · 8.6 <code>speed_snapshot.dart</code> (doc comment only)</td>
+</tr>
+<tr>
+<td>App wiring</td>
+<td><code>_SpeedHomeState</code>, <code>Poller&lt;T&gt;</code>, <code>Reading&lt;T&gt;</code>, <code>AppEnv</code>, <code>WidgetsBindingObserver</code></td>
+<td>8.6 <code>app.dart</code> (<code>_onSpeedData</code> + one field) · 8.7 <code>app.dart</code> (<code>pollInterval</code> 1000→250 ms) · 8.9 <code>app.dart</code> (lifecycle pause)</td>
+</tr>
+<tr>
+<td>UI (<code>lib/ui/</code>)</td>
+<td>Flutter</td>
+<td>8.8 <code>speed_screen.dart</code> — ONE call site in <code>_splitRate</code></td>
+</tr>
+<tr>
+<td>Tests</td>
+<td><code>flutter_test</code>, <code>fake_async</code>, <code>clock</code>, <code>FakeMultiClient</code> / <code>FakeAgent</code></td>
+<td>8.2/8.3/8.4 two new core test files · 8.5 three harness payload builders</td>
+</tr>
+<tr>
+<td>Docs</td>
+<td>markdown</td>
+<td>8.1 <code>CLAUDE.md</code>, <code>docs/adr/0015-*.md</code> (new), <code>0013-*.md</code> (amend), <code>0003-*.md</code> (note)</td>
+</tr>
+</tbody>
+</table></div>
+<p>The pure-Dart <code>lib/core</code> boundary stands: a <code>flutter</code>/<code>material</code>/<code>dart:ui</code> import under <code>lib/core/</code> is an instant review BLOCKER. <code>SpeedRateDeriver</code> reads <code>clock.now()</code> exactly once per <code>accept</code> call — a <em>timestamp</em> concern, exactly like <code>HistorySample</code>, which is precisely the split ADR-0005 already draws (bare <code>Timer.periodic</code> for cadence, injected clock for timestamps). Verified: <code>fake_async</code> 1.3.3 installs a fake clock (<code>fake_async.dart:182</code>, <code>withClock(_clock, …)</code>), so <code>async.elapse()</code> moves <code>clock.now()</code> in lockstep and every branch is deterministic.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="tdd-cycle-format" class="section">
+      <h2>TDD cycle format</h2>
+      <p>See <code>.agents/rules/cycle-orchestration.md</code> (paired with <code>tdd.md</code> + <code>commit.md</code>). Reviewer separation, architect gate, NO-DEFER, subagent prompt skeleton, reviewer hallucination guard — unchanged. <strong>Architecture-review value on every cycle is mandatory</strong> (missing field → STOP).</p>
+<pre><code>CYCLE X.Y — [behaviour name]
+RED      (Model - Agent):          exact failing test assertions
+GREEN    (Model - Agent):          minimal code to pass
+REVIEW   (Model - code-reviewer):  issues list; never writes code
+REFACTOR (Model - Agent):          domain expert applies review feedback
+</code></pre>
+<p><strong>Model rules</strong> (standing project directive — overrides the default tier map: <strong>architect gates + ALL REVIEW use <code>opus</code>; RED/GREEN/REFACTOR default <code>sonnet</code>; never <code>haiku</code></strong>):</p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Cycle kind</th>
+<th>RED</th>
+<th>GREEN</th>
+<th>REVIEW</th>
+<th>REFACTOR</th>
+<th>Security 2nd pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docs-only (8.1)</td>
+<td>—</td>
+<td>—</td>
+<td><code>opus</code></td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Core deriver (8.2, 8.3, 8.4)</td>
+<td><code>sonnet</code></td>
+<td><code>sonnet</code></td>
+<td><code>opus</code></td>
+<td><code>sonnet</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Harness / wiring / UI (8.5–8.9)</td>
+<td><code>sonnet</code></td>
+<td><code>sonnet</code></td>
+<td><code>opus</code></td>
+<td><code>sonnet</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Human device pass (8.10)</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Agent roles:</strong></p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Agent</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>flutter-expert</code></td>
+<td>Dart core + Flutter wiring + tests — RED, GREEN, REFACTOR (all code cycles)</td>
+</tr>
+<tr>
+<td><code>technical-writer</code></td>
+<td>8.1 docs + ADR authoring</td>
+</tr>
+<tr>
+<td><code>code-reviewer</code></td>
+<td>REVIEW only (<code>opus</code>) — identifies issues, never writes code</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>No architect gate on any cycle.</strong> The pre-plan panel verdict (§Architect verdict) is the gate for the whole plan; every cycle carries <code>arch-review.state: none</code> with that verdict as its reason. 8.7 amends architect-locked ADR-0013, but the ruling is made in the verdict, so it does not re-gate.</p>
+<p><strong>Execution note.</strong> These cycles run via the <code>.claude/workflows/tdd-cycle.js</code> workflow (schema-validated verdicts; reviewer separation enforced; commits stay with the orchestrator). Reviewer-agent-id per pass is recorded as <code>wf:&lt;runId&gt;/review-pass-&lt;N&gt;</code>.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="architect-verdict" class="section">
+      <h2>Architect verdict — the gate for this plan</h2>
+      <p>A 4-design / 4-judge panel produced a binding architect verdict before this plan was authored. It verified every load-bearing claim against <code>zte-agent/src/system.rs</code>, <code>lib/</code>, and <code>test/</code> rather than accepting the design briefs, and it <strong>overruled two of the four judges on evidence</strong>:</p>
+<ul>
+<li><strong>Overruled the correctness judge</strong> (which picked the “Grid-Lock” design): its blast-radius evidence was fabricated — it claimed <code>speed_twin_test.dart (55)</code>, <code>speed_history_chart_test.dart (50)</code>, <code>format_test.dart (26)</code> survive untouched; the real counts are <strong>16, 34, 27</strong>. Blast radius was precisely the axis on which that design asked to be trusted. Separately its <code>windowTicks = 2</code> boxcar gives away half the responsiveness win to reduce variance the exact-numerator argument shows is not there.</li>
+<li><strong>Overruled the testability judge</strong> (which picked the “State Machine”): it ships a <strong>halving bug in the dominant beat direction</strong>, and its regression test is rigged to the other one. At each phase wrap two consecutive polls fall inside one agent interval → <code>delta == 0</code> → HELD freezes the window → the next poll sees <strong>one</strong> tick’s bytes over a 2.0 s accumulated window → snaps to span 2 → emits <strong>R/2</strong>. Its test hard-codes <code>[+N, +N, +0, +2N, +N]</code>, which presupposes the client-slower case. The suite would go green while the device periodically halves the number.</li>
+</ul>
+<p><strong>Winner: the minimalist design, with four grafts</strong> — the <code>elapsedMs == 0</code> warm-up fingerprint (from skeptic), the absurd-value ceiling that re-seeds rather than clamps (grid-lock + skeptic), the grid-sanity guard (state-machine’s risk #1 made concrete), and <code>RateSource</code> + <code>publish</code> provenance on the result record (grid-lock + state-machine). Plus one improvement on all four: the stale-publish throttle moves <strong>into pure core</strong>, because <code>withClock</code> appears nowhere in <code>test/</code>, so a widget-layer throttle would be wall-clock nondeterministic and flake on slow CI.</p>
+<p><strong>Rejected on evidence:</strong> a <code>LiveSpeed</code> wrapper type (propagates through <code>_speedController</code>, <code>SpeedHistory</code>’s type parameter and five <code>speed_screen.dart</code> sites, and by its own admission forces pump-timing rewrites in <code>app_flow_test.dart</code> — the most flake-prone churn available, spent on a type rename); extra fields on <code>SpeedSnapshot</code> (blurs a wire DTO); a <code>reset()</code> on the deriver (dead code — see the re-login row in §Edge-case table); bumping <code>SpeedHistory.capacity</code> to 480 (changes a public API and quadruples painter work for zero benefit).</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="locked-design" class="section">
+      <h2>The locked design — SpeedRateDeriver</h2>
+      <p><strong>NEW <code>lib/core/speed_rate_deriver.dart</code></strong> — pure Dart, imports only <code>package:clock/clock.dart</code>, <code>reading.dart</code>, <code>speed_snapshot.dart</code>.</p>
+<pre><code class="language-dart">/// Provenance of an emitted rate. Exposed on the result record so tests
+/// assert WHY a value was emitted, never reverse-engineer it from the number.
+enum RateSource {
+  agentAverage, // seed / re-seed — the agent's ~15 s rx_speed, verbatim
+  derived,      // one agent-second of bytes ÷ an exactly-recovered tick count
+  held,         // counter has not ticked yet — previous value re-emitted
+  idle,         // a tick provably carried zero bytes
+  none,         // agent warm-up — no trustworthy value exists
+}
+
+/// One result of [SpeedRateDeriver.accept].
+///
+/// [publish] false means SUPPRESS: the caller must not forward to the UI
+/// stream or the history ring. This is what keeps the published cadence at
+/// ~1 Hz while the client samples at 4 Hz.
+typedef DerivedReading = ({
+  Reading&lt;SpeedSnapshot&gt; reading,
+  bool publish,
+  RateSource source,
+});
+
+class SpeedRateDeriver {
+  SpeedRateDeriver({
+    this.holdCeiling       = const Duration(milliseconds: 1750),
+    this.maxSpan           = const Duration(milliseconds: 3000),
+    this.staleThrottle     = const Duration(milliseconds: 1000),
+    this.agentPeriod       = const Duration(milliseconds: 1000),
+    this.periodTolerance   = const Duration(milliseconds: 150),
+    this.absurdBytesPerSec = 1.25e9, // 10 Gbps — impossible on sub-6 5G
+  });
+
+  final Duration holdCeiling, maxSpan, staleThrottle, agentPeriod, periodTolerance;
+  final double absurdBytesPerSec;
+
+  /// Feed EVERY poll, success and stale. Reads `clock.now()` exactly once.
+  DerivedReading accept(Reading&lt;SpeedSnapshot&gt; raw);
+}
+</code></pre>
+<p>Internal state, five fields for 8.2’s steady-state path: <code>int? _rxAnchor, _txAnchor; DateTime? _anchorAt; double _lastDown = 0, _lastUp = 0;</code>. A sixth field, <code>DateTime? _lastPublishAt</code>, joins in 8.4 with the stale-publish throttle (step 2). No <code>reset()</code>. No <code>copyWith</code> on <code>SpeedSnapshot</code> — its 5-field const constructor is called inline at the one substitution site.</p>
+<p><strong>Guard order inside <code>accept</code> — load-bearing. Step 4 MUST precede step 6, and MUST clear the anchor rather than set it.</strong> That ordering is the entire fix for the fabricated-GB/s path: the warm-up poll never becomes an anchor, so the following poll re-seeds against the real counter instead of differencing against 0.</p>
+<pre><code> 1  snapshot == null                    → passthrough,          publish=true
+ 2  raw.isStale                         → substitute _last rates, anchor FROZEN,
+                                           publish = (now - _lastPublishAt &gt;= staleThrottle)
+ 3  now = clock.now()
+ 4  snapshot.elapsedMs == 0             → AGENT WARM-UP: CLEAR the anchor, emit the
+                                           reading marked isStale:true (error stays null),
+                                           source=none,          publish=true
+ 5  elapsedMs &gt;= 14000 &amp;&amp;
+    (elapsedMs/15 - 1000).abs() &gt; 150   → GRID BROKEN: re-anchor, agent average, publish=true
+ 6  _anchorAt == null                   → SEED: anchor, agent average,  publish=true
+ 7  dRx = rx - _rxAnchor; dTx = tx - _txAnchor
+ 8  dRx &lt; 0 || dTx &lt; 0                  → RESET: re-anchor, agent average, publish=true
+ 9  elapsed = now - _anchorAt
+10  elapsed &lt; Duration.zero             → CLOCK STEPPED BACK: re-anchor, agent avg, publish
+11  dRx == 0 &amp;&amp; dTx == 0 &amp;&amp;
+    elapsed &lt; holdCeiling               → HOLD: re-emit _last, source=held, publish=FALSE
+12  elapsed &gt; maxSpan                   → LONG GAP: re-anchor, agent average, publish=true
+13  span = (elapsed.inMilliseconds / 1000).round().clamp(1, 3)
+14  down = dRx / span;  up = dTx / span
+15  !finite || down &gt; absurd || up &gt; absurd
+                                        → ABSURD: re-anchor, agent average, publish=true
+16  → DERIVED (source=idle if both are exactly 0): re-anchor, publish=true
+</code></pre>
+<p><strong>Wiring — <code>lib/app.dart</code>, <code>_onSpeedData</code> becomes six lines:</strong></p>
+<pre><code class="language-dart">void _onSpeedData(Reading&lt;SpeedSnapshot&gt; reading) {
+  final d = _deriver.accept(reading);
+  _checkAuthError(reading.error);          // ALWAYS — outside the publish gate
+  if (!d.publish) return;
+  if (!_speedController.isClosed) _speedController.add(d.reading);
+  _history.add(d.reading);
+  _historyNotifier.value = _history.samples;
+}
+</code></pre>
+<p><code>_checkAuthError</code> outside the gate is <strong>non-negotiable and a named REVIEW must-check</strong>: it currently sits at the <em>tail</em> of <code>_onSpeedData</code> (line ~403), so gating it behind <code>publish</code> would delay auth-halt recovery by up to a second. <code>final _deriver = SpeedRateDeriver();</code> is a <code>_SpeedHomeState</code> field created in <code>initState</code>, a sibling of <code>late final SpeedHistory _history</code> (line ~256).</p>
+<p><strong>Worked steady-state trace</strong> — agent ticking at t = 0, 1.002, 2.004; client at 250 ms:</p>
+<pre><code>t=0.00  seed, anchor=(C₀, 0.00)
+t=0.25  δ=0 → HOLD (publish=false)
+t=0.50  δ=0 → HOLD
+t=0.75  δ=0 → HOLD
+t=1.00  δ=0 → HOLD                     ← tick 1 lands at 1.002, not yet visible
+t=1.25  counter moved → elapsed 1.25 → round 1 → rate = ΔB/1  EXACT. re-anchor.
+t=2.25  counter moved → elapsed 1.00 → round 1 → EXACT.
+</code></pre>
+<p>Dropped poll: recovery at +1.50 s → round → 1 → still exact. Two ticks in one gap (GC, backgrounding): elapsed ≈ 2.0 → round → 2 → a correct 2-second average. Both degrade rather than spike.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="edge-case-table" class="section">
+      <h2>Edge-case table (locked)</h2>
+      <div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Condition</th>
+<th>Emitted output</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>First sample</strong> (<code>_anchorAt == null</code>)</td>
+<td>Agent <code>rx_speed</code>/<code>tx_speed</code> verbatim, <code>source: agentAverage</code>, <code>publish: true</code></td>
+<td>Preserves the ADR-0013(a) immediate-first-tick property — no blank frame, no <code>'—'</code> at launch. A 15 s average is a <em>real measurement</em>, just a slow one. Derivation takes over ≤ 1.25 s later</td>
+</tr>
+<tr>
+<td><strong>Agent warm-up</strong> (<code>elapsedMs == 0</code>)</td>
+<td><code>isStale: true</code>, <code>error: null</code>, <code>source: none</code>, <code>publish: true</code>; <strong>anchor CLEARED</strong></td>
+<td>Verified: a <em>successful</em> poll returns <code>rx_bytes: 0</code> for ≤ 1 s after any agent restart. Anchoring here fabricates a multi-GB/s spike on the next poll. <code>elapsedMs == 0</code> is an exact discriminator — after the first tick it is ≥ 1000 even at literal zero traffic. <code>error</code> stays null so the password sheet is not triggered</td>
+</tr>
+<tr>
+<td><strong>New Poller after auth-halt / re-login</strong></td>
+<td>Deriver <strong>survives</strong> — a <code>_SpeedHomeState</code> field created once in <code>initState</code>. No <code>reset()</code></td>
+<td>The “401 ⇒ agent restart ⇒ counter reset” justification is <strong>unsound</strong>: sysfs counters are kernel-owned and survive an agent process restart untouched. The real agent-restart signal is <code>elapsed_ms == 0</code>, handled above. Both post-re-auth outcomes are already covered — a genuine modem reboot trips the decrease guard, a human-scale password-sheet gap trips <code>maxSpan</code>. A <code>reset()</code> would be dead code</td>
+</tr>
+<tr>
+<td><strong>Counter reset / decrease</strong> (<code>dRx &lt; 0 || dTx &lt; 0</code>)</td>
+<td>Re-anchor; agent average for one sample</td>
+<td>Guarded <em>before</em> any division, so a negative rate is structurally unreachable. Both directions re-seed together — a reset is a device-level event. Covers modem reboot, PDN bounce, the <code>(0,0)</code> fallback, and one interface dropping out of the two-interface sum. <strong>No wrap-correction</strong>: wrap and reset are indistinguishable from the client, and guessing fabricates 4 GiB of traffic</td>
+</tr>
+<tr>
+<td><strong>Absurd derived value</strong> (&gt; 10 Gbps or non-finite)</td>
+<td>Re-anchor; agent average. <strong>Never clamp</strong></td>
+<td>Catches the <code>(0,0)</code>-then-restore edge and any other counter corruption generically. 10 Gbps is an <em>absurdity</em> threshold, not a spec cap — physically impossible on a sub-6 5G modem, so it can never suppress a genuine burst. Displaying a clamped 10 Gbps would be a lie dressed as a measurement</td>
+</tr>
+<tr>
+<td><strong>Stale / failed poll</strong></td>
+<td>Last <strong>derived</strong> rates substituted into the passed-through stale snapshot; anchor <strong>FROZEN</strong>; <code>publish</code> only if ≥ 1000 ms since last publish</td>
+<td>Freezing is required twice over: <code>Poller</code> re-emits the same <code>_last</code> object, so feeding it would read as a zero delta and wrongly print 0 during an outage; and without substitution the number would visibly snap from the derived value to the agent’s 15 s average the instant the badge appears. The throttle keeps gap markers at ~1 Hz, so a 30 s outage consumes ~30 ring slots, not 120</td>
+</tr>
+<tr>
+<td><strong>Recovery after long gap</strong> (<code>elapsed &gt; 3000 ms</code>)</td>
+<td>Re-anchor; agent average for one sample</td>
+<td>A 40 s delta is an average; labelling it “live” is exactly the lie the never-lie rule forbids. It is also the <em>best</em> available answer — after a long outage the agent’s own 15 s window is fully fresh. Normal derivation resumes ≤ 1.25 s later. One rule covers outage recovery, iOS suspension and Android Doze, so no <code>AppLifecycleState</code> observer is needed for <em>correctness</em> (8.9 adds one for battery)</td>
+</tr>
+<tr>
+<td><strong>True idle vs “counter hasn’t ticked yet”</strong></td>
+<td><code>&lt; 1750 ms</code> zero delta → HOLD previous, <code>publish: false</code>. <code>≥ 1750 ms</code> → main formula: <code>0 / round(1.75→2) = 0.0</code>, <code>source: idle</code>, re-anchor</td>
+<td>Disambiguated by elapsed time alone, no extra state. <code>holdCeiling</code> is bounded below by <code>T_a + T_c + jitter ≈ 1360 ms</code> (a normal tick must never trip it) and above by <code>2·T_a ≈ 2020 ms</code> (idle must be detected within two ticks). <strong>1750 ms centres that band.</strong> Bias high: too low prints a spurious <code>'—'</code> dropout (a lie); too high delays idle convergence (cosmetic)</td>
+</tr>
+<tr>
+<td><strong>Time source</strong></td>
+<td><code>clock.now()</code> at reading receipt, read <strong>once</strong> per <code>accept</code></td>
+<td>Matches the <code>SpeedHistory</code> precedent and ADR-0005’s explicit split. Agent <code>elapsed_ms</code> is <strong>rejected as a per-tick interval</strong> — it is the ~15 s ring span — and used only for the warm-up fingerprint and the grid-sanity guard. The LAN-jitter objection is neutralised by RULE 2: jitter of tens of ms is quantized away, so the local clock only ever <em>counts whole ticks</em></td>
+</tr>
+<tr>
+<td><strong>Clock stepped backward</strong> (NTP, timezone)</td>
+<td><code>elapsed &lt; 0</code> → re-anchor, agent average</td>
+<td><code>clock.now()</code> is wall-clock, not monotonic. Large forward steps trip <code>maxSpan</code>; backward steps trip this. A small forward step (&lt; 3 s) mid-window slips through and distorts one frame — named, bounded, and unfixable without abandoning <code>package:clock</code> and therefore <code>fake_async</code> determinism</td>
+</tr>
+<tr>
+<td><strong>Agent grid broken</strong> (<code>elapsedMs &gt;= 14000 &amp;&amp; (elapsedMs/15 - 1000).abs() &gt; 150</code>)</td>
+<td>Agent average until it recovers</td>
+<td>The one guard that stops a hard-coded assumption about a repo we do not control from silently mis-dividing forever. Converts <em>confidently wrong</em> into <em>loudly degraded</em>. <code>elapsed_ms/15</code> is a real measurement on the agent’s own monotonic <code>Instant</code>, immune to LAN latency. The <code>elapsedMs &gt;= 14000</code> gate excludes the ring-filling window after an agent restart, where <code>n &lt; 16</code> samples span <code>n-1</code> intervals and <code>elapsedMs/15</code> understates the per-tick period on its own</td>
+</tr>
+</tbody>
+</table></div>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="history-and-peak" class="section">
+      <h2>SpeedHistory, chart and PEAK ruling</h2>
+      <p><strong><code>lib/core/speed_history.dart</code> is NOT modified.</strong> No capacity change, no API change, no new field; its 10 existing tests are untouched. Because the deriver publishes at ~1 Hz, the ring fills at ~1 Hz, the window stays ~2 minutes, <code>formatElapsedWindow</code> still reads ≈ −2:00, and ADR-0003’s “120 samples ≈ 2 minutes at ~1 Hz” remains true as written.</p>
+<p><strong>PEAK will read materially higher. This is INTENDED and it is a bug fix, not a regression.</strong> Today’s PEAK is the max of a <strong>15 s mean</strong>, which systematically under-reports: a 2 s burst at 500 Mbps inside a 15 s window is reported at roughly 67 Mbps (500 × 2/15). Calling that a “peak” is arguably the pre-existing defect. <code>peakBytesPerSec</code> needs no code change. The trace becomes spiky where it was smooth, and the painter’s auto-ranged axis ceiling will re-range more often.</p>
+<p><strong>Mandatory: the 8.10 cycle note must PRE-DECLARE the higher, spikier PEAK.</strong> This is the single most likely false regression report on the device pass.</p>
+<p><strong>Gap-marker contract: mechanism unchanged, producer set extended.</strong> ADR-0003 defines gap markers as poll failure (<code>snapshot == null || isStale</code>). This adds one new producer: agent warm-up (<code>elapsed_ms == 0</code>). <code>isStale</code> is ruled to mean <strong>“no trustworthy current value”</strong> — which already covered poll failure and now covers a poll that succeeded but carried nothing usable. The alternative is a nullable rate threaded through <code>Reading</code>, <code>SpeedHistory.add</code> and <code>speed_screen</code>’s freshness machine to describe a state that lasts ≤ 1 s after an agent restart. The chart’s break is the <em>correct</em> rendering of “the agent doesn’t know yet.”</p>
+<p><strong>One display fix is mandatory, and it is not scope creep.</strong> <code>format.dart:48</code> is literally <code>if (bytesPerSec &lt;= 0 || bytesPerSec.isNaN) return ('—', '', '')</code>. That contract was written when 0 could only mean a corrupt poll. Once we derive, exact 0 is a <strong>legitimate, frequent measurement</strong> — “this second carried no bytes” — and WAN keepalive/DNS traffic will alternate 0 ↔ ~200 B/s at idle, flickering the headline numeral between <code>'—'</code> and <code>'1.6 Kbps'</code> roughly every second, on the most-looked-at pixel, aggravated by the ADR-0014 <code>'—'</code>→digit morph special case.</p>
+<p><strong>But <code>splitRate</code> must NOT be rewritten.</strong> Making <code>0 → ('0','','bps')</code> there would also change the <strong>PEAK label on an empty or all-stale ring</strong>, where <code>peakBytesPerSec</code> returns <code>0.0</code> and <code>'—'</code> is genuinely correct. Instead (cycle 8.8): add <code>splitMeasuredRate(double)</code> to <code>format.dart</code> returning <code>('0', '', 'bps')</code> for exactly 0 and delegating to <code>splitRate</code> otherwise. <code>splitRate</code> is <strong>unchanged</strong>, so <code>format_test.dart:146–153</code> stays green and the PEAK/empty-ring path keeps <code>'—'</code>. Only <code>speed_screen.dart</code>’s <code>_splitRate</code> (line ~183, the live DL/UL numerals) switches to it; its own <code>snapshot == null → '—'</code> guard at line 179 is untouched. Zero existing tests break.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="harness-defect" class="section">
+      <h2>Latent test-harness defect (must land before wiring)</h2>
+      <p>The verdict found a genuine pre-existing defect in the test harness that no previous cycle exercised, because nothing consumed the byte counters:</p>
+<p><code>test/support/fake_agent.dart:240</code>, <code>test/support/fake_multi_client.dart:266</code> and <code>test/app_flow_test.dart:119</code> all return a <strong>frozen</strong> <code>rx_bytes: 10000</code> alongside <code>rx_speed: 1250000.0</code> — mutually contradictory (1.25 MB/s against a counter that never moves). Under the deriver they present as <strong>permanently idle</strong>.</p>
+<p>All three must advance their counters (<code>rx_bytes += 1250000</code>, <code>tx_bytes += 625000</code> per speed request), which reproduces today’s advertised 10/5 Mbps by construction.</p>
+<p><strong>Cycle 8.5 fixes this BEFORE the 8.6 wiring lands.</strong> Ordering is not cosmetic: with the harness broken, a harness failure and a wiring failure are indistinguishable, and the debugging cost of that ambiguity is the whole reason the cycle exists separately.</p>
+<p><strong>This also neutralises a flake hazard.</strong> <code>withClock</code> appears <strong>nowhere</strong> in <code>test/</code>, so <code>testWidgets</code> runs <code>clock.now()</code> on real wall time. With advancing counters the derived rate equals the advertised rate on every branch: real elapsed ≈ 0 → <code>clamp(1)</code> → 10 Mbps; slow CI past 1.75 s → span 2 → 5 Mbps; past 3 s → re-seed → 10 Mbps. All three satisfy <code>findsWidgets</code> on <code>'Mbps'</code> and <code>findsNothing</code> on <code>'0.0 Mbps'</code>.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="blast-radius" class="section">
+      <h2>Blast radius (verified, not estimated)</h2>
+      <p><strong>New — 2 production, 2 test:</strong> <code>lib/core/speed_rate_deriver.dart</code> (~110 lines with docs, incl. <code>RateSource</code>); <code>test/core/speed_rate_deriver_test.dart</code>; <code>test/core/speed_rate_deriver_beat_test.dart</code>.</p>
+<p><strong>Modified — production (5, all small):</strong></p>
+<div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lib/app.dart</code></td>
+<td>one field, <code>pollInterval</code> 1000→250 ms, <code>_onSpeedData</code> 6→6 lines, plus the 8.9 lifecycle observer. Nothing in <code>_startPollers</code>, <code>_disposePollers</code>, <code>dispose</code>, <code>_showPasswordSheet</code> or <code>build</code> moves</td>
+</tr>
+<tr>
+<td><code>lib/core/format.dart</code></td>
+<td>additive <code>splitMeasuredRate</code>; <code>splitRate</code> untouched</td>
+</tr>
+<tr>
+<td><code>lib/ui/speed_screen.dart</code></td>
+<td>ONE call site in <code>_splitRate</code></td>
+</tr>
+<tr>
+<td><code>lib/core/speed_snapshot.dart</code></td>
+<td><strong>doc comment only</strong> — no field or ctor change, so all four test construction sites still compile</td>
+</tr>
+<tr>
+<td><code>lib/core/core.dart</code></td>
+<td>inventory doc entry (that file is documentation, no code)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Existing tests expected to break — exactly ONE assertion:</strong> <code>test/app_multipoller_test.dart:65</code> — <code>expect(env.pollInterval, const Duration(seconds: 1))</code> → <code>Duration(milliseconds: 250)</code>, plus the surrounding “speed 1 s” name string.</p>
+<p><strong>Why the other 380 are safe — three facts verified, not assumed:</strong></p>
+<ol>
+<li>The entire UI suite (<code>speed_screen_test.dart</code>, <code>integrated_screen_test.dart</code>) constructs <code>SpeedSnapshot</code> <strong>directly</strong> into a controller downstream of <code>_onSpeedData</code>, so it never traverses the deriver.</li>
+<li>Every test that boots the app passes its own explicit <code>pollInterval</code> (50 ms at <code>app_flow_test.dart:205,231</code> and <code>app_multipoller_test.dart:41</code>; 1 h at <code>scaffold_test.dart:78</code>), so the production-default flip reaches no test but line 65.</li>
+<li>The <code>withClock</code> wall-clock hazard is neutralised by 8.5 — see §Latent test-harness defect.</li>
+</ol>
+<p><strong>ADR dispositions:</strong></p>
+<ul>
+<li><strong>ADR-0015 (new)</strong> — Client-derived live speed from cumulative counters. Filed in 8.1.</li>
+<li><strong>ADR-0013 — AMENDMENT REQUIRED.</strong> Its table (b) locks speed at 1 s. Change to 250 ms and record the <code>T_c + δ &lt; 470 ms</code> inequality as the reason, so nobody “optimises” it back to 1 Hz.</li>
+<li><strong>ADR-0003 — amendment NOTE, decision stands.</strong> Ring, capacity, <code>clock.now()</code> timestamps and the gap-marker mechanism are all unchanged. Note only that the gap-marker <em>producer set</em> now includes agent warm-up, and that the “~1 Hz” fill rate is preserved by publish-gating despite 4 Hz sampling.</li>
+<li><strong>ADR-0005 — NO amendment.</strong> <code>Poller&lt;T&gt;</code> and <code>Reading&lt;T&gt;</code> untouched; its cadence/timestamp split is <em>upheld</em>, not bent.</li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="numbering-note" class="section">
+      <h2>Plan + ADR numbering (resolved, not open)</h2>
+      <p><code>git stash@{0}</code> (“On main: plan-008”) holds a <strong>different, unexecuted feature</strong> — per-client WiFi traffic — occupying <code>docs/plan-008.yaml</code>, <code>docs/rnd/plan-008-client-traffic-design.md</code>, and claiming ADR-0015/0016/0017. Both it and this plan are uncommitted, so both numbers were free.</p>
+<p><strong>Owner decision, already made:</strong> the owner explicitly stashed that plan to free the number for this work. <strong>This plan takes plan-008 + ADR-0015.</strong> When the client-traffic plan is revived it renumbers to whichever plan id and ADR ids are free <strong>at that time</strong> — not plan-009 + ADR-0016/0017/0018, the ids this note reserved when written; plan-009 is no longer free (<code>docs/plan-009.yaml</code>, <code>docs/plan-010.yaml</code> and <code>docs/plan-011.yaml</code> now exist as separate, later-authored plans) — re-check the ADR ids too, since this note does not warrant their current availability. Check <code>ls docs/plan-*.yaml</code> and <code>ls docs/adr/</code> for the next free ids before renumbering, then find-replace across the two stashed files. Rationale: this fixes a live defect in a shipped surface, it is smaller, and the stash is unexecuted.</p>
+<p><code>tools/docs-gen/projects.config.json</code> already carries <code>{ &quot;id&quot;: &quot;008&quot; }</code> for u60-monitor (added uncommitted during the stashed plan’s authoring), so no registry edit is needed; it now points at this plan.</p>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="out-of-scope" class="section">
+      <h2>Out of scope (plan-008)</h2>
+      <ul>
+<li><strong>Any change to the <code>open-u60-pro</code> agent.</strong> Shrinking <code>SPEED_RING_SIZE</code>, adding a true 1 s field, or exposing QMI/AT modem counters are all upstream work in a separate repo requiring a modem redeploy. The owner explicitly chose the app-only path. (For the record: there is <strong>no QMI code anywhere in the agent</strong> — HEAD <code>cf61f70</code>.)</li>
+<li><strong>Chart axis re-scaling.</strong> Sharper peaks mean the auto-ranged ceiling re-ranges more often and may visually flatten the baseline. Whether that wants a log axis, a percentile ceiling, or split peak/axis sources is a <strong>separate design question with its own tradeoffs</strong> — file it as its own plan cycle. Explicitly NOT bundled here.</li>
+<li><strong>A <code>LiveSpeed</code> wrapper type or new <code>SpeedSnapshot</code> fields</strong> — rejected on evidence (§Architect verdict).</li>
+<li><strong><code>SpeedHistory</code> capacity or API changes</strong> — rejected; not needed.</li>
+<li><strong>Per-direction rate machinery</strong> — eliminated by the joint-anchor observation.</li>
+<li><strong>On-device battery instrumentation in-app</strong> — 8.10 is a human measurement pass, not an automated telemetry feature.</li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="standing-invariants" class="section">
+      <h2>Standing invariants preserved</h2>
+      <ul>
+<li><strong>pure-Dart <code>lib/core</code> boundary</strong> upheld — <code>speed_rate_deriver.dart</code> imports only <code>package:clock/clock.dart</code>, <code>reading.dart</code>, <code>speed_snapshot.dart</code>.</li>
+<li><strong>ADR-0005 multi-metric polling</strong> UNTOUCHED — <code>Poller&lt;T&gt;</code> / <code>Reading&lt;T&gt;</code> unchanged; derivation lives outside the generic poller (inside it would be an instant BLOCKER).</li>
+<li><strong>ADR-0003 history ring</strong> preserved — capacity, timestamps and gap-marker mechanism unchanged; only the producer set grows.</li>
+<li><strong>ADR-0013(a) immediate-first-tick</strong> preserved — the first sample emits the agent average, so no blank frame at launch.</li>
+<li><strong>ADR-0014 numeric morph</strong> preserved — publish-gating keeps the UI stream at ~1 Hz, so morphs fire exactly as often as today (8.10 item 7 confirms on device).</li>
+<li><strong>never-show-0 / last-known + stale</strong> honoured — stale polls substitute the last <em>derived</em> rates and freeze the anchor; a true measured 0 is a different thing and renders as <code>'0 bps'</code> (8.8), never as a fake dropout.</li>
+<li><strong>never-lie</strong> honoured — every path that cannot produce a trustworthy live number falls back to a <em>real</em> measurement (the agent’s 15 s mean) or a gap marker; nothing is clamped, faked, or carried forward silently.</li>
+<li><strong>ADR-0002 base-URL invariant</strong> DORMANT — no base-URL/credential write.</li>
+<li><strong>no test weakening</strong> — only ONE existing assertion changes (<code>app_multipoller_test.dart:65</code>, a cadence constant), and it changes because the constant changed.</li>
+<li><strong>ZERO new pubspec deps.</strong></li>
+</ul>
+
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="dag" class="section">
+      <h2>Cycle dependencies</h2>
+      <p>Each node is a cycle; an arrow means &ldquo;must ship first&rdquo;. The critical path is highlighted.</p>
+      <div class="figure">
+        <svg viewBox="0 0 1432 360" role="img" aria-labelledby="dag-t dag-d" font-size="13">
+    <title id="dag-t">Plan-008 cycle dependency graph</title>
+    <desc id="dag-d">Cycles laid out left to right by dependency depth. The critical path (8.2 → 8.3 → 8.4 → 8.6 → 8.7 → 8.9 → 8.10) is highlighted.</desc>
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <path d="M152 160 C 191 160, 191 195, 230 195" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M362 195 C 401 195, 401 195, 440 195" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M572 195 C 611 195, 611 195, 650 195" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M152 230 C 401 230, 401 195, 650 195" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M782 195 C 821 195, 821 195, 860 195" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M992 195 C 1031 195, 1031 195, 1070 195" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M152 90 C 716 90, 716 195, 1280 195" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M992 195 C 1136 195, 1136 195, 1280 195" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M152 300 C 716 300, 716 195, 1280 195" fill="none" class="dg-edge" stroke-width="1.6" marker-end="url(#arr)"/><path d="M1202 195 C 1241 195, 1241 195, 1280 195" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/>
+    <g>
+        <rect x="20" y="65" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="86" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.1</text>
+        <text x="86" y="102" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="135" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="86" y="156" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.2</text>
+        <text x="86" y="172" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="230" y="170" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="296" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.3</text>
+        <text x="296" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="440" y="170" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="506" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.4</text>
+        <text x="506" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="205" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="226" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.5</text>
+        <text x="86" y="242" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="650" y="170" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="716" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.6</text>
+        <text x="716" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="860" y="170" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="926" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.7</text>
+        <text x="926" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="20" y="275" width="132" height="50" rx="11" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+        <text x="86" y="296" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.8</text>
+        <text x="86" y="312" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="1070" y="170" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="1136" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.9</text>
+        <text x="1136" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g><g>
+        <rect x="1280" y="170" width="132" height="50" rx="11" class="dg-node-crit" stroke-width="2"/>
+        <text x="1346" y="191" text-anchor="middle" class="dg-text" font-weight="700" font-size="12.5">8.10</text>
+        <text x="1346" y="207" text-anchor="middle" class="dg-subtext" font-size="9.5"></text>
+      </g>
+  </svg>
+        <div class="legend">
+          <span><i class="sw crit"></i> critical path</span>
+          <span><i class="sw norm"></i> parallel-safe</span>
+          <span><i class="ln crit"></i> blocks (critical)</span>
+          <span><i class="ln"></i> blocks</span>
+        </div>
+        <p class="cap">Critical path: <b>8.2 → 8.3 → 8.4 → 8.6 → 8.7 → 8.9 → 8.10</b>.</p>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="timeline" class="section">
+      <h2>Batch timeline &amp; critical path</h2>
+      <p>Cycles within a batch are file-disjoint and run in parallel sessions. The critical path determines wall-time.</p>
+      <div class="figure">
+        <svg viewBox="0 0 1260 252" role="img" aria-labelledby="tl-t tl-d" font-size="13">
+    <title id="tl-t">Plan-008 batch timeline</title>
+    <desc id="tl-d">5 batches over time; cycles within a batch run in parallel. Critical path: 8.2 → 8.3 → 8.4 → 8.6 → 8.7 → 8.9 → 8.10.</desc>
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="arrc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <line x1="255" y1="64" x2="255" y2="216" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><line x1="505" y1="64" x2="505" y2="216" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><line x1="755" y1="64" x2="755" y2="216" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><line x1="1005" y1="64" x2="1005" y2="216" class="dg-grid" stroke-width="1" stroke-dasharray="3 5"/><text x="130" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P8.A</text><text x="130" y="48" text-anchor="middle" class="dg-subtext" font-size="10">25–45 min · solo</text><g>
+          <rect x="20" y="112" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="36" y="135" class="dg-text" font-weight="700" font-size="12">8.1</text>
+          <text x="226" y="135" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="380" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P8.B</text><text x="380" y="48" text-anchor="middle" class="dg-subtext" font-size="10">3–5 h · 3 parallel</text><g>
+          <rect x="270" y="64" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="286" y="87" class="dg-text" font-weight="700" font-size="12">8.2</text>
+          <text x="476" y="87" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="112" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="286" y="135" class="dg-text" font-weight="700" font-size="12">8.3</text>
+          <text x="476" y="135" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="270" y="160" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="286" y="183" class="dg-text" font-weight="700" font-size="12">8.4</text>
+          <text x="476" y="183" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="630" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P8.C</text><text x="630" y="48" text-anchor="middle" class="dg-subtext" font-size="10">2–3.5 h · 3 parallel</text><g>
+          <rect x="520" y="64" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="536" y="87" class="dg-text" font-weight="700" font-size="12">8.5</text>
+          <text x="726" y="87" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="520" y="112" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="536" y="135" class="dg-text" font-weight="700" font-size="12">8.6</text>
+          <text x="726" y="135" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="520" y="160" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="536" y="183" class="dg-text" font-weight="700" font-size="12">8.7</text>
+          <text x="726" y="183" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="880" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P8.D</text><text x="880" y="48" text-anchor="middle" class="dg-subtext" font-size="10">1.5–2.5 h · 2 parallel</text><g>
+          <rect x="770" y="88" width="220" height="38" rx="8" class="dg-node-fill dg-node-stroke" stroke-width="1.5"/>
+          <text x="786" y="111" class="dg-text" font-weight="700" font-size="12">8.8</text>
+          <text x="976" y="111" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><g>
+          <rect x="770" y="136" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="786" y="159" class="dg-text" font-weight="700" font-size="12">8.9</text>
+          <text x="976" y="159" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><text x="1130" y="30" text-anchor="middle" class="dg-text" font-family="var(--serif)" font-weight="700" font-size="15">P8.E</text><text x="1130" y="48" text-anchor="middle" class="dg-subtext" font-size="10">45–90 min (human) · solo</text><g>
+          <rect x="1020" y="112" width="220" height="38" rx="8" class="dg-node-crit" stroke-width="2"/>
+          <text x="1036" y="135" class="dg-text" font-weight="700" font-size="12">8.10</text>
+          <text x="1226" y="135" text-anchor="end" class="dg-subtext" font-size="10"></text>
+        </g><path d="M490 136 C 505 136, 505 136, 520 136" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M740 136 C 755 136, 755 136, 770 136" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><path d="M990 136 C 1005 136, 1005 136, 1020 136" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#arrc)"/><text x="630" y="240" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-size="11" font-weight="700">critical path · 8.2 → 8.3 → 8.4 → 8.6 → 8.7 → 8.9 → 8.10</text>
+  </svg>
+        <p class="cap">Critical path = <b>5 batches</b> vs <b>10 cycles</b> serial. <b>Low — the spine is inherently serial. 8.2→8.3→8.4 are the SAME file (speed_rate_deriver.dart) and strictly ordered; 8.5→8.6→8.7 is an ordering chosen deliberately so a harness break, a wiring break and a cadence break stay distinguishable. 8.1 (docs) and 8.8 (format.dart + speed_screen.dart) are genuinely file-disjoint from the deriver cycles and could parallelize in worktrees, but the run executes SEQUENTIALLY on main because each cycle's full-suite `flutter test` gate is cross-attributable in a shared tree (the plan-004/005/006 lesson). Roughly 10 commits, one per cycle.</b> wall-time saved.</p>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v">5</div><div class="k">Batches</div></div>
+        <div class="stat"><div class="v">10</div><div class="k">Cycles</div></div>
+        <div class="stat"><div class="v"><span class="accent">Low — the spine is inherently serial. 8.2→8.3→8.4 are the SAME file (speed_rate_deriver.dart) and strictly ordered; 8.5→8.6→8.7 is an ordering chosen deliberately so a harness break, a wiring break and a cadence break stay distinguishable. 8.1 (docs) and 8.8 (format.dart + speed_screen.dart) are genuinely file-disjoint from the deriver cycles and could parallelize in worktrees, but the run executes SEQUENTIALLY on main because each cycle's full-suite `flutter test` gate is cross-attributable in a shared tree (the plan-004/005/006 lesson). Roughly 10 commits, one per cycle.</span></div><div class="k">Wall-time saved</div></div>
+        <div class="stat"><div class="v">7</div><div class="k">Critical-path hops</div></div>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="progress" class="section">
+      <h2>Progress</h2>
+      <p>Live status parsed from <code>plan-008.yaml</code>.</p>
+      <div class="panel">
+        <div class="dash">
+          <div class="donut-wrap" aria-hidden="true">
+            <svg width="200" height="200" viewBox="0 0 120 120" role="img" aria-label="Progress donut: 4 of 10 cycles done">
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--surface-2)" stroke-width="14"/>
+              <circle cx="60" cy="60" r="48" fill="none" stroke="var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="120.6 181.0" transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="donut-center">
+              <div class="big">4<span style="color:var(--ink-faint);font-size:1.4rem">/10</span></div>
+              <div class="small">Shipped</div>
+            </div>
+          </div>
+          <div class="dash-legend">
+            <div class="row"><span class="sw" style="background:var(--accent)"></span><span class="lbl">Shipped</span><span class="ct">4</span></div>
+            <div class="row"><span class="sw" style="background:var(--wip-fg)"></span><span class="lbl">In progress</span><span class="ct">0</span></div>
+            <div class="row"><span class="sw" style="background:var(--surface-2);border:1px solid var(--line-strong)"></span><span class="lbl">Not started</span><span class="ct">6</span></div>
+          </div>
+        </div>
+      </div>
+
+      <h3>Status table</h3>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>Cycle</th><th>Description</th><th>Status</th><th>Shipped</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">8.1</td><td>Correct the agent contract — CLAUDE.md, ADR-0015, ADR-0013, ADR-0003</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.2</td><td>SpeedRateDeriver steady state — anchor-on-movement + quantized denominator</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.3</td><td>Defensive branches — warm-up, decrease, absurd, long gap, backward clock, grid sanity</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.4</td><td>Publish gating — 4 Hz in, ~1 Hz out</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.5</td><td>Fake-harness fidelity — advance the counters the fakes freeze</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.6</td><td>Wire the deriver into _onSpeedData (cadence unchanged)</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.7</td><td>Flip the speed cadence to 250 ms</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.8</td><td>splitMeasuredRate — a measured zero is &quot;0 bps&quot;, not &quot;—&quot;</td><td><span class="pill ok"><span class="dot"></span>Shipped</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.9</td><td>Lifecycle pause — stop polling when backgrounded</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td class="mono">—</td><td>—</td></tr>
+            <tr><td class="mono">8.10</td><td>Human on-device pass (iOS + Samsung S22)</td><td><span class="pill idle"><span class="dot"></span>Not started</span></td><td class="mono">—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="read-next" class="section">
+      <h2>Read next</h2>
+      <div class="card-grid">
+        <a class="linkcard" href="plan.html">
+          <span class="num">01 · THE PLAN</span>
+          <h3>The 10 cycles</h3>
+          <p>Every cycle in expandable detail: scope, the RED / GREEN / REVIEW / REFACTOR phases, and the verbatim code blocks. Plus the TDD loop diagram.</p>
+          <span class="go">View cycles</span>
+        </a>
+        <a class="linkcard" href="batches.html">
+          <span class="num">02 · THE RUNBOOK</span>
+          <h3>Parallel batch orchestration</h3>
+          <p>How to run this plan across parallel sessions: worktree setup, merge protocol, the file-ownership matrix, and the copy-paste session prompts.</p>
+          <span class="go">Open runbook</span>
+        </a>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="conventions" class="section">
+      <h2>Conventions in play</h2>
+      <p>Every cycle runs through the same disciplined loop, defined in the shared rules under <code>.agents/rules/</code>.</p>
+      <div class="conv-grid">
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-3"/></svg> Architect gate</h4><p>Each cycle carries an architecture-review tier (<code>top</code>, <code>mid</code>, <code>none</code>, or <code>deferred</code>). Legacy provider aliases are normalized while loading. A fresh <code>software-architect</code> returns a <code>GO</code> / <code>NO-GO</code> verdict <strong>before RED</strong> for the non-trivial ones.</p></div>
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Reviewer separation</h4><p>REVIEW is performed by a fresh <code>code-reviewer</code> sub-agent &mdash; never self-review. Security-tier cycles add a <code>security-reviewer</code> second pass.</p></div>
+        <div class="conv"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg> NO-DEFER</h4><p>Every <code>[BLOCKER]</code> and <code>[REFACTOR]</code> finding is resolved in the same cycle&rsquo;s REFACTOR pass. Scope discipline is not a reason to defer an in-scope finding.</p></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-008.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-007 — The cycles</title>
+<meta name="description" content="The 10 TDD cycles of u60-monitor plan-007.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-007</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html">Overview</a>
+      <a class="navlink" href="plan.html" aria-current="page">Cycles</a>
+      <a class="navlink" href="batches.html">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">The plan · 10 TDD cycles</p>
+    <h1>The cycles</h1>
+    <p class="lede">Each cycle runs the <strong>RED &rarr; GREEN &rarr; REVIEW &rarr; (REFACTOR &rarr; REVIEW)* &rarr; COMMIT</strong> loop. Code blocks are reproduced verbatim from <code>plan-007.yaml</code>.</p>
+    
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#tdd-loop">The TDD loop</a></li>
+      <li><a href="#c7-1">7.1 — Glyph-diff core — right-align…</a></li>
+      <li><a href="#c7-2">7.2 — AnimatedNumericText core roll…</a></li>
+      <li><a href="#c7-2b">7.2b — AnimatedNumericText — blur +…</a></li>
+      <li><a href="#c7-3">7.3 — SpeedTwin adopt + retire Coun…</a></li>
+      <li><a href="#c7-4">7.4 — BatteryTile adopt — SoC % + c…</a></li>
+      <li><a href="#c7-5">7.5 — DataUsageSection adopt — hero…</a></li>
+      <li><a href="#c7-6">7.6 — FooterTriplet + SpeedHistoryC…</a></li>
+      <li><a href="#c7-7">7.7 — De-muddy the fast-twin morph…</a></li>
+      <li><a href="#c7-8">7.8 — Fraction run tabular figures…</a></li>
+      <li><a href="#c7-9">7.9 — Digit-drop reflow — progressi…</a></li>
+      <li><a href="#open-q">Open questions</a></li>
+      <li><a href="#followups">Cycle follow-ups</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+
+    <section id="tdd-loop" class="section">
+      <h2>The TDD loop</h2>
+      <p>REVIEW is the gate. <strong>APPROVED</strong> goes straight to COMMIT; <strong>NEEDS FIX</strong> runs REFACTOR and loops back to REVIEW until approved.</p>
+      <div class="figure">
+        <svg viewBox="0 0 880 280" role="img" aria-labelledby="loop-t loop-d" font-size="13">
+    <title id="loop-t">TDD cycle loop</title>
+    <desc id="loop-d">RED flows to GREEN to REVIEW. From REVIEW, APPROVED flows forward to COMMIT; NEEDS FIX flows down to REFACTOR, which loops back up to REVIEW.</desc>
+    <defs>
+      <marker id="la" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-line"/></marker>
+      <marker id="lac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-fill-accent"/></marker>
+    </defs>
+    <g><rect x="20" y="96" width="140" height="56" rx="12" fill="var(--surface-2)" stroke="var(--red)" stroke-width="2"/><text x="90" y="124" text-anchor="middle" fill="var(--red)" font-family="var(--mono)" font-weight="700">RED</text><text x="90" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">failing test</text></g>
+    <g><rect x="230" y="96" width="140" height="56" rx="12" fill="var(--surface-2)" stroke="var(--green)" stroke-width="2"/><text x="300" y="124" text-anchor="middle" fill="var(--green)" font-family="var(--mono)" font-weight="700">GREEN</text><text x="300" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">minimal pass</text></g>
+    <g><rect x="440" y="92" width="150" height="64" rx="12" fill="var(--surface-2)" stroke="var(--review)" stroke-width="2.5"/><text x="515" y="120" text-anchor="middle" fill="var(--review)" font-family="var(--mono)" font-weight="700">REVIEW</text><text x="515" y="138" text-anchor="middle" class="dg-subtext" font-size="9.5">the gate</text></g>
+    <g><rect x="720" y="96" width="140" height="56" rx="12" class="dg-node-crit" stroke-width="2"/><text x="790" y="124" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-weight="700">COMMIT</text><text x="790" y="142" text-anchor="middle" class="dg-subtext" font-size="9.5">one per cycle</text></g>
+    <g><rect x="440" y="210" width="150" height="52" rx="12" fill="var(--surface-2)" stroke="var(--refactor)" stroke-width="2"/><text x="515" y="234" text-anchor="middle" fill="var(--refactor)" font-family="var(--mono)" font-weight="700">REFACTOR</text><text x="515" y="251" text-anchor="middle" class="dg-subtext" font-size="9.5">apply review</text></g>
+    <path d="M160 124 H226" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <path d="M370 124 H436" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <path d="M590 124 H716" fill="none" class="dg-edge-crit" stroke-width="2.5" marker-end="url(#lac)"/>
+    <text x="650" y="114" text-anchor="middle" class="dg-fill-accent" font-family="var(--mono)" font-size="10.5" font-weight="700">APPROVED</text>
+    <path d="M515 156 V206" fill="none" class="dg-edge" stroke-width="2" marker-end="url(#la)"/>
+    <text x="525" y="186" class="dg-subtext" font-size="10.5" fill="var(--refactor)">NEEDS FIX</text>
+    <path d="M440 236 C 380 236, 380 124, 436 124" fill="none" class="dg-edge" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#la)"/>
+    <text x="372" y="186" text-anchor="middle" class="dg-subtext" font-size="10" transform="rotate(-90 372 186)">loop until APPROVED</text>
+  </svg>
+        <p class="cap"><b>RED</b> &rarr; <b>GREEN</b> &rarr; <b>REVIEW</b> &rarr; (<b>REFACTOR</b> &rarr; REVIEW)* &rarr; <b>COMMIT</b></p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin:8px 0 0">
+        <button class="copy-btn" type="button" data-expand-all>Expand all</button>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+<details class="cycle-card section" id="c7-1" open>
+  <summary class="cycle-head">
+    <span class="cycle-id">7.1</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Glyph-diff core — right-aligned per-column numeric diff</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill accent" title="Introduces a NEW cross-cutting UI primitive (a numericText-style morph replacing the enter-live count-up) with a per-feed-tick animation cost — a genuine design decision, not the reuse-an-existing-helper case. The architect LOCKS, in one verdict that 7.2 defers to: (1) the glyph-diff contract — a RIGHT-ALIGNED column diff of two display strings returning, per NEW-string glyph column, the old glyph (null if the number grew a place) + a changed flag, plus an overall roll `direction` (+1 increase / -1 decrease / 0 non-numeric) computed from a cleaned `double.tryParse` (U+2212 MINUS SIGN normalised to '-'; unparseable endpoint ⇒ 0/neutral); (2) the widget animation model — decoded FROM PIXELS (the 169-frame capture; see §Motion spec) — ONE `AnimationController` per `AnimatedNumericText` instance (`SingleTickerProviderStateMixin`, ~300 ms), per changed column a `Stack(outgoing, incoming)` doing a FIXED top-enter/bottom-exit drift (new glyph from ABOVE `dy −0.55→0`, old exits BELOW `dy 0→+0.55` — the SAME for increases AND decreases; this corrects the earlier &quot;value-direction odometer&quot;) + `Transform.scale` (in 0.6→1.0, out 1.0→0.55) + asymmetric color-alpha fade (out gone by ~65 % t; NOT an `Opacity` widget → no per-glyph saveLayer) + a LEFT-TO-RIGHT stagger (`Interval(i*0.12,…)` per changed column); unchanged columns static; a row-level `ClipRect` with vertical slack (not per-glyph — `height:0.82` crops ascenders); a whole-number `RepaintBoundary`; at rest / reduced motion it is a single plain `Text`. `AnimatedSwitcher` is used ONLY for the `direction == 0` neutral cross-fade; the diff's `direction` no longer sets the slide axis (fixed top-down); (3) the primitive accepts a FULL string (callers pass per-style runs — e.g. SpeedTwin's 66 px whole and 27 px fraction are two instances — and keep units/`%` as static siblings or trailing static glyphs); (4) the §Motion spec, incl. that **blur, glyph scale, and animated width-reflow are all BUILT (frame-verified), NOT dropped** — the earlier &quot;drop blur/scale/width&quot; lock was authored from web docs and the pixels refute it. Scale + drift + fade + stagger land in **7.2** (the core roll, saveLayer-free at rest); the gaussian **blur** (cell-level `ImageFiltered`, `σ=blurSigma·sin(π·t)`, gated `enabled:isAnimating`, capped + kill-switch) and the FittedBox-safe **animated width reflow** land in **7.2b**, with the fast/slow perf tiering. 7.3–7.6 stay `arch none` and inherit the finished widget (with its `blurSigma` knob); reduced-motion snaps with no ticker; Semantics announces the final value + excludeSemantics; (5) `CountUpText` is retired in 7.3 (its only caller) — no dead code. Confirm `lib/core/numeric_transition.dart` is import-clean (pure Dart, no `flutter`/`material`/`dart:ui` — the animation primitives live in the 7.2/7.2b widget, not the core diff). File ADR-0014 (numeric-transition primitive, FRAME-ACCURATE: single-controller per-column blur+scale+drift+asymmetric-fade crossfade, fixed top-enter, animated reflow, perf-tiered blur). Verdict GO/NO-GO ≤ 400 words. NOT security-tier (presentation-only; opus is the quality tier per the model-tier policy)."><span class="dot"></span>architect: required (top)</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Create <code>lib/core/numeric_transition.dart</code> — a pure-Dart function that diffs two already-formatted display strings into per-glyph-column deltas for the <code>AnimatedNumericText</code> widget (7.2). Right-aligned: numbers grow and shrink at the LEFT, so column index runs from the right edge. For each column of the NEW string, report the glyph, the OLD glyph at the same right-index (or null when the new string is longer there — a glyph “entering”), and whether it changed. Compute one overall roll <code>direction</code> from a numeric compare of the two strings: <code>+1</code> when the new magnitude is larger (roll up), <code>-1</code> when smaller (roll down), <code>0</code> when either endpoint does not parse as a number (neutral cross-fade — e.g. the <code>—</code> placeholder, an empty string, or a mixed string like <code>3d 4h</code>). Normalise U+2212 MINUS SIGN to ASCII <code>-</code> before parsing so signed dBm/temperature strings compare correctly.</p>
+<p>Suggested surface (RED author confirms the exact names against the widget’s needs in 7.2, and writes assertions against the verified shape — not this sketch): a <code>GlyphDelta { String glyph; String? previous; bool get isChanged =&gt; previous != glyph; }</code> and a <code>NumericDiff { List&lt;GlyphDelta&gt; glyphs; int direction; }</code> returned by <code>NumericDiff diffNumericGlyphs(String from, String to)</code>, <code>glyphs</code> ordered left-to-right to match the NEW string.</p>
+<p>Pure Dart only — a <code>flutter</code>/<code>material</code>/<code>dart:ui</code> import here is an instant review BLOCKER (this file sits beside <code>sparkline_geometry.dart</code> / <code>format.dart</code>). No new deps. All prior core tests stay green.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — Introduces a NEW cross-cutting UI primitive (a numericText-style morph replacing the enter-live count-up) with a per-feed-tick animation cost — a genuine design decision, not the reuse-an-existing-helper case. The architect LOCKS, in one verdict that 7.2 defers to: (1) the glyph-diff contract — a RIGHT-ALIGNED column diff of two display strings returning, per NEW-string glyph column, the old glyph (null if the number grew a place) + a changed flag, plus an overall roll <code>direction</code> (+1 increase / -1 decrease / 0 non-numeric) computed from a cleaned <code>double.tryParse</code> (U+2212 MINUS SIGN normalised to ‘-’; unparseable endpoint ⇒ 0/neutral); (2) the widget animation model — decoded FROM PIXELS (the 169-frame capture; see §Motion spec) — ONE <code>AnimationController</code> per <code>AnimatedNumericText</code> instance (<code>SingleTickerProviderStateMixin</code>, ~300 ms), per changed column a <code>Stack(outgoing, incoming)</code> doing a FIXED top-enter/bottom-exit drift (new glyph from ABOVE <code>dy −0.55→0</code>, old exits BELOW <code>dy 0→+0.55</code> — the SAME for increases AND decreases; this corrects the earlier “value-direction odometer”) + <code>Transform.scale</code> (in 0.6→1.0, out 1.0→0.55) + asymmetric color-alpha fade (out gone by ~65 % t; NOT an <code>Opacity</code> widget → no per-glyph saveLayer) + a LEFT-TO-RIGHT stagger (<code>Interval(i*0.12,…)</code> per changed column); unchanged columns static; a row-level <code>ClipRect</code> with vertical slack (not per-glyph — <code>height:0.82</code> crops ascenders); a whole-number <code>RepaintBoundary</code>; at rest / reduced motion it is a single plain <code>Text</code>. <code>AnimatedSwitcher</code> is used ONLY for the <code>direction == 0</code> neutral cross-fade; the diff’s <code>direction</code> no longer sets the slide axis (fixed top-down); (3) the primitive accepts a FULL string (callers pass per-style runs — e.g. SpeedTwin’s 66 px whole and 27 px fraction are two instances — and keep units/<code>%</code> as static siblings or trailing static glyphs); (4) the §Motion spec, incl. that <strong>blur, glyph scale, and animated width-reflow are all BUILT (frame-verified), NOT dropped</strong> — the earlier “drop blur/scale/width” lock was authored from web docs and the pixels refute it. Scale + drift + fade + stagger land in <strong>7.2</strong> (the core roll, saveLayer-free at rest); the gaussian <strong>blur</strong> (cell-level <code>ImageFiltered</code>, <code>σ=blurSigma·sin(π·t)</code>, gated <code>enabled:isAnimating</code>, capped + kill-switch) and the FittedBox-safe <strong>animated width reflow</strong> land in <strong>7.2b</strong>, with the fast/slow perf tiering. 7.3–7.6 stay <code>arch none</code> and inherit the finished widget (with its <code>blurSigma</code> knob); reduced-motion snaps with no ticker; Semantics announces the final value + excludeSemantics; (5) <code>CountUpText</code> is retired in 7.3 (its only caller) — no dead code. Confirm <code>lib/core/numeric_transition.dart</code> is import-clean (pure Dart, no <code>flutter</code>/<code>material</code>/<code>dart:ui</code> — the animation primitives live in the 7.2/7.2b widget, not the core diff). File ADR-0014 (numeric-transition primitive, FRAME-ACCURATE: single-controller per-column blur+scale+drift+asymmetric-fade crossfade, fixed top-enter, animated reflow, perf-tiered blur). Verdict GO/NO-GO ≤ 400 words. NOT security-tier (presentation-only; opus is the quality tier per the model-tier policy).</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-89" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-89">// test/core/numeric_transition_test.dart — pure Dart, no flutter import.
+// (RED author: lock the exact type/method names against the 7.1 arch
+// verdict + the 7.2 widget's needs before finalising these.)
+
+String glyphs(NumericDiff d) =&gt; d.glyphs.map((g) =&gt; g.glyph).join();
+
+test('equal strings: all columns unchanged, direction 0', () {
+  final d = diffNumericGlyphs('27', '27');
+  expect(glyphs(d), '27');
+  expect(d.glyphs.every((g) =&gt; !g.isChanged), isTrue);
+  expect(d.direction, 0);
+});
+
+test('single-digit increase: only the changed column flags, direction +1', () {
+  final d = diffNumericGlyphs('27', '28');
+  expect(glyphs(d), '28');
+  expect(d.glyphs[0].isChanged, isFalse); // '2' held
+  expect(d.glyphs[1].isChanged, isTrue);  // '7' -&gt; '8'
+  expect(d.glyphs[1].previous, '7');
+  expect(d.direction, 1);
+});
+
+test('grow a place: right-aligned, leading glyph enters (previous null)', () {
+  final d = diffNumericGlyphs('9', '10');
+  expect(glyphs(d), '10');
+  expect(d.glyphs[0].previous, isNull); // '1' entered
+  expect(d.glyphs[0].isChanged, isTrue);
+  expect(d.glyphs[1].previous, '9');    // '0' was '9'
+  expect(d.direction, 1);
+});
+
+test('shrink a place: direction -1', () {
+  final d = diffNumericGlyphs('10', '9');
+  expect(glyphs(d), '9');
+  expect(d.direction, -1);
+});
+
+test('decimals: the dot column holds, fraction diffs, direction +1', () {
+  final d = diffNumericGlyphs('27.8', '28.1');
+  expect(glyphs(d), '28.1');
+  expect(d.glyphs.firstWhere((g) =&gt; g.glyph == '.').isChanged, isFalse);
+  expect(d.direction, 1);
+});
+
+test('U+2212 minus sign parses: -8 -&gt; -9 is a decrease', () {
+  final d = diffNumericGlyphs('−8', '−9');
+  expect(d.direction, -1);
+});
+
+test('non-numeric endpoint: placeholder -&gt; value is neutral (direction 0)', () {
+  final d = diffNumericGlyphs('—', '27'); // em-dash -&gt; 27
+  expect(glyphs(d), '27');
+  expect(d.direction, 0);
+});
+
+test('empty from: single entering column', () {
+  final d = diffNumericGlyphs('', '5');
+  expect(d.glyphs.single.previous, isNull);
+  expect(d.glyphs.single.isChanged, isTrue);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">create lib/core/numeric_transition.dart with `diffNumericGlyphs(from, to)` returning `NumericDiff{glyphs, direction}` over right-aligned columns of the NEW string; `GlyphDelta{glyph, previous, isChanged}`; direction via cleaned double.tryParse (U+2212→'-'); pure Dart, lib/core import-clean; full suite green; analyze clean</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-2">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.2</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">AnimatedNumericText core roll — drift + scale + fade + stagger</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <a class="pill info" href="#c7-1" title="Inherits the 7.1 architect verdict (frame-accurate §Motion spec): ONE controller per instance; per changed column a Stack(outgoing,incoming) with FIXED top-enter/bottom-exit drift + Transform.scale + asymmetric color-alpha fade + left-to-right stagger; unchanged columns static; at-rest single Text; reduced-motion snap; Semantics announce-final + excludeSemantics; tabular preserved; whole-number RepaintBoundary. Blur + animated width reflow are SPLIT OUT to 7.2b (the saveLayer-bearing half). Read the 7.1 `architect-verdict` from docs/cycles/7.1.yaml before RED; do not call the architect again."><span class="dot"></span>architect: deferred to 7.1</a>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Create <code>lib/ui/widgets/animated_numeric_text.dart</code> — <code>AnimatedNumericText</code>, a stateful widget (<code>SingleTickerProviderStateMixin</code>) that renders a formatted string and, on a value change, morphs each CHANGED glyph column (per the 7.1 <code>diffNumericGlyphs</code>) off ONE shared <code>AnimationController</code> (~300 ms <code>easeOutCubic</code>), reproducing the frame-decoded motion (§Motion spec) MINUS blur and reflow (those are 7.2b). Per changed column, a <code>Stack(outgoing, incoming)</code> where BOTH glyphs use the FIXED top-enter/bottom-exit geometry (incoming from ABOVE <code>dy −0.55→0</code>; outgoing exits BELOW <code>dy 0→+0.55</code> — the SAME for increases AND decreases; the 7.1 <code>direction</code> does NOT flip the axis) via <code>Transform.translate</code>, plus <code>Transform.scale</code> (incoming 0.6→1.0, outgoing 1.0→0.55), plus an ASYMMETRIC color-alpha fade (incoming 0→1 full t; outgoing 1→0 gone by ~65 % t — Text color opacity, NOT an <code>Opacity</code> widget). Changed columns cascade LEFT-TO-RIGHT: column <code>i</code> (from the left) uses <code>CurvedAnimation(Interval(i*0.12, min(1, i*0.12+0.7), easeOutCubic))</code>. Unchanged columns are plain static <code>Text</code>. <code>direction == 0</code> → a neutral whole-string cross-fade via <code>AnimatedSwitcher</code> (its ONLY use). Clip at the ROW level with vertical slack (a per-glyph clip crops ascenders at <code>height:0.82</code>). Wrap the whole number in a <code>RepaintBoundary</code>. At rest AND under <code>MediaQuery.disableAnimations</code>, return a single plain <code>Text(value)</code> (no Stack/clip/ticker); <code>didUpdateWidget</code> sets <code>_controller.value = 1</code> (never <code>forward</code>) under reduced motion; <code>didChangeDependencies</code> snaps an in-flight controller on a runtime toggle. PRESERVE <code>FontFeature.tabularFigures()</code> from the passed style; announce the current value via <code>Semantics</code> + <code>excludeSemantics</code> the glyph children. <strong>Blur and animated width-reflow are OUT OF SCOPE here — they are Cycle 7.2b</strong> (leave a clean seam: the changed-cell builder is where 7.2b wraps the <code>ImageFiltered</code> and drives the leading-cell width). REVIEW confirms no ticker leak (pump past duration → <code>hasRunningAnimations</code> false), at-rest single <code>Text</code>, and the stagger/scale/drift behaviour.</p>
+<p>This is a NEW widget with its own widget-test file; it replaces nothing yet (adoption is 7.3–7.6). Mirror the reduced-motion + verbatim-final-value conventions of the existing <code>CountUpText</code> / <code>StaleFade</code> (<code>lib/ui/widgets/motion.dart</code>). Consult <code>uiux-expert</code> / the <code>frontend-design</code> skill on the roll feel only if the 7.1 lock left a degree of freedom. No new deps.</p>
+<p>RED author reads the 7.1 <code>architect-verdict</code> (docs/cycles/7.1.yaml), <code>lib/ui/widgets/motion.dart</code> (CountUpText/StaleFade patterns), and <code>test/ui/refinement_motion_test.dart</code> + <code>test/ui/widgets/speed_twin_test.dart</code> (<code>wrap</code> / <code>wrapReducedMotion</code> / <code>disableAnimations</code> / <code>hasRunningAnimations</code> conventions) before writing assertions.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> deferred to Cycle 7.1 — Inherits the 7.1 architect verdict (frame-accurate §Motion spec): ONE controller per instance; per changed column a Stack(outgoing,incoming) with FIXED top-enter/bottom-exit drift + Transform.scale + asymmetric color-alpha fade + left-to-right stagger; unchanged columns static; at-rest single Text; reduced-motion snap; Semantics announce-final + excludeSemantics; tabular preserved; whole-number RepaintBoundary. Blur + animated width reflow are SPLIT OUT to 7.2b (the saveLayer-bearing half). Read the 7.1 <code>architect-verdict</code> from docs/cycles/7.1.yaml before RED; do not call the architect again.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-90" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-90">// test/ui/widgets/animated_numeric_text_test.dart — WidgetTester.
+// Uses the repo's wrap()/wrapReducedMotion() dark-theme helpers.
+//
+// STRUCTURE INVARIANT the RED author encodes: at REST and under
+// reduced motion the widget is a SINGLE plain Text(value) (so
+// find.text('28') matches); only WHILE animating (_controller
+// running) does it expand to the per-column Row where a CHANGED
+// column is a Stack(outgoing, incoming) — so mid-roll asserts are
+// PER-GLYPH (find.text('7') + find.text('8')), not the full string.
+
+testWidgets('at rest: renders the value as a single Text', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  expect(find.text('27'), findsOneWidget);
+});
+
+testWidgets('value change settles to the exact new value (single Text)', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pumpAndSettle();
+  expect(find.text('28'), findsOneWidget);
+  expect(find.text('27'), findsNothing);
+});
+
+testWidgets('a change animates (running mid-flight under normal motion)', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pump(const Duration(milliseconds: 80)); // mid-roll
+  expect(t.hasRunningAnimations, isTrue);
+  await t.pumpAndSettle();
+});
+
+testWidgets('increase: changed column stacks BOTH glyphs mid-roll; unchanged stays static',
+    (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pump(const Duration(milliseconds: 80)); // mid-roll
+  expect(find.text('7'), findsOneWidget); // outgoing still present
+  expect(find.text('8'), findsOneWidget); // incoming present
+  expect(find.text('2'), findsOneWidget); // unchanged high column: single static glyph
+  await t.pumpAndSettle();
+  expect(find.text('7'), findsNothing);   // outgoing gone; collapses to Text('28')
+  expect(find.text('28'), findsOneWidget);
+});
+
+testWidgets('decrease rolls the changed column and settles', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pump(const Duration(milliseconds: 80));
+  expect(t.hasRunningAnimations, isTrue);
+  await t.pumpAndSettle();
+  expect(find.text('27'), findsOneWidget);
+});
+
+testWidgets('direction 0 (placeholder -&gt; value) cross-fades, no directional roll', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '—')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pumpAndSettle();
+  expect(find.text('27'), findsOneWidget);
+});
+
+testWidgets('reduced motion: change snaps instantly, no running ticker', (t) async {
+  await t.pumpWidget(wrapReducedMotion(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrapReducedMotion(const AnimatedNumericText(value: '28')));
+  await t.pump();
+  expect(find.text('28'), findsOneWidget);
+  expect(t.hasRunningAnimations, isFalse);
+});
+
+testWidgets('preserves tabular figures from the passed style', (t) async {
+  const style = TextStyle(fontFeatures: [FontFeature.tabularFigures()]);
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27', style: style)));
+  // Collect every rendered Text style; at least one must keep tabularFigures.
+  final styles = tester.widgetList&lt;Text&gt;(find.byType(Text)).map((w) =&gt; w.style);
+  expect(
+    styles.any((s) =&gt; s?.fontFeatures?.contains(const FontFeature.tabularFigures()) ?? false),
+    isTrue,
+  );
+});
+
+testWidgets('Semantics announces the final value, not per-glyph frames', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '142')));
+  expect(find.bySemanticsLabel('142'), findsOneWidget);
+});
+
+testWidgets('no ticker leak: hasRunningAnimations false after settle (grow a place)', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '9')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '10')));
+  await t.pumpAndSettle();
+  expect(t.hasRunningAnimations, isFalse);
+  expect(find.text('10'), findsOneWidget);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">create lib/ui/widgets/animated_numeric_text.dart consuming diffNumericGlyphs; ONE AnimationController per instance (SingleTickerProviderStateMixin, ~300ms easeOutCubic); at-rest/reduced-motion = single Text(value), animating = per-column Row where a changed column is Stack(outgoing,incoming) with FIXED top-enter/bottom-exit drift (in dy −0.55→0, out 0→+0.55, SAME for inc+dec) + Transform.scale (in 0.6→1.0, out 1.0→0.55) + asymmetric color-alpha fade (out gone ~65% t, no Opacity widget) + left-to-right stagger (Interval i*0.12); AnimatedSwitcher ONLY for direction==0 crossfade; row-level ClipRect(slack, not per-glyph); whole-number RepaintBoundary; preserve tabularFigures; disableAnimations → _controller.value=1 never forward; Semantics(final)+excludeSemantics; leave a clean changed-cell seam for 7.2b (NO blur, NO AnimatedSize reflow here); full suite green; analyze clean; manual smoke value-up/value-down/grow-a-place + reduced-motion</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-2b">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.2b</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">AnimatedNumericText — blur + animated width reflow + perf tiering</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <a class="pill info" href="#c7-1" title="Inherits the 7.1 architect verdict (frame-accurate §Motion spec): the cell-level gaussian blur (gated ImageFiltered, sin(π·t) capped sigma, kill-switch) + the FittedBox-safe animated width reflow + the fast/slow perf tiering are all specified there. Read the 7.1 architect-verdict from docs/cycles/7.1.yaml before RED; no fresh architect call. Split from 7.2 because these are the saveLayer-bearing, on-device-tuned, perf-sensitive half — they carry their own test surface (idle asserts zero saveLayer; blur off under reduced-motion/kill-switch; reflow settles)."><span class="dot"></span>architect: deferred to 7.1</a>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Extend <code>lib/ui/widgets/animated_numeric_text.dart</code> (the 7.2 core roll) with the two frame-verified, saveLayer-bearing effects, off the SAME single controller:</p>
+<ol>
+<li>
+<p><strong>Gaussian blur</strong> (§Motion spec §Blur). Wrap each CHANGED cell’s <code>Stack(outgoing, incoming)</code> in <code>ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: σ, sigmaY: σ, tileMode: TileMode.decal))</code> where <code>σ = blurSigma · sin(π · t)</code> (peak at mid-transit, zero at both ends). GATE it <code>enabled: _controller.isAnimating &amp;&amp; σ &gt; 0.01</code> so an idle number holds ZERO saveLayer (the perf floor). Add a <code>blurSigma</code> constructor param (default the capped fast-twin value ~3–4 px; slow surfaces may pass higher) and a runtime kill-switch (blur → 0 under battery-saver / reduced motion). Blur is PAINT-ONLY — it must never enter FittedBox measurement or change the tabular advance.</p>
+</li>
+<li>
+<p><strong>Animated width reflow</strong> (§Motion spec §Width reflow). On a digit-count change, animate the leading cell’s width off the controller (grow <code>0→advance</code> / shrink <code>advance→0</code>) over the transition, reproducing the observed ~3–4-frame reflow. RESERVE the FittedBox child constraint at the measured <code>max(from,to)</code> width so the ancestor <code>FittedBox(scaleDown)</code> re-fits against a MONOTONE width and the settled digits never zoom/wobble. <strong>NEVER nest <code>AnimatedSize</code> inside the FittedBox guards.</strong> Same-digit-count changes do not reflow (tabular advance constant).</p>
+</li>
+<li>
+<p><strong>Perf tiering</strong> — the fast DL/UL twin ships blur cell-level + <code>isAnimating</code>-gated + capped sigma under the whole-number <code>RepaintBoundary</code>; slow surfaces may run full sigma. REVIEW confirms idle = zero saveLayer and no dropped frames on the changed flow.</p>
+</li>
+<li>
+<p><strong>Absorb the tracked 7.2 REVIEW NITs</strong> (docs/cycles/7.2.yaml, §cycle-followups) — this is the natural home, same file: (a) <strong>rest/roll HEIGHT parity</strong> — the roll subtree is ~8 px taller than the rest/settled state (the ClipRect vertical slack sits INSIDE the animating subtree only), risking a per-tick vertical shift in a height-to-content parent (the standing “adoption must not grow a row’s height” invariant). Reserve the slack EQUALLY in the rest state, or clip without growing the box, so rest-height == roll-height. Add a test asserting the widget’s rendered height does not change between rest and mid-roll. (b) Clamp the degenerate stagger <code>Interval(1.0,1.0)</code> at ≥10 changed columns (<code>start</code> strictly &lt; <code>end</code>). © Extract the inline magic numbers to named <code>_k</code> constants (scale endpoints <code>0.6+0.4t</code> / <code>1.0−0.45t</code>, ClipRect vertical slack, fontSize fallback). (d) Add the <strong>fixed-direction guard test</strong> — incoming enters from ABOVE on BOTH an increase AND a decrease (the load-bearing frame-decode correction, currently unguarded). (e) baseColor null→<code>Colors.black</code> fallback: fall back to the resolved DefaultTextStyle color so a null-color caller on a dark surface does not flash black mid-roll.</p>
+</li>
+</ol>
+<p>Preserve everything 7.2 established (single controller, fixed top-enter drift + scale + asymmetric color-alpha fade + left-to-right stagger, at-rest single <code>Text</code>, reduced-motion snap, Semantics/excludeSemantics, tabular). RED author reads the 7.2 widget + the 7.1 architect-verdict + §Motion spec first. UI cycle: manual-smoke the blur reading like the reference frames at low + mid throughput + a grow-a-place, and reduced-motion (no blur, instant).</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> deferred to Cycle 7.1 — Inherits the 7.1 architect verdict (frame-accurate §Motion spec): the cell-level gaussian blur (gated ImageFiltered, sin(π·t) capped sigma, kill-switch) + the FittedBox-safe animated width reflow + the fast/slow perf tiering are all specified there. Read the 7.1 architect-verdict from docs/cycles/7.1.yaml before RED; no fresh architect call. Split from 7.2 because these are the saveLayer-bearing, on-device-tuned, perf-sensitive half — they carry their own test surface (idle asserts zero saveLayer; blur off under reduced-motion/kill-switch; reflow settles).</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-91" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-91">// appended to test/ui/widgets/animated_numeric_text_test.dart — WidgetTester.
+// 7.2b layers blur + animated width reflow on the 7.2 core roll.
+
+testWidgets('blur layer present ONLY while animating; zero saveLayer at rest', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  expect(find.byType(ImageFiltered), findsNothing); // idle = no blur/saveLayer
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pump(const Duration(milliseconds: 90)); // mid-roll (near peak sigma)
+  expect(find.byType(ImageFiltered), findsWidgets);
+  await t.pumpAndSettle();
+  expect(find.byType(ImageFiltered), findsNothing); // settled = layer gone
+});
+
+testWidgets('blurSigma: 0 disables the blur layer entirely', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27', blurSigma: 0)));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28', blurSigma: 0)));
+  await t.pump(const Duration(milliseconds: 90));
+  expect(find.byType(ImageFiltered), findsNothing);
+  await t.pumpAndSettle();
+  expect(find.text('28'), findsOneWidget);
+});
+
+testWidgets('reduced motion: no blur layer ever, and value snaps', (t) async {
+  await t.pumpWidget(wrapReducedMotion(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrapReducedMotion(const AnimatedNumericText(value: '28')));
+  await t.pump();
+  expect(find.byType(ImageFiltered), findsNothing);
+  expect(find.text('28'), findsOneWidget);
+  expect(t.hasRunningAnimations, isFalse);
+});
+
+testWidgets('width reflow: grow-a-place animates over frames, no FittedBox exception', (t) async {
+  await t.pumpWidget(wrap(const SizedBox(width: 220,
+      child: AnimatedNumericText(value: '9'))));
+  await t.pumpWidget(wrap(const SizedBox(width: 220,
+      child: AnimatedNumericText(value: '10'))));
+  await t.pump(const Duration(milliseconds: 60)); // mid-reflow
+  expect(tester.takeException(), isNull);
+  await t.pumpAndSettle();
+  expect(find.text('10'), findsOneWidget);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">in animated_numeric_text.dart add: cell-level ImageFiltered(ImageFilter.blur, decal) with σ=blurSigma·sin(π·t), gated enabled:isAnimating&amp;&amp;σ&gt;0.01 (idle=zero saveLayer); blurSigma param + kill-switch (0 under battery-saver/reduced-motion); controller-driven leading-cell width reflow with FittedBox constraint reserved at max(from,to) (NO AnimatedSize-in-FittedBox); perf tiering fast(capped)/slow(full); full suite green; analyze clean; manual smoke blur feel + grow-a-place reflow + reduced-motion no-blur</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer` (verify: idle zero saveLayer; blur off under reduced-motion + blurSigma:0; reflow monotone width, no settled-digit wobble; no new overflow at 360dp/1.3×)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-3">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.3</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">SpeedTwin adopt + retire CountUpText</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <a class="pill info" href="#c7-1" title="The reference integration + the retirement of CountUpText both follow the 7.1 verdict (morph replaces the count-up; primitive is per-style-run so whole 66 px and fraction 27 px are two instances; '0'-prime hack removed). Read the 7.1 architect-verdict from docs/cycles/7.1.yaml before RED; no fresh architect call."><span class="dot"></span>architect: deferred to 7.1</a>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>In <code>lib/ui/widgets/speed_twin.dart</code>, replace the <code>CountUpText</code> whole-part with <code>AnimatedNumericText</code>, and wrap the fraction (<code>.3</code>, 27 px) in its OWN <code>AnimatedNumericText</code> instance (different font size ⇒ a separate style run) so BOTH the whole and the fraction morph on every live→live tick — the behaviour the user asked for, replacing the current snap. DELETE the enter-live <code>'0'</code>-baseline count-up hack (<code>_displayDown</code>/<code>_displayUp</code> priming, the post-frame <code>addPostFrameCallback</code> that ramps from <code>'0'</code>, and the <code>_animate</code> flag) — first appearance now simply fades the number in (the primitive’s non-numeric→numeric cross-fade from the <code>—</code> placeholder), subsequent ticks morph. PRESERVE: the em-dash reconnecting branch, the <code>FittedBox</code> scale-down, the tabular whole style, the composed <code>Semantics(excludeSemantics: true)</code> announcement (must still announce one stable value, never roll frames), and the 66/27 px sizing.</p>
+<p>Then RETIRE <code>CountUpText</code>: <code>SpeedTwin</code> is its only caller, so DELETE <code>CountUpText</code> from <code>lib/ui/widgets/motion.dart</code> (keep <code>StaleFade</code>) and MIGRATE its reduced-motion lifecycle tests (<code>test/ui/refinement_motion_test.dart</code> cases ~307–341) to the <code>AnimatedNumericText</code> test suite (7.2) or into the SpeedTwin test — no dead code, no orphaned tests. Update every <code>CountUpText</code> doc reference in <code>speed_twin.dart</code>.</p>
+<p>RED author reads <code>speed_twin.dart</code> (the whole <code>_SpeedTwinState</code> priming machinery being removed), <code>test/ui/widgets/speed_twin_test.dart</code> (existing assertions that must stay green, e.g. <code>find.text('142')</code>), and <code>test/ui/refinement_motion_test.dart</code> (the CountUpText cases to migrate) before writing assertions. This is a UI cycle: manual-smoke the DL/UL numbers changing live (morph, not snap; no <code>0</code> flash on first appearance) + reduced-motion (instant) before GREEN.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> deferred to Cycle 7.1 — The reference integration + the retirement of CountUpText both follow the 7.1 verdict (morph replaces the count-up; primitive is per-style-run so whole 66 px and fraction 27 px are two instances; ‘0’-prime hack removed). Read the 7.1 architect-verdict from docs/cycles/7.1.yaml before RED; no fresh architect call.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-92" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-92">// appended to test/ui/widgets/speed_twin_test.dart — WidgetTester.
+
+testWidgets('live -&gt; live: DL whole now MORPHS via AnimatedNumericText (was snap)',
+    (t) async {
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '142', downFrac: '.3', downUnit: 'Mbps',
+    upWhole: '23', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '143', downFrac: '.1', downUnit: 'Mbps',
+    upWhole: '23', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pump(const Duration(milliseconds: 80));
+  expect(t.hasRunningAnimations, isTrue,
+      reason: 'a live-&gt;live change must morph, not snap');
+  await t.pumpAndSettle();
+  expect(find.text('143'), findsOneWidget);
+});
+
+testWidgets('whole AND fraction both use AnimatedNumericText', (t) async {
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '142', downFrac: '.3', downUnit: 'Mbps',
+    upWhole: '23', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  // 2 columns x (whole + fraction) = 4 AnimatedNumericText instances.
+  expect(find.byType(AnimatedNumericText), findsNWidgets(4));
+  expect(find.byType(CountUpText), findsNothing); // retired
+});
+
+testWidgets('entering live shows the value with no 0-baseline flash',
+    (t) async {
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '—', downFrac: '', downUnit: '',
+    upWhole: '—', upFrac: '', upUnit: '',
+    feedState: FreshnessState.reconnecting,
+  )));
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '142', downFrac: '.3', downUnit: 'Mbps',
+    upWhole: '23', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pump(); // no post-frame prime; no '0' ever rendered
+  expect(find.text('0'), findsNothing);
+  await t.pumpAndSettle();
+  expect(find.text('142'), findsOneWidget);
+});
+
+testWidgets('reduced motion: live-&gt;live snaps to the new value', (t) async {
+  await t.pumpWidget(wrapReducedMotion(const SpeedTwin(
+    downWhole: '142', downFrac: '.3', downUnit: 'Mbps',
+    upWhole: '23', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pumpWidget(wrapReducedMotion(const SpeedTwin(
+    downWhole: '143', downFrac: '.3', downUnit: 'Mbps',
+    upWhole: '23', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pump();
+  expect(find.text('143'), findsOneWidget);
+  expect(t.hasRunningAnimations, isFalse);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">in speed_twin.dart swap CountUpText→AnimatedNumericText for the whole AND wrap the fraction in its own AnimatedNumericText; delete the '0'-prime enter-live hack (_display*/addPostFrameCallback/_animate); keep em-dash + FittedBox + tabular + composed Semantics; DELETE CountUpText from motion.dart; migrate its reduced-motion tests; full suite green; analyze clean; manual smoke live morph + no-0-flash + reduced-motion snap</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer` (verify: no dead code / no orphaned CountUpText refs; Semantics still one stable label; no new overflow at 1.3×)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-4">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.4</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">BatteryTile adopt — SoC % + charge cap</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="Mechanical adoption of the reviewed 7.2 primitive: wrap the 44 px SoC integer and the CAP caption's number in AnimatedNumericText. No new architecture, no new abstraction, no layout change (same font size + tabular ⇒ identical metrics). Correctness gated by code-review. NOT security-tier."><span class="dot"></span>architect: none</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>In <code>lib/ui/widgets/battery_tile.dart</code>, wrap the SoC integer <code>${s.capacityPct}</code> (44 px, in <code>_buildData</code>) in <code>AnimatedNumericText</code> so the battery percentage morphs when it changes; keep the <code>%</code> (19 px) as its static sibling. Also morph the <code>CAP ${s.chargeLimitPct}%</code> caption’s number (pass the whole <code>CAP n%</code> caption string, or the number-only run — RED author picks the cleaner split and asserts it). PRESERVE the <code>StaleFade</code> wrapper, the composed <code>Semantics(excludeSemantics: true)</code> “Battery N percent, {state}” announcement, the LOADING skeleton / ERROR_NO_DATA <code>—</code> states (non-numeric — untouched), and the SoC style (<code>headlineSmall</code> copyWith 44 px w600, which already carries tabular figures from the editorial theme). No layout change. This is a UI cycle: manual-smoke the SoC changing on a charging/discharging device (or a simulated snapshot flip) + reduced-motion instant.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — Mechanical adoption of the reviewed 7.2 primitive: wrap the 44 px SoC integer and the CAP caption’s number in AnimatedNumericText. No new architecture, no new abstraction, no layout change (same font size + tabular ⇒ identical metrics). Correctness gated by code-review. NOT security-tier.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-93" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-93">// appended to test/ui/widgets/battery_tile_test.dart — WidgetTester.
+
+testWidgets('SoC integer is wrapped in AnimatedNumericText', (t) async {
+  await t.pumpWidget(wrap(BatteryTile(
+    snapshot: _batt(capacityPct: 82, state: ChargeState.discharging),
+  )));
+  expect(find.byType(AnimatedNumericText), findsWidgets);
+  expect(find.text('82'), findsOneWidget);
+});
+
+testWidgets('SoC change morphs; settles to the new value', (t) async {
+  await t.pumpWidget(wrap(BatteryTile(
+    snapshot: _batt(capacityPct: 82, state: ChargeState.charging),
+  )));
+  await t.pumpWidget(wrap(BatteryTile(
+    snapshot: _batt(capacityPct: 83, state: ChargeState.charging),
+  )));
+  await t.pump(const Duration(milliseconds: 80));
+  expect(t.hasRunningAnimations, isTrue);
+  await t.pumpAndSettle();
+  expect(find.text('83'), findsOneWidget);
+});
+
+testWidgets('reduced motion: SoC change snaps', (t) async {
+  await t.pumpWidget(wrapReducedMotion(BatteryTile(
+    snapshot: _batt(capacityPct: 82, state: ChargeState.charging),
+  )));
+  await t.pumpWidget(wrapReducedMotion(BatteryTile(
+    snapshot: _batt(capacityPct: 83, state: ChargeState.charging),
+  )));
+  await t.pump();
+  expect(find.text('83'), findsOneWidget);
+  expect(t.hasRunningAnimations, isFalse);
+});
+
+testWidgets('Semantics still one composed Battery announcement', (t) async {
+  await t.pumpWidget(wrap(BatteryTile(
+    snapshot: _batt(capacityPct: 82, state: ChargeState.discharging),
+  )));
+  expect(find.bySemanticsLabel(RegExp('Battery 82 percent')),
+      findsOneWidget);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">in battery_tile.dart wrap the 44 px SoC integer (and the CAP caption number) in AnimatedNumericText; keep % sibling, StaleFade, composed Semantics, skeleton/em-dash states; no layout change; full suite green; analyze clean; manual smoke SoC change + reduced-motion</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-5">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.5</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">DataUsageSection adopt — hero, percent, captions, split</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="Mechanical adoption: wrap the used hero, percent, OF-caption, ▼rx ▲tx split values, and resets-day number in AnimatedNumericText. Reuses the reviewed primitive; the load-bearing FittedBox overflow guards + two-tone bar + escalation colours are untouched. No new architecture. NOT security-tier."><span class="dot"></span>architect: none</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>In <code>lib/ui/widgets/data_usage_section.dart</code>, wrap the numeric readouts in <code>AnimatedNumericText</code>: the 44 px used-hero value (<code>_buildHeroRow</code>, keep the unit as its static sibling), the <code>${percent}%</code> figure (whole string — the <code>%</code> rides as a trailing static glyph), the <code>OF ${formatBytes(limit)}</code> caption number, the <code>▼ ${formatBytes(rx)}</code> / <code>▲ ${formatBytes(tx)}</code> split-line values (<code>_buildSplitLine</code>), and the <code>resets day ${clearDay}</code> number. PRESERVE every existing guard: the scale-down <code>FittedBox</code>es (hero + percent+tag + split line — LOAD-BEARING at 360dp, Cycle 5.5), <code>maxLines: 1</code> + ellipsis on captions, the escalating <code>muted→amber→red</code> percent colour, the two-tone / solid limit bar + over-spill notch, the <code>StaleFade</code>, the LOADING skeleton + NULL-usage / NO-PLAN / ERROR_NO_DATA <code>—</code> states (non-numeric — untouched), and the composed <code>Semantics(excludeSemantics: true)</code> announcement (visible/spoken parity — <code>_composeSemantics</code>). No layout change; the morph must not defeat the FittedBox scale-down (REVIEW checks no new overflow at 360dp / 1.3× — the over-state <code>254% OVER</code> fixture).</p>
+<p>RED author reads <code>data_usage_section.dart</code> (the FittedBox-wrapped hero + percent, the split line) + <code>test/ui/widgets/data_usage_section_test.dart</code> first.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — Mechanical adoption: wrap the used hero, percent, OF-caption, ▼rx ▲tx split values, and resets-day number in AnimatedNumericText. Reuses the reviewed primitive; the load-bearing FittedBox overflow guards + two-tone bar + escalation colours are untouched. No new architecture. NOT security-tier.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-94" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-94">// appended to test/ui/widgets/data_usage_section_test.dart — WidgetTester.
+
+testWidgets('used hero + percent are wrapped in AnimatedNumericText',
+    (t) async {
+  await t.pumpWidget(wrap(DataUsageSection(snapshot: _usage(
+    usedBytes: 122000000000, limitBytes: 48000000000, clearDay: 5,
+  ))));
+  expect(find.byType(AnimatedNumericText), findsWidgets);
+});
+
+testWidgets('used value change morphs; settles exact', (t) async {
+  await t.pumpWidget(wrap(DataUsageSection(snapshot: _usage(
+    usedBytes: 122000000000, limitBytes: 48000000000, clearDay: 5,
+  ))));
+  await t.pumpWidget(wrap(DataUsageSection(snapshot: _usage(
+    usedBytes: 123000000000, limitBytes: 48000000000, clearDay: 5,
+  ))));
+  await t.pump(const Duration(milliseconds: 80));
+  expect(t.hasRunningAnimations, isTrue);
+  await t.pumpAndSettle();
+});
+
+testWidgets('reduced motion: change snaps, no ticker', (t) async {
+  await t.pumpWidget(wrapReducedMotion(DataUsageSection(snapshot: _usage(
+    usedBytes: 122000000000, limitBytes: 48000000000, clearDay: 5,
+  ))));
+  await t.pumpWidget(wrapReducedMotion(DataUsageSection(snapshot: _usage(
+    usedBytes: 123000000000, limitBytes: 48000000000, clearDay: 5,
+  ))));
+  await t.pump();
+  expect(t.hasRunningAnimations, isFalse);
+});
+
+testWidgets('over-state 254% still fits at 360dp (no new overflow)',
+    (t) async {
+  await t.pumpWidget(wrap(SizedBox(
+    width: 360,
+    child: DataUsageSection(snapshot: _usage(
+      usedBytes: 122000000000, limitBytes: 48000000000, clearDay: 5,
+    )),
+  )));
+  await t.pumpAndSettle();
+  expect(tester.takeException(), isNull);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">in data_usage_section.dart wrap used-hero/percent/OF/split-values/resets-day in AnimatedNumericText; keep units + % as static siblings/trailing glyphs; PRESERVE all FittedBox scale-down guards, escalation colours, two-tone bar + notch, StaleFade, em-dash states, composed Semantics; no layout change; full suite green; analyze clean; manual smoke a used-figure change + the 254% over state</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer` (verify no new overflow at 360dp/1.3×; FittedBox guards intact; Semantics parity)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-6">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.6</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">FooterTriplet + SpeedHistoryChart adopt (feature close)</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="Mechanical adoption across the two remaining surfaces: FooterTriplet (CLIENTS count, −dBm detail, uptime) + SpeedHistoryChart (PEAK value, elapsed window). Reuses the reviewed primitive; no new architecture. This cycle CLOSES the feature — its REVIEW audits §Numeric-surface inventory for completeness. NOT security-tier."><span class="dot"></span>architect: none</span>
+        
+        
+        <span class="pill"><span class="dot"></span>Closes: plan-007 — the numericText-style morph is…</span>
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Two files, both mechanical adoptions of the reviewed primitive (bundled for economy — see the batch note):</p>
+<ol>
+<li><code>lib/ui/widgets/footer_triplet.dart</code> — wrap the CLIENTS <code>${clients.count}</code> value (<code>_ClientsContent</code>), the NETWORK <code>−${rsrp} dBm</code> detail run (<code>_networkDetail</code> output in <code>_NetworkContent</code>), and the UPTIME <code>formatUptime(...)</code> value (<code>_UptimeContent</code>) in <code>AnimatedNumericText</code>. The uptime/dBm strings mix digits with separators/letters (<code>3d 4h</code>, <code>−92 dBm</code>) — the primitive rolls only the changed columns and rides the letters as static glyphs (7.1 handles this). PRESERVE each cell’s <code>StaleFade</code>, the <code>maxLines: 1</code> + ellipsis, the <code>—</code> null-snapshot placeholder (non-numeric), and the composed <code>Semantics(excludeSemantics: true)</code> cell labels + the 5-bar glyph (non-text — untouched).</li>
+<li><code>lib/ui/widgets/speed_history_chart.dart</code> — wrap the PEAK value (the <code>_formatPeakLabel</code> output inside <code>_ChartOverlay</code>, keeping the <code>PEAK</code> label static) and the elapsed-window value in <code>AnimatedNumericText</code>. PRESERVE the <code>reconnecting → '—'</code> blanking (non-numeric cross-fade), the Space Mono 9 px overlay style, and the chart’s <code>excludeSemantics</code> summary node. Do NOT touch the <code>CustomPainter</code> traces (ADR-0004 — text only).</li>
+</ol>
+<p>This cycle CLOSES plan-007: REVIEW must audit §Numeric-surface inventory and confirm every listed surface now renders through <code>AnimatedNumericText</code> (or is on the deliberately-not-animated list with its reason) — a missed surface is a <code>[REFACTOR]</code>. RED author reads both widget files + <code>test/ui/widgets/footer_triplet_test.dart</code> + <code>test/ui/widgets/speed_history_chart_test.dart</code> first. UI cycle: manual-smoke the CLIENTS count + PEAK + elapsed changing, and reduced-motion instant.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — Mechanical adoption across the two remaining surfaces: FooterTriplet (CLIENTS count, −dBm detail, uptime) + SpeedHistoryChart (PEAK value, elapsed window). Reuses the reviewed primitive; no new architecture. This cycle CLOSES the feature — its REVIEW audits §Numeric-surface inventory for completeness. NOT security-tier.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-95" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-95">// appended to test/ui/widgets/footer_triplet_test.dart and
+// test/ui/widgets/speed_history_chart_test.dart — WidgetTester.
+
+// footer_triplet_test.dart
+testWidgets('CLIENTS count is wrapped in AnimatedNumericText + morphs',
+    (t) async {
+  await t.pumpWidget(wrap(FooterTriplet(
+    signal: _sig(), device: _dev(), clients: _clients(count: 4),
+  )));
+  expect(find.byType(AnimatedNumericText), findsWidgets);
+  await t.pumpWidget(wrap(FooterTriplet(
+    signal: _sig(), device: _dev(), clients: _clients(count: 5),
+  )));
+  await t.pump(const Duration(milliseconds: 80));
+  expect(t.hasRunningAnimations, isTrue);
+  await t.pumpAndSettle();
+  expect(find.text('5'), findsOneWidget);
+});
+
+testWidgets('footer reduced motion: count snaps', (t) async {
+  await t.pumpWidget(wrapReducedMotion(FooterTriplet(
+    signal: _sig(), device: _dev(), clients: _clients(count: 4),
+  )));
+  await t.pumpWidget(wrapReducedMotion(FooterTriplet(
+    signal: _sig(), device: _dev(), clients: _clients(count: 5),
+  )));
+  await t.pump();
+  expect(t.hasRunningAnimations, isFalse);
+});
+
+// speed_history_chart_test.dart
+testWidgets('PEAK value morphs; reconnecting still blanks to em-dash',
+    (t) async {
+  await t.pumpWidget(wrap(SizedBox(
+    height: SpeedHistoryChart.height,
+    child: SpeedHistoryChart(
+      samples: _samples2(), peakBytesPerSec: 3037500, // 24.3 Mbps
+      feedState: FreshnessState.live,
+    ),
+  )));
+  expect(find.byType(AnimatedNumericText), findsWidgets);
+  await t.pumpWidget(wrap(SizedBox(
+    height: SpeedHistoryChart.height,
+    child: SpeedHistoryChart(
+      samples: _samples2(), peakBytesPerSec: 0,
+      feedState: FreshnessState.reconnecting,
+    ),
+  )));
+  await t.pumpAndSettle();
+  expect(find.text('PEAK —'), findsOneWidget);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">wrap footer CLIENTS/−dBm/uptime + chart PEAK/elapsed in AnimatedNumericText; keep static labels, StaleFade, maxLines/ellipsis, em-dash blanking, bar glyph, painter traces, composed Semantics; audit §Numeric-surface inventory complete; full suite green; analyze clean; manual smoke count/PEAK/elapsed change + reduced-motion</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer` (AUDIT §Numeric-surface inventory: every surface animated or justified; no new overflow; Semantics intact; painter untouched)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-7">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.7</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">De-muddy the fast-twin morph — lower blur sigma + de-overlap the fade</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="Constant tuning WITHIN the 7.1-locked shape — sigma magnitude and the fade timing were explicitly filed as 'tunable constants, not architecture' (§Open questions 7.2b-sigma, 7.2/drift). No new mechanism, no new dependency, no contract change. The 7.1 architect verdict + ADR-0014 stand unchanged. Opus is still the REVIEW tier per the model-tier policy."><span class="dot"></span>architect: none</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Tune <code>lib/ui/widgets/animated_numeric_text.dart</code> so the morph reads Apple-clean instead of MUDDY on the real device. Evidence: the plan-007 on-device deploy-pass captures <code>docs/rnd/swiftui-numerictext-animation-issues-{1,2,3}/</code> (real iPhone). issues-2 is the tell — <code>35.2 → 24.7</code>, the SIMPLEST case (same digit count, tabular, no reflow) — and it STILL smears into 2–3 overlapping ghost glyphs mid-roll, so BLUR + FADE, not layout, is the fault.</p>
+<p>Two root causes, both magnitude/timing constants:</p>
+<ol>
+<li><strong>Blur too hot for a 66 px twin.</strong> <code>_kDefaultBlurSigma = 3.5</code> peaks per-cell at <code>σ = blurSigma·sin(π·t)</code> (<code>_applyBlur</code>). On the 66 px whole-number that peak is heavy. LOWER the fast-twin default (target ~1.8–2.2; the RED/GREEN author fits the exact value against the reference frames + the on-device A/B). Slow surfaces still pass a higher explicit sigma — the param + kill-switch are unchanged.</li>
+<li><strong>Outgoing + incoming fade windows OVERLAP.</strong> Outgoing is <code>alpha 1→0</code> gone by <code>_kOutgoingFadeSpan = 0.65</code> t; incoming is <code>alpha 0→1</code> over the FULL t. Between t≈0.4–0.65 BOTH glyphs sit &gt;~40 % opaque AND both are blurred → the doubled ghost. TIGHTEN so the old glyph is gone BEFORE the new nears full: drop <code>_kOutgoingFadeSpan</code> (~0.65 → ~0.5) and/or delay the incoming fade-in start (e.g. <code>((t − k)/(1 − k)).clamp</code>). Keep the <code>sin(π·t)</code> blur SHAPE, the reduced-motion off-switch, and the zero-saveLayer-at-rest gating.</li>
+</ol>
+<p>Keep every 7.2/7.2b invariant: single controller, fixed top-enter drift + scale + stagger, tabular, Semantics-final, RepaintBoundary, no ImageFiltered at rest / under reduced motion / at <code>blurSigma: 0</code>. Extract any new tuning number to a named <code>_k</code> constant (no inline magics — the standing 7.2 REVIEW NIT). No new deps. This cycle RESOLVES the 7.2b “blur peak sigma + temporal shape” open-question with the on-device answer.</p>
+<p>RED author reads the 7.2b widget + <code>docs/cycles/7.2b.yaml</code> + the three issue capture folders before writing assertions; the blur MAGNITUDE is settled by the on-device A/B (the manual gate), while the FADE-timing tests below pin the de-overlap so it cannot silently regress.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — Constant tuning WITHIN the 7.1-locked shape — sigma magnitude and the fade timing were explicitly filed as ‘tunable constants, not architecture’ (§Open questions 7.2b-sigma, 7.2/drift). No new mechanism, no new dependency, no contract change. The 7.1 architect verdict + ADR-0014 stand unchanged. Opus is still the REVIEW tier per the model-tier policy.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-96" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-96">// appended to test/ui/widgets/animated_numeric_text_test.dart — WidgetTester.
+// 7.7 de-muddies the fast-twin morph: the outgoing glyph must be GONE
+// before the incoming nears full (no doubled ghost), and the blur layer
+// still gates on isAnimating. Blur MAGNITUDE is validated by the
+// on-device A/B; these tests pin the FADE-timing behaviour.
+// RED author pins the exact pump offset to the discriminating column-t
+// window (~t 0.55 for a single changed column) against the tuned spans.
+
+// colour alpha (0..1) of the Text rendering [glyph], or null if absent.
+double? glyphAlpha(WidgetTester t, String glyph) {
+  final texts = t.widgetList&lt;Text&gt;(find.text(glyph));
+  if (texts.isEmpty) return null;
+  return texts.first.style?.color?.a;
+}
+
+testWidgets('outgoing glyph fully faded before incoming nears full (no muddy overlap)',
+    (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pump(const Duration(milliseconds: 55)); // RED author pins to column t ≈ 0.55
+  expect(glyphAlpha(t, '7') ?? 0.0, lessThan(0.02)); // outgoing gone
+  expect(glyphAlpha(t, '8')!, lessThan(1.0));        // incoming still climbing
+  await t.pumpAndSettle();
+  expect(find.text('28'), findsOneWidget);
+});
+
+testWidgets('blur still present mid-roll and gone at rest (7.2b guard carried)', (t) async {
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '27')));
+  await t.pumpWidget(wrap(const AnimatedNumericText(value: '28')));
+  await t.pump(const Duration(milliseconds: 40));
+  expect(find.byType(ImageFiltered), findsWidgets);
+  await t.pumpAndSettle();
+  expect(find.byType(ImageFiltered), findsNothing);
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">lower _kDefaultBlurSigma (~3.5 → ~1.8–2.2) and de-overlap the fade — drop _kOutgoingFadeSpan (~0.65 → ~0.5) and/or delay the incoming fade-in start so the outgoing glyph is gone before the incoming nears full; keep sin(π·t) blur shape + kill-switch + reduced-motion off + zero-saveLayer-at-rest; extract new tuning numbers to named _k consts; full suite green; analyze clean; on-device A/B DL/UL at real 1s cadence vs the issue captures — reads Apple-clean not muddy</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer` (fade de-overlap + sigma lowered without breaking the at-rest / reduced-motion / blurSigma:0 zero-saveLayer gating; no inline magics)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-8">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.8</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Fraction run tabular figures — stop the decimal shifting mid-roll</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill idle" title="One-line style fix in a widget already reviewed (7.3) — add the tabular-figures font feature the whole-number run already carries to the fraction run so its digits are fixed-width. No mechanism, no contract, no dependency change. Opus still the REVIEW tier."><span class="dot"></span>architect: none</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Add <code>FontFeature.tabularFigures()</code> to <code>_SpeedColumn.fracStyle</code> in <code>lib/ui/widgets/speed_twin.dart</code>. The whole-number run (<code>wholeStyle</code>) already carries it (fixed-width digits mid-roll); the fraction run (<code>fracStyle</code>, the 27 px muted <code>.N</code>) does NOT, so proportional digits give <code>.8</code> and <code>.7</code> different advances — the fraction re-advances and nudges the decimal / baseline <code>Row</code> on every fraction tick. Tabular figures make the fraction column fixed-width like the whole, so a <code>.8 → .7</code> roll holds its position.</p>
+<p>Scope is EXACTLY the one font-feature addition on <code>fracStyle</code> (mirror <code>wholeStyle</code> line ~194). Do not touch sizes, colours, weights, or the two-<code>AnimatedNumericText</code> composition. Contributes to the same on-device “fraction detaches from the whole” symptom that 7.9 addresses structurally; 7.8 is the cheap, independent half (different file — <code>speed_twin.dart</code>, not <code>animated_numeric_text.dart</code>).</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> none — One-line style fix in a widget already reviewed (7.3) — add the tabular-figures font feature the whole-number run already carries to the fraction run so its digits are fixed-width. No mechanism, no contract, no dependency change. Opus still the REVIEW tier.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-97" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-97">// appended to test/ui/widgets/speed_twin_test.dart — WidgetTester.
+// 7.8: EVERY numeric run in the twin (whole AND fraction) must carry
+// tabular figures, so a fraction roll does not re-advance the decimal.
+
+testWidgets('fraction run carries tabular figures like the whole run', (t) async {
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '35', downFrac: '.2', downUnit: 'Mbps',
+    upWhole: '5', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  final numerics =
+      t.widgetList&lt;AnimatedNumericText&gt;(find.byType(AnimatedNumericText));
+  expect(numerics, isNotEmpty);
+  expect(
+    numerics.every((w) =&gt;
+        w.style?.fontFeatures
+            ?.contains(const FontFeature.tabularFigures()) ??
+        false),
+    isTrue,
+  );
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">add const [FontFeature.tabularFigures()] to _SpeedColumn.fracStyle (matches wholeStyle); no other change; full suite green; analyze clean; smoke a .8→.7 fraction tick — decimal + Row hold position</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+<details class="cycle-card section" id="c7-9">
+  <summary class="cycle-head">
+    <span class="cycle-id">7.9</span>
+    <span class="cycle-titlewrap">
+      <h3 class="cycle-title">Digit-drop reflow — progressive width reclaim, no hold-then-snap</h3>
+      <span class="cycle-meta">
+        <span class="chip owner-chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>flutter-expert</span>
+        <span class="pill accent" title="REOPENS the 7.2b reserved-reflow-slot design tradeoff with on-device evidence. The 7.1/7.2b lock chose a CONSTANT outer slot width (reserved at the glyph's full advance for the whole roll) + an inner `OverflowBox/Align` reveal specifically so an ancestor `FittedBox(scaleDown)` re-fits only ONCE at each end, never per-frame — the explicit anti-wobble rationale in `_reservedReflowSlot`. The deploy-pass captures (issues-1/issues-3, DL 132.4→97.4) show the cost of that choice on a digit-count DROP: the dropped place holds the old, wider footprint for the entire ~300 ms (blank gap, fraction shoved right) then SNAPS narrow at settle (fraction jumps left + a FittedBox re-zoom). Making the reclaim PROGRESSIVE is a genuine design decision because the naive fix — animate the outer width per-frame — reintroduces exactly the per-frame FittedBox re-fit + settled-digit wobble 7.2b was built to avoid. The architect picks the mechanism (e.g. stabilise the WHOLE-run outer width at max(from,to) so the fraction never moves and the gap collapses only INSIDE that box; vs a monotone-shrinking outer with a proven no-scale-change common case; vs right-align-collapse-left) without reintroducing wobble or row-height growth, and AMENDS ADR-0014. Presentation-only, NOT security-tier; opus is the quality + arch tier per the model-tier policy. Verdict GO/NO-GO ≤ 400 words."><span class="dot"></span>architect: required (top)</span>
+        
+        
+        
+        
+      </span>
+    </span>
+    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>
+  </summary>
+  <div class="cycle-body">
+    <div class="cycle-scope"><p>Fix the digit-count-DROP reflow so a dropped place reclaims its width PROGRESSIVELY over the roll instead of holding the old (wider) footprint then snapping narrow at the end. Evidence: <code>docs/rnd/swiftui-numerictext-animation-issues-1/</code> (frames 40–50) + <code>-issues-3/</code> (frame 11) — DL <code>132.4 → 97.4</code> (a 3→2 digit drop) and UL <code>30.8 → 18.3</code>.</p>
+<p>Root cause (<code>lib/ui/widgets/animated_numeric_text.dart</code>): a shrinking place — the <code>_shrinkPrefix</code> leading glyph(s) a drop discards, and any <code>previous == null</code> grow — routes through <code>_reservedReflowSlot</code>, whose OUTER <code>SizedBox(width: glyphAdvance)</code> is pinned at the glyph’s FULL measured advance for the WHOLE roll; only the INNER <code>OverflowBox/Align(widthFactor: reveal)</code> collapses (<code>reveal = 1 − t</code> for a shrink). So for ~300 ms the whole-number stays as wide as the old 3-digit value with a blank gap where the dropped digit was, the sibling fraction <code>AnimatedNumericText</code> is pushed right the whole time, and at settle the widget reverts to <code>_buildStatic</code> (narrower) → the width SNAPS, the fraction jumps left, and the enclosing <code>FittedBox(scaleDown)</code> re-fits (a visible re-zoom). The CONSTANT-outer design is deliberate (FittedBox re-fits once per end, not per frame — the <code>_reservedReflowSlot</code> doc) but on-device it trades smooth reflow for a hold-then-snap.</p>
+<p>The fix mechanism is the 7.9 ARCHITECT’s call (arch-review required) — it must NOT reintroduce the per-frame FittedBox re-fit / settled-digit wobble that the constant-outer design avoided, must NOT grow the row height (the standing 7.2 invariant), and must keep grow-a-place correct (grows currently reserve-final-then-reveal, which reads fine — do not regress them). Candidate directions the architect weighs: (a) stabilise the WHOLE run’s outer width at <code>max(from,to)</code> advance so the FRACTION never moves and the collapsing gap lives only INSIDE the whole-number box; (b) a monotone-shrinking outer width with a test PROVING FittedBox scale is invariant for values within the column (common case fits unscaled → no wobble); © right-align the whole run and collapse leftward. Whichever is chosen, AMEND <code>docs/adr/0014-numeric-text-transition.md</code> with the drop-reflow resolution. This cycle RESOLVES the 7.2b/7.5 “does the animated width reflow survive the FittedBox guards” open-question with the on-device answer.</p>
+<p>RED author reads the 7.9 architect-verdict (<code>docs/cycles/7.9.yaml</code>), the <code>_reservedReflowSlot</code> / <code>_buildShrinkColumn</code> doc-comments, and the capture folders before writing assertions. Keep all 7.2b reflow guards (monotone reveal, no row-height growth, no overflow at 360 dp / 1.3×) green.</p>
+</div>
+    <p class="phase-note" style="font-size:.86rem;color:var(--ink-3);margin:0 0 4px"><strong style="color:var(--ink-2)">Architecture review.</strong> required (top) — REOPENS the 7.2b reserved-reflow-slot design tradeoff with on-device evidence. The 7.1/7.2b lock chose a CONSTANT outer slot width (reserved at the glyph’s full advance for the whole roll) + an inner <code>OverflowBox/Align</code> reveal specifically so an ancestor <code>FittedBox(scaleDown)</code> re-fits only ONCE at each end, never per-frame — the explicit anti-wobble rationale in <code>_reservedReflowSlot</code>. The deploy-pass captures (issues-1/issues-3, DL 132.4→97.4) show the cost of that choice on a digit-count DROP: the dropped place holds the old, wider footprint for the entire ~300 ms (blank gap, fraction shoved right) then SNAPS narrow at settle (fraction jumps left + a FittedBox re-zoom). Making the reclaim PROGRESSIVE is a genuine design decision because the naive fix — animate the outer width per-frame — reintroduces exactly the per-frame FittedBox re-fit + settled-digit wobble 7.2b was built to avoid. The architect picks the mechanism (e.g. stabilise the WHOLE-run outer width at max(from,to) so the fraction never moves and the gap collapses only INSIDE that box; vs a monotone-shrinking outer with a proven no-scale-change common case; vs right-align-collapse-left) without reintroducing wobble or row-height growth, and AMENDS ADR-0014. Presentation-only, NOT security-tier; opus is the quality + arch tier per the model-tier policy. Verdict GO/NO-GO ≤ 400 words.</p>
+    <div class="phase red">
+      <div class="phase-head"><span class="tagdot"></span>RED</div>
+      <div class="phase-body">
+        
+        <figure class="code">
+  <figcaption><span class="lang">dart</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#code-98" aria-label="Copy code"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy</button></figcaption>
+  <pre><code id="code-98">// appended to test/ui/widgets/speed_twin_test.dart (+ animated_numeric_text_test.dart).
+// 7.9: a digit-count DROP must reclaim the dropped place's width
+// PROGRESSIVELY — no holding the old, wider footprint then snapping.
+// Load-bearing regression: the fraction sibling must NOT shove-then-jump.
+// RED author pins exact tolerances against the 7.9 architect verdict.
+
+// left edge (dx) of the fraction run — the 2nd AnimatedNumericText in a column.
+double fracLeftDx(WidgetTester t) =&gt;
+    t.getTopLeft(find.byType(AnimatedNumericText).at(1)).dx;
+
+testWidgets('digit drop does not shove the fraction then snap it back', (t) async {
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '132', downFrac: '.4', downUnit: 'Mbps',
+    upWhole: '30', upFrac: '.8', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pumpWidget(wrap(const SpeedTwin(
+    downWhole: '97', downFrac: '.4', downUnit: 'Mbps',
+    upWhole: '18', upFrac: '.3', upUnit: 'Mbps',
+    feedState: FreshnessState.live,
+  )));
+  await t.pump(const Duration(milliseconds: 150)); // mid-roll
+  final mid = fracLeftDx(t);
+  await t.pumpAndSettle();
+  final settled = fracLeftDx(t);
+  // progressive reclaim: fraction sits within a hair of its settled x
+  // for the whole roll, not shoved right by a full digit advance.
+  expect((mid - settled).abs(), lessThan(2.0));
+});
+
+testWidgets('settled sibling digits do not wobble across a drop (FittedBox scale stable)',
+    (t) async {
+  // RED author asserts the whole-run FittedBox scale (or the x of a
+  // stable digit) is invariant across the roll for a value that fits
+  // the column unscaled — proving no per-frame re-fit wobble.
+});
+
+testWidgets('reveal stays monotone + no row-height growth on a drop (7.2b guards carried)',
+    (t) async {
+  // RED author carries the existing monotone-reveal + rest==roll height
+  // assertions for the shrink path.
+});</code></pre>
+</figure>
+      </div>
+    </div>
+    <div class="phase green">
+      <div class="phase-head"><span class="tagdot"></span>GREEN<span class="meta">per the 7.9 architect verdict — reclaim a dropped place's width progressively (no hold-then-snap, no fraction shove-then-jump) while keeping FittedBox-safe (no settled-digit wobble, no row-height growth) and not regressing grow-a-place; amend ADR-0014; full suite green; analyze clean; on-device smoke 132.4→97.4 + 149→59 drops vs the issue captures</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase review">
+      <div class="phase-head"><span class="tagdot"></span>REVIEW<span class="meta">`opus` — `code-reviewer` (progressive reclaim; NO reintroduced per-frame FittedBox re-fit / wobble; grow-a-place unregressed; monotone reveal + no height growth carried; ADR-0014 amended)</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+    <div class="phase refactor">
+      <div class="phase-head"><span class="tagdot"></span>REFACTOR<span class="meta">`sonnet` — `flutter-expert`</span></div>
+      <div class="phase-body">
+        
+        
+      </div>
+    </div>
+  </div>
+</details>
+
+    <hr class="section-rule">
+
+    <section id="open-q" class="section">
+      <h2>Open questions</h2>
+      <div class="table-wrap"><table class="data">
+    <thead><tr><th>Question</th><th>Why it matters</th><th>Resolution</th></tr></thead>
+    <tbody><tr><td>7.1: does the primitive accept a FULL string, or a number-only string with unit passed separately?</td><td>SpeedTwin renders whole (66 px) + fraction (27 px) + unit as separate style runs; Battery/Data keep <code>%</code>/unit as siblings; but percent (<code>254%</code>), PEAK, uptime, and dBm are single Text nodes mixing digits + letters. A number-only API would force awkward splitting for the combined captions.</td><td>DECIDE AT THE 7.1 ARCHITECT GATE. Default lean: accept a FULL string and roll only the changed glyph columns (letters/<code>%</code>/separators ride as static glyphs). Callers pass per-style RUNS (SpeedTwin’s whole and fraction are two instances because their sizes differ) and keep units as static siblings where they already are. Combined mono captions (percent, PEAK, uptime, dBm) pass the whole string. Locked in the 7.1 verdict + §Motion spec.</td></tr>
+<tr><td>7.1: roll direction — the captured fixed top-enter/bottom-exit, or SwiftUI’s documented value-direction?</td><td>The 169-frame capture shows the new glyph ALWAYS entering from ABOVE and the old exiting BELOW, identically for increases (0→149, 56→76) AND decreases (149→59, 76→71, 71→37) — a fixed top-down flow. But <code>.numericText(value:)</code> is documented to roll up-on-increment / down-on-decrement. Either the capture is too short to catch a reversal, or this font/config genuinely always enters from the top. → <strong>NOW ONLY SETTLEABLE BY A NEW CAPTURE (2026-07-19).</strong> The source frames were pruned to 14 cited exhibits (§Motion spec retention note), so the ‘is the capture too short’ half can no longer be checked by re-examining it. Settling this requires a fresh recording on a second iOS device. NOTE: the deploy-pass row naming an S22 for this check is wrong — Android cannot run SwiftUI.</td><td>LOCKED = trust the pixels: FIXED top-enter/bottom-exit (the 7.1 <code>direction</code> still gates the neutral <code>0</code> crossfade but does NOT flip the slide axis). Flag for the on-device deploy-pass: if a longer capture / a second device shows value-direction, reinstate it (a one-line change — the direction int is already computed).</td></tr>
+<tr><td>7.2b: blur peak sigma + temporal shape — the exact value that reads like Apple without over-costing the 1 Hz twin?</td><td>Peak σ ≈ 4–8 px at 66 px and a sin(π·t) bump are RECONSTRUCTED from the frames, not measured to a pixel. Too much blur muddies a glance readout; too little loses the signature.</td><td>DEFAULT: <code>σ = blurSigma·sin(π·t)</code>, <code>blurSigma</code> capped ~3–4 px on the fast twin (param, higher allowed on slow surfaces). Confirm on an S22/iPhone A/B at the real 1 s cadence. Locked shape, tuned magnitude. → <strong>RESOLVED — on-device pass (2026-07-18, iPhone captures <code>docs/rnd/…-issues-2</code>): the ~3.5 default read MUDDY (2–3 overlapping ghost glyphs, even on the simplest same-width roll). Fix = Cycle 7.7 (lower default ~1.8–2.2 + de-overlap the outgoing/incoming fade).</strong></td></tr>
+<tr><td>7.2b: blur default on the fast DL/UL twin — default-ON-capped, or default-OFF-with-flag?</td><td>Blur is a per-second saveLayer+gaussian on an ALWAYS-ON tool. The dropped-frame risk is low, but THERMAL/BATTERY accumulation over hours is real. This is a product battery-vs-fidelity call the frames cannot answer.</td><td>DECIDE (user + a thermal soak test). Ship the <code>blurSigma</code> param + kill-switch either way; recommendation is default-on-capped with a battery-saver/thermal auto-drop, but the user picks the point. Slow surfaces default full.</td></tr>
+<tr><td>7.2b/7.5: does the animated width reflow survive the FittedBox(scaleDown) guards with no settled-digit wobble?</td><td>The frames show width reflowing over ~3–4 frames (0→149, 149→59, 37→4), so it IS animated — not the earlier ‘accept a one-frame snap’. Nesting an AnimatedSize in the FittedBox would re-fit every frame and wobble the settled digits.</td><td>APPROACH (locked): drive the leading-cell width off the controller and RESERVE the FittedBox child constraint at max(from,to) width so it re-fits against a monotone width (NO AnimatedSize-in-FittedBox). PROVE no wobble + no new overflow at 360dp / 1.3× on the 254% OVER fixture in 7.2b + 7.5 REVIEW. → <strong>RESOLVED — on-device pass (2026-07-18, <code>docs/rnd/…-issues-1</code>/<code>-3</code>, DL 132.4→97.4): the constant-outer reserve IS FittedBox-safe but on a digit-count DROP it holds the old wider footprint the whole roll then SNAPS narrow (fraction shoved right then jumps left + a FittedBox re-zoom). Fix = Cycle 7.9 (progressive reclaim, arch-gated, amends ADR-0014).</strong></td></tr>
+<tr><td>7.2: stagger magnitude — a fixed per-column delay or proportional to column count?</td><td>The capture shows a clear left-to-right cascade (0→149, 71→37, 37→4) but a near-unison two-column change (149→59). The ~0.12 Interval offset is a reasonable default; too much stagger reads slow on a 3-digit number.</td><td>DEFAULT: fixed <code>i*0.12</code> Interval offset per changed column. Tune on-device; a proportional/clamped variant is a follow-up, not a re-architecture.</td></tr>
+<tr><td>7.2: drift distance / scale endpoints / opacity-65% — on-device fit?</td><td>±0.55 cell drift, 0.6→1.0 / 1.0→0.55 scale, and the outgoing-gone-at-65% point are fitted to the frames within tolerance, not Apple ground-truth.</td><td>Ship as the defaults; confirm the feel on hardware at the real feed cadence (S22 + iPhone). Tunable constants, not architecture.</td></tr>
+<tr><td>7.1: does the primitive fade via Text color-alpha (vs FadeTransition)?</td><td>Both avoid the &gt;1-opacity assertion; color-alpha additionally avoids a per-glyph saveLayer on the 1 Hz surface.</td><td>LOCKED: color-alpha, for the 1 Hz perf win + reviewability.</td></tr>
+<tr><td>7.3: keep or retire CountUpText?</td><td>CountUpText interpolates the numeric VALUE (a different animation model); SpeedTwin is its only caller.</td><td>RESOLVED: RETIRE it in 7.3. Delete from motion.dart (keep StaleFade), migrate its reduced-motion tests to the AnimatedNumericText / SpeedTwin suites. No dead code (review-checklist §Clarity).</td></tr></tbody>
+  </table></div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section id="followups" class="section">
+      <h2>Cycle follow-ups</h2>
+      <p style="font-size:.92rem;color:var(--ink-3)">NITs logged, won&rsquo;t-fix, or deferred-structural; populated post-REVIEW per cycle.</p>
+      <div class="table-wrap"><table class="data">
+    <thead><tr><th>Source</th><th>Item</th><th>Tracked</th></tr></thead>
+    <tbody><tr><td>deploy pass</td><td>On-device human visual verification (Samsung S22 Android + iPhone iOS): the morph reads like the reference frames on real hardware at the real feed cadence — the BLUR reads like Apple (not muddy) at the capped fast-twin sigma, DL/UL rolling each ~1 s, battery/data/clients on slower cadences, no jank, no <code>0</code> flash on first appearance, reduced-motion honoured with the OS setting on. PLUS a thermal/battery soak over hours of always-on use to settle the blur-default-on-fast-twin call, and a longer/second-device capture to confirm the FIXED top-enter direction (vs value-direction) — see §Open questions. Automated gates run in-session; no agent drives a physical phone. → <strong>DONE (2026-07-18, iPhone screen-recording captures <code>docs/rnd/swiftui-numerictext-animation-issues-{1,2,3}/</code>): surfaced 3 defects → batch P7.C (7.7 muddy blur, 7.8 fraction tabular, 7.9 digit-drop hold-then-snap). RE-RUN the deploy pass after P7.C lands; the thermal/battery soak + the fixed-vs-value direction check remain open.</strong></td><td>Post-plan human deploy pass (device eyeball + thermal soak) — 1st pass DONE → P7.C; re-run after P7.C + soak/direction still open</td></tr>
+<tr><td>7.2/7.2b (motion feel)</td><td>On-device tuning of the frame-fitted constants if the deploy-pass wants them: blur peak sigma + default-on/off on the fast twin, per-column stagger magnitude, drift distance / scale endpoints / opacity-65%, and per-surface duration for fast (speed) vs slow (data/uptime). All are tunable params/constants — the 7.1 lock sets the shape; a divergence is a small follow-up, not a re-architecture. → <strong>The deploy pass DID want them: blur muddy + digit-drop hold-then-snap CONFIRMED on-device → promoted from ‘optional’ to Cycles 7.7 + 7.9 (batch P7.C). Stagger / drift / scale / per-surface duration still un-flagged (carried).</strong></td><td>Partly actioned — blur + drop-reflow → P7.C (7.7/7.9); remaining tunables carried</td></tr>
+<tr><td>7.9 REVIEW (opus, NITs — on-device)</td><td>Two advisory NITs on the 7.9 progressive-drop mechanism (pass-1 REFACTOR = ADR-0014-not-amended was FIXED in-cycle; these two are non-blocking, APPROVED pass-2): (a) the dropped glyph now paints at NEGATIVE x (left of the narrow run, in the column’s left padding) rather than in place — confirm at the DL 132.4→97.4 / 149→59 human smoke it reads as a graceful shrink-away and does not collide with the UPLOAD vertical divider; (b) cosmetic clip asymmetry — <code>_shrinkOverlay</code> is Clip.none (so it can paint negative-x) while rollRow outgoing glyphs are vertically clipped, so a dropped glyph’s downward-drift tail is uncropped (faint, both fade by t=0.5). If the slide reads over-long on-device, wrap <code>_shrinkOverlay</code>’s child in a vertical-only clip keeping horizontal Clip.none. Tests assert tree-presence + outer-size invariance, not paint position — this is the paint-position taste call for the deploy pass.</td><td>Tracked — settle on the P7.C on-device drop smoke (132.4→97.4 / 149→59 vs issues-1/issues-3 captures)</td></tr>
+<tr><td>7.7 REVIEW (opus, NITs)</td><td>Two advisory NITs on the 7.7 blur/fade retune (both non-blocking, APPROVED pass-1): (a) the <code>_kOutgoingFadeSpan</code> doc comment overstates the de-overlap — at t=0.5 outgoing alpha hits 0 exactly as incoming reaches half, so ‘gone before even half faded in’ is imprecise; reword to ‘fully gone by ~half incoming opacity’. (b) the fade-de-overlap test’s incoming assertion is only <code>&lt; 1.0</code> (weaker than its ‘nears full’ wording) — optionally tighten to <code>lessThan(0.9)</code>. The load-bearing outgoing <code>&lt; 0.02</code> guard is correct and discriminates against the old 0.65 span.</td><td>Tracked — cheap doc/test follow-up on animated_numeric_text.dart (not blocking); settle on the on-device A/B pass</td></tr>
+<tr><td>plan-007 deploy pass (2026-07-18)</td><td>iPhone screen-recording captures under <code>docs/rnd/swiftui-numerictext-animation-issues-{1,2,3}/</code> decoded to 3 defects in the shipped morph: (1) MUDDY blur — 2–3 overlapping ghost glyphs mid-roll, worst in issues-2 (<code>35.2→24.7</code>, the simplest same-width roll) → blur magnitude/fade-overlap, not layout; (2) digit-count DROP hold-then-SNAP — issues-1/issues-3 (<code>132.4→97.4</code>) hold the old wider footprint the whole roll (blank gap, fraction shoved right) then snap narrow (fraction jumps + FittedBox re-zoom); (3) fraction style run lacked tabular figures → decimal re-advances on a fraction tick. Root causes traced to <code>animated_numeric_text.dart</code> (<code>_applyBlur</code>/<code>_kOutgoingFadeSpan</code>/<code>_reservedReflowSlot</code>) + <code>speed_twin.dart</code> (<code>fracStyle</code>).</td><td>Batch P7.C — Cycle 7.7 (blur+fade) + 7.8 (fraction tabular) + 7.9 (progressive drop-reflow, arch-gated)</td></tr>
+<tr><td>7.2 REVIEW (opus, NITs)</td><td>Resolve in 7.2b (extends animated_numeric_text.dart): roll-state ~8px height growth vs rest (per-tick vertical-shift risk — reserve slack equally in the rest state or clip without growing the box); degenerate Interval(1.0,1.0) at ≥10 changed columns (clamp start &lt;1.0); extract inline magic numbers (scale endpoints 0.6+0.4t / 1.0−0.45t, ClipRect vertical slack 4, fontSize fallback 14.0) to named _k constants; add a fixed-direction guard test (incoming enters from ABOVE on BOTH increase AND decrease — the load-bearing frame-decode correction, currently unguarded); baseColor null→Colors.black fallback could flash under a dark surface.</td><td>Tracked — 7.2b (same file) + gated again at the 7.3 adoption REVIEW (no-row-growth / no-overflow-at-1.3×)</td></tr>
+<tr><td>7.2b REVIEW (opus, NITs)</td><td>Cheap follow-up on animated_numeric_text.dart: cache the reflow glyph-advance (a TextPainter is built + laid out on every AnimatedBuilder tick during a digit-count reflow — bounded since reflow is brief, but avoidable); add the shrink-a-place frame-to-frame monotonic-reveal test (grow already has one); add the null-effective-color fallback test (baseColor→colorScheme.onSurface, never null at current call sites).</td><td>Tracked — optional 7.x code follow-up (not blocking adoption)</td></tr>
+<tr><td>7.4/7.5/7.6 REVIEW (opus, adoption NITs)</td><td>Advisory, non-blocking; every adoption cycle APPROVED (detail in each docs/cycles/7.X.yaml). 7.4 — blurSigma left at the fast-twin default (~3.5) on the slow battery surface (optional higher explicit sigma pending on-device taste); the CAP-caption test asserts wiring but does not drive a CAP change to observe the cross-fade settle. 7.5 — the composed-Semantics test proves the label PRESENT but not the 6 inner values ABSENT (optional airtight-exclusion assertion, matching the accepted 7.4 precedent’s limitation); a group-header comment says non-digit runs ‘never roll’ (imprecise — they cross-fade on a direction-0 whole-string change). 7.6 — four of five surfaces (−dBm / uptime / PEAK / elapsed) CROSS-FADE rather than per-digit-roll because unit/colon/letter strings hit direction 0 (the locked 7.2 primitive contract; faithful adoption — flag for the on-device pass); the chart ELAPSED label cross-fades on every ~1s append (dropping its wrap is a one-line taste follow-up if noisy on-device, kept per the §inventory completeness contract).</td><td>Tracked — advisory adoption NITs; settle on the human on-device visual pass (none block plan-007)</td></tr>
+<tr><td>future (plan-006 carried)</td><td>Un-discharged plan-006 items still stand and are unaffected by plan-007: the ADR-0002 base-URL-setter dormant invariant; a future modem-write cycle (<code>set_wwandst_monthlimit</code>); a precise connected-client count needing an agent-side endpoint; the optional upstream PR of the open-u60-pro <code>uci show</code> wrapper to jesther-ai; the docs-gen cycle-note reviewer-roster schema change.</td><td>Carried from plan-006 §cycle-followups — not plan-007 work</td></tr></tbody>
+  </table></div>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-007.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

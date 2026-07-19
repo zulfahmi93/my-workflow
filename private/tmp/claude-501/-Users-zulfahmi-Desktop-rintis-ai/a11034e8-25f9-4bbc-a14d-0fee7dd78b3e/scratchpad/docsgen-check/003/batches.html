@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-003 — Parallel runbook</title>
+<meta name="description" content="The parallel batch orchestration runbook for u60-monitor plan-003.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-003</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html">Overview</a>
+      <a class="navlink" href="plan.html">Cycles</a>
+      <a class="navlink" href="batches.html" aria-current="page">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">The runbook · 2 batches</p>
+    <h1>u60-monitor plan-003 — polish &amp; debt runbook</h1>
+    <p class="lede">The canonical source for running plan-003 cycles across parallel sessions. One prompt block per fresh <code>/clear</code> session, each in its own git worktree.</p>
+    
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#how-to-use">How to use</a></li>
+      <li><a href="#common-contract-applies-to-every-session">Common contract (applies to every session)</a></li>
+      <li><a href="#worktree-convention">Worktree convention</a></li>
+      <li><a href="#inter-batch-verification">Inter-batch verification</a></li>
+      <li><a href="#stop-conditions-across-all-batches">Stop conditions (across all batches)</a></li>
+      <li><a href="#final-state">Final state</a></li>
+      <li><a href="#batch-summary">Batch summary</a></li>
+      <li><a href="#ownership">File-ownership map</a></li>
+      <li><a href="#p3.a">P3.A — one session (structural collapse)</a></li>
+      <li><a href="#p3.b">P3.B — five parallel sessions (polish &amp; debt)</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+<section class="section"><p>Six cycles, two batches. The serial spine is just two cycles — <strong>3.1</strong> (the structural collapse, opus architect gate) then <strong>3.5</strong> (which shares <code>lib/app.dart</code> + <code>test/app_flow_test.dart</code> with the collapse). Batch B’s other four cycles (3.2, 3.3, 3.4, 3.6) are write-disjoint and can fan out in parallel after 3.1 lands. Each cycle is one fresh-context session per <code>.claude/rules/cycle-orchestration.md</code> §Session protocol; commit one cycle at a time after the human reviews the diff. ZERO new pubspec deps; ZERO security-tier cycles.</p>
+</section>
+<hr class="section-rule">
+<section id="how-to-use" class="section">
+        <h2>How to use</h2>
+        <p>Run <strong>3.1</strong> alone first — it is the one architecture-gated cycle (opus) and it re-points the speed stream onto the generic <code>Poller&lt;T&gt;</code>; its blast radius (<code>app.dart</code>, <code>speed_screen.dart</code>, <code>speed_history.dart</code>, <code>monitor_header.dart</code> docs, <code>core.dart</code> barrel, three migrated test files) must land and go green before anything layers on top. Then fan out Batch B: 3.2 (signal-tile token), 3.3 (motion lifecycle), 3.4 (chart colours), 3.6 (status-strip finder) are mutually disjoint; <strong>3.5</strong> (client close) must follow 3.1 because it shares <code>app.dart</code> + <code>app_flow_test.dart</code>. No cycle is security-tier, so a single <code>code-reviewer</code> APPROVED is the gate (no <code>security-reviewer</code> second pass) — but the reviewer must still confirm 3.5 changes no auth path.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="common-contract-applies-to-every-session" class="section">
+        <h2>Common contract (applies to every session)</h2>
+        <p>Every session: fresh context; read root <code>/CLAUDE.md</code> + <code>projects/personal/u60-monitor/CLAUDE.md</code> + the rules + this plan’s cycle entry; honour the architect-gate field (required only on 3.1); reviewer separation (never self-review); NO-DEFER on BLOCKER/REFACTOR; caveman tone is chat-only (code/tests/commits are idiomatic). No cycle adds a pubspec dep; no cycle adds a base-URL setter (either is an out-of-bounds STOP). Every commit subject is ≤50 chars (the “cycle X.Y — &lt;long phrase&gt;” pattern that tripped 2.14/2.15 is deliberately avoided — F8).</p>
+
+      </section>
+<hr class="section-rule">
+<section id="worktree-convention" class="section">
+        <h2>Worktree convention</h2>
+        <p>Optional for the Batch B fan-out: one git worktree per cycle (<code>.worktrees/u60-monitor-3.&lt;n&gt;</code> on branch <code>cycle/3.&lt;n&gt;</code>) so the parallel sessions never touch each other’s tree. 3.1 and 3.5 run in the main tree (3.5 after 3.1). Sequential in-tree is also fine — concurrent <code>flutter test</code> can race <code>.dart_tool</code>, so serialise the test runs if sharing a tree.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="batch-summary" class="section">
+        <h2>Batch summary</h2>
+        <div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Batch</th>
+<th>Sessions</th>
+<th>Wall-time hint</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P3.A</strong></td>
+<td>3.1</td>
+<td>60–90 min</td>
+<td>Solo, runs first — the only medium item: the core polling-contract collapse (FU-02). Opus architect gate BEFORE RED. Must keep ALL existing tests green; deletes speed_poller.dart / speed_reading.dart / speed_poller_test.dart with zero coverage loss (poller_test.dart is a verified test-by-test superset; speed_snapshot_test.dart covers the parse path). Isolated from the cosmetic work so the structural refactor’s blast radius (app.dart, speed_screen.dart, speed_history.dart, monitor_header.dart docs, core.dart barrel, three migrated test files) lands and goes green before Batch B layers on top.</td>
+</tr>
+<tr>
+<td><strong>P3.B</strong></td>
+<td>3.2 ‖ 3.3 ‖ 3.4 ‖ 3.5 ‖ 3.6</td>
+<td>120–180 min</td>
+<td>Parallelizable polish / debt cycles — every cycle: arch-review none, security-tier false, file-disjoint write-ownership. 3.2 {signal_tile, theme, signal_tile_test, refinement_theme_test}; 3.3 {motion, refinement_motion_test}; 3.4 {speed_history_chart, speed_history_chart_test}; 3.5 {agent_client, app, agent_client_test, app_flow_test, fake_multi_client}; 3.6 {status_strip_test}. No shared DB/port/test-resource collision (pure Flutter widget/unit tests) so parallel-safe. 3.5 carries a HARD file dep on 3.1 (both write lib/app.dart + test/app_flow_test.dart) → deps:[3.1]. 3.2/3.3/3.4/3.6 are genuinely file-disjoint from 3.1 and carry NO logical dep — staged into Batch B (after A) only to land the refactor first.</td>
+</tr>
+</tbody>
+</table></div>
+
+      </section>
+<hr class="section-rule">
+<section id="ownership" class="section">
+        <h2>File-ownership map</h2>
+        <p>Within a batch the cycles are file-disjoint &mdash; that is what makes them conflict-free to run in parallel and to fast-forward merge.</p>
+        <div class="table-wrap">
+        <table class="data matrix">
+          <thead><tr><th>Cycle</th><th>web</th><th>api</th><th>solver</th><th>ocr / py</th><th>supabase</th><th>infra</th><th>New top-level files</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">3.1</td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td style="font-size:.82rem"></td></tr>
+            <tr><td class="mono">3.2</td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td style="font-size:.82rem"></td></tr>
+            <tr><td class="mono">3.3</td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td style="font-size:.82rem"></td></tr>
+            <tr><td class="mono">3.4</td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td style="font-size:.82rem"></td></tr>
+            <tr><td class="mono">3.5</td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td style="font-size:.82rem"></td></tr>
+            <tr><td class="mono">3.6</td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td class="own empty"></td><td style="font-size:.82rem"></td></tr>
+          </tbody>
+        </table>
+      </div>
+        <div class="conv" style="margin-top:18px"><h4><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Conflict notes from source</h4></div>
+        
+      </section>
+<hr class="section-rule">
+<section id="inter-batch-verification" class="section">
+        <h2>Inter-batch verification</h2>
+        <p>After 3.1 merges, run the full <code>flutter test</code> + <code>flutter analyze</code> (the latter must be “No issues found”, incl. zero dangling-doc-reference hints) before fanning out Batch B — every prior test plus the migrated tests must stay green with zero coverage loss. After each Batch B cycle merge, re-run the full suite + analyze. No cycle requires an on-device smoke; the deferred device smokes are a separate post-plan human deploy pass (see §Cycle follow-ups).</p>
+
+      </section>
+<hr class="section-rule">
+<section id="stop-conditions-across-all-batches" class="section">
+        <h2>Stop conditions (across all batches)</h2>
+        <p>Halt + write <code>docs/AUTONOMOUS_RUN_STATUS.md</code> on: architect NO-GO (3.1); a missing architect-gate field; a BLOCKER/REFACTOR needing genuine deferral; REVIEW still NEEDS FIX after 3 REFACTOR passes; the test gate unreachable for reasons outside the cycle; a pre-commit hook failure; a cycle demanding out-of-bounds changes (a new dep, a base-URL setter, an <code>AgentClient</code> AUTH-boundary edit). If 3.5 finds it must touch an auth/token/password/base-url path, it becomes security-tier — STOP and escalate (do not silently proceed). If <code>poller_test.dart</code> turns out NOT to be a superset of a <code>speed_poller_test.dart</code> case, keep <code>speed_poller_test.dart</code> (do not delete on a coverage gap) and STOP.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="final-state" class="section">
+        <h2>Final state</h2>
+        <p>plan-003 done = the installable app behaves exactly as plan-002 shipped (no user-visible behaviour change) but with the debt paid: the speed stream runs on the single generic <code>Poller&lt;SpeedSnapshot&gt;</code> contract (the duplicated SpeedPoller skeleton + its redundant test deleted, zero coverage loss); the signal-tile stale dot uses the <code>staleIndicator</code> token like every other tile; one-shot motion snaps correctly on a runtime reduced-motion toggle and the recovery haptic is regression-locked; the chart painter cannot silently fall back to light-theme colours; the <code>AgentClient</code> http connection pool is released promptly on re-auth; and the StatusStrip count test is specific. Zero new deps; no auth path changed; the ADR-0002 base-URL invariant remains dormant and carried.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="p3.a" class="section">
+      <h2>P3.A — one session (structural collapse)</h2>
+      <div style="font-size:.92rem;color:var(--ink-3)"><p>Entry state: plan-002 shipped (all feature cycles green, installable app). Exit: the speed stream runs on the generic Poller&lt;SpeedSnapshot&gt;/Reading&lt;SpeedSnapshot&gt;; the legacy SpeedPoller/SpeedReading skeleton and its now-redundant test are deleted; flutter analyze clean (incl. zero dangling-doc hints) and the full suite green with zero coverage loss.</p>
+</div>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 3.1 (Collapse SpeedPoller onto Poller&lt;SpeedSnapshot&gt;)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-53" aria-label="Copy prompt for Session — Cycle 3.1 (Collapse SpeedPoller onto Poller&lt;SpeedSnapshot&gt;)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-53">
+You are the Cycle 3.1 orchestrator for u60-monitor. Fold the legacy `SpeedPoller`/`SpeedReading` skeleton onto the generic `Poller&lt;SpeedSnapshot&gt;`/`Reading&lt;SpeedSnapshot&gt;` that the other four metric pollers already use, deleting the duplicated implementation and its now-redundant test with ZERO coverage loss. Fresh context. Run ARCHITECT (required, opus) → RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 220 words.
+
+This is a pure refactor: NO behaviour change. `Poller&lt;T&gt;` is behaviourally identical to `SpeedPoller` and `Reading&lt;SpeedSnapshot&gt;` structurally identical to `SpeedReading` — the migration is mechanical type-swaps + deletions.
+
+Reviewer separation mandatory. If `Agent` unavailable → STOP + `AUTONOMOUS_RUN_STATUS.md`.
+
+Mandatory reads:
+1. root `/CLAUDE.md`; `projects/personal/u60-monitor/CLAUDE.md`.
+2. `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`.
+3. `docs/plan-003.yaml` (this cycle) + `docs/cycles/2.1.yaml` (the Poller&lt;T&gt; contract) + `docs/cycles/1.5.yaml` (the SpeedPoller contract being retired).
+4. `lib/core/poller.dart` + `lib/core/reading.dart` (the target) and `lib/core/speed_poller.dart` + `lib/core/speed_reading.dart` (being deleted); `test/core/poller_test.dart` + `test/core/speed_poller_test.dart` (confirm the superset BEFORE deleting); `lib/app.dart`, `lib/ui/speed_screen.dart`, `lib/core/speed_history.dart` (the call sites).
+
+Architecture review: **REQUIRED (opus)** — lock: the auth-halt (AuthFailure/AuthRequired → cancel timer, keep the controller OPEN), broad-catch keep-last-known + mark-stale, and idempotent-dispose semantics are preserved by construction (they already live in `Poller&lt;T&gt;`, already tested); `speed_poller_test.dart` is deletable because `poller_test.dart` is a verified test-by-test superset of its 7 cases and `speed_snapshot_test.dart` covers the parse path; `SpeedSnapshot.fromAgentJson` is unchanged. Confirm NOT security-tier (no auth/token/password/base-url code path moves; untrusted-JSON parse stays in `fromAgentJson`). Verdict ≤ 350 words, `GO`/`NO-GO`. NO-GO → STOP.
+
+Anti-hallucination guard for the REVIEW prompt body:
+
+```
+ls lib/core/ test/core/
+grep -rn &quot;SpeedPoller\|SpeedReading&quot; lib test   # expect 0 after the collapse
+grep -n &quot;isControllerClosed\|AuthFailure\|AuthRequired\|Timer\|dispose&quot; lib/core/poller.dart
+flutter analyze   # must be &quot;No issues found&quot; incl. ZERO dangling-doc hints
+flutter test      # full suite green incl. integrated_screen_test + app_flow_test
+```
+
+Gate: `grep -rn &quot;SpeedPoller\|SpeedReading&quot; lib test` returns 0 hits; `flutter analyze` clean (incl. zero dangling-doc-reference hints); full `flutter test` green with zero coverage loss (every prior speed_poller_test case still exercised by poller_test). NOTE: `test/app_multipoller_test.dart` exists — grep it for SpeedPoller/SpeedReading and migrate if it carries any ref (the design's file list did not include it; verify).
+
+Commit: `refactor(core): fold SpeedPoller into Poller&lt;T&gt;`. Stage `lib/core/speed_poller.dart` + `lib/core/speed_reading.dart` (deletions), `lib/core/core.dart`, `lib/core/reading.dart`, `lib/app.dart`, `lib/ui/speed_screen.dart`, `lib/core/speed_history.dart`, `lib/ui/widgets/monitor_header.dart`, `test/core/speed_poller_test.dart` (deletion), `test/ui/speed_screen_test.dart`, `test/ui/integrated_screen_test.dart`, `test/core/speed_history_test.dart`, `test/app_flow_test.dart`, `docs/plan-003.yaml`, `docs/cycles/3.1.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01TxJSLJPBPRWCkAJAaHom9m`
+
+Out of bounds: any behaviour change to the polling contract; editing `Poller&lt;T&gt;`/`Reading&lt;T&gt;` logic (only consume them); any new pubspec dep; any UI behaviour change; any `AgentClient` auth-boundary edit.
+
+STOP conditions: architect NO-GO; `poller_test.dart` is NOT a superset of a speed_poller_test case (a genuine coverage gap → keep the test, do not delete); a migrated call site changes behaviour; analyze surfaces a dangling-doc hint that cannot be swept; a test breaks for a reason outside the migration.
+
+Final report (≤ 220 words): files touched + deleted, architect verdict, reviewer verdict + agent ID per pass, the grep-0 + analyze-clean confirmation, the superset confirmation (per-case), deviations.
+</code></pre>
+          </figure>
+          <hr>
+
+        </div>
+      </details>
+    </section>
+<hr class="section-rule">
+<section id="p3.b" class="section">
+      <h2>P3.B — five parallel sessions (polish &amp; debt)</h2>
+      <div style="font-size:.92rem;color:var(--ink-3)"><p>Entry state: 3.1 merged (the collapse is green). Each session owns a disjoint file set — signal-tile token (3.2), motion lifecycle (3.3), chart colours (3.4), client close (3.5, after 3.1), status-strip finder (3.6) — see §File-ownership.</p>
+</div>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 3.2 (Tokenize signal-tile stale dot)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-54" aria-label="Copy prompt for Session — Cycle 3.2 (Tokenize signal-tile stale dot)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-54">
+You are the Cycle 3.2 orchestrator for u60-monitor. Make the SignalTile stale marker use the `MonitorColors.staleIndicator` token (matching BatteryTile) instead of a bare `Text('•')`, and correct the understated contrast comment in `theme.dart`. Fresh context. Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 150 words.
+
+Architecture review: **none** (cosmetic token alignment on the read-only display boundary + a doc fix — reason in plan). Skip the architect call.
+
+Parallel-safe with 3.3 / 3.4 / 3.6 (disjoint files); independent of 3.5. Do NOT touch `pubspec.yaml`.
+
+Reviewer separation mandatory. If `Agent` unavailable → STOP + STATUS.md.
+
+Mandatory reads: root `/CLAUDE.md`; `projects/personal/u60-monitor/CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-003.yaml` (cycle 3.2); `lib/ui/widgets/signal_tile.dart` + `lib/ui/widgets/battery_tile.dart` (the token form to mirror, line 167) + `lib/ui/theme.dart` (MonitorColors + the line-69 comment) + `test/ui/widgets/signal_tile_test.dart` + `test/ui/refinement_theme_test.dart`.
+
+Scope guard: change ONLY the stale-dot marker + the import + the doc comment. Do NOT touch `_BarsGlyph` (`colorScheme.primary` is intentional brand teal) or the `_TileShell`-vs-`Card` layout.
+
+Gate: `flutter test test/ui/widgets/signal_tile_test.dart test/ui/refinement_theme_test.dart` green + full suite green + `flutter analyze` clean.
+
+Commit: `fix(app): tokenize signal tile stale dot`. Stage `lib/ui/widgets/signal_tile.dart`, `lib/ui/theme.dart`, `test/ui/widgets/signal_tile_test.dart`, `test/ui/refinement_theme_test.dart`, `docs/plan-003.yaml`, `docs/cycles/3.2.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01TxJSLJPBPRWCkAJAaHom9m`
+
+Out of bounds: editing `_BarsGlyph` / `_TileShell`; changing any token colour value; new deps; any non-signal-tile widget.
+
+Final report (≤ 150 words): files, reviewer verdict + agent ID per pass, gate count, token-uniform confirmation, deviations.
+</code></pre>
+          </figure>
+          <hr>
+
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 3.3 (Reduced-motion snap + haptic lock)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-55" aria-label="Copy prompt for Session — Cycle 3.3 (Reduced-motion snap + haptic lock)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-55">
+You are the Cycle 3.3 orchestrator for u60-monitor. Add a guarded `didChangeDependencies()` to `_StaleFadeState` and `_CountUpTextState` so a runtime reduced-motion toggle snaps an in-flight one-shot animation to its final frame, and add a `reducedMotion:true` haptic-recovery regression guard. Fresh context. Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 160 words.
+
+Architecture review: **none** (localized defensive motion-lifecycle hook mirroring `_DotIndicator`; pure visual/haptic — reason in plan). Skip the architect call.
+
+Parallel-safe with 3.2 / 3.4 / 3.6 (disjoint files); independent of 3.5. Do NOT touch `pubspec.yaml`.
+
+Reviewer separation mandatory. If `Agent` unavailable → STOP + STATUS.md.
+
+Mandatory reads: root `/CLAUDE.md`; `projects/personal/u60-monitor/CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-003.yaml` (cycle 3.3); `lib/ui/widgets/motion.dart` (the two States + `_reducedMotion`/`isAnimating`) + `lib/ui/widgets/monitor_header.dart` (the `_DotIndicator._syncPulse` pattern to mirror, lines 283-286, and the `_flash` haptic-before-gate at 108-120) + `test/ui/refinement_motion_test.dart`.
+
+Key rule: the `isAnimating &amp;&amp; _reducedMotion` guard is load-bearing — a naive copy of `_syncPulse` onto a ONE-SHOT controller could restart/stomp a live non-reduced-motion animation. Do NOT modify `_DotIndicator` (already correct) or `_flash` (one-shot, self-heals). The F6 haptic guard is a LOCK (passes as-is), not a bug-find.
+
+Gate: `flutter test test/ui/refinement_motion_test.dart` green (incl. the new snap + haptic variants) + full suite green (no regression in the existing normal-motion pump-once assertions) + `flutter analyze` clean.
+
+Commit: `fix(app): snap motion anims on reduced-motion`. Stage `lib/ui/widgets/motion.dart`, `test/ui/refinement_motion_test.dart`, `docs/plan-003.yaml`, `docs/cycles/3.3.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01TxJSLJPBPRWCkAJAaHom9m`
+
+Out of bounds: editing `_DotIndicator` or `monitor_header.dart` `_flash`; any non-motion widget; new deps.
+
+STOP conditions: a one-shot animation is stomped mid-flight under normal motion (guard missing); an existing motion test regresses.
+
+Final report (≤ 160 words): files, reviewer verdict + agent ID per pass, gate count, the one-shot-guard confirmation, deviations.
+</code></pre>
+          </figure>
+          <hr>
+
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 3.4 (Require explicit chart colours)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-56" aria-label="Copy prompt for Session — Cycle 3.4 (Require explicit chart colours)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-56">
+You are the Cycle 3.4 orchestrator for u60-monitor. Make `SpeedHistoryPainter`'s `downColor`/`upColor` required so the `MonitorColors.light` fallback footgun cannot exist, and tidy the stale `shouldRepaint` comment. Fresh context. Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 150 words.
+
+Architecture review: **none** (compile-time hardening of a test-only fallback; production path unchanged — reason in plan). Skip the architect call.
+
+Parallel-safe with 3.2 / 3.3 / 3.6 (disjoint files); independent of 3.5. Do NOT touch `pubspec.yaml`.
+
+Reviewer separation mandatory. If `Agent` unavailable → STOP + STATUS.md.
+
+Mandatory reads: root `/CLAUDE.md`; `projects/personal/u60-monitor/CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-003.yaml` (cycle 3.4); `lib/ui/widgets/speed_history_chart.dart` (the painter ctor ~137-144, the production `monitorColorsOf` path ~85-86, the `shouldRepaint` ~310-317 incl. the line-316 comment, and the no-ImplicitlyAnimatedWidget + yMax-hysteresis guards) + `test/ui/widgets/speed_history_chart_test.dart` (the samples-only harness call sites).
+
+Key rule: production is UNCHANGED (it always passes context colours); this only removes a test-only fallback at the type level. Preserve the FU-17 no-`ImplicitlyAnimatedWidget` guard + the yMax-hysteresis branch — they must stay green. If the harness churn is judged not worth it, the documented fallback is an optional default + a &quot;test-only, unreachable in production&quot; comment — but default to required.
+
+Gate: `flutter test test/ui/widgets/speed_history_chart_test.dart` green (incl. the theme-switch case + the FU-17 guards) + full suite green + `flutter analyze` clean.
+
+Commit: `refactor(app): require explicit chart colors`. Stage `lib/ui/widgets/speed_history_chart.dart`, `test/ui/widgets/speed_history_chart_test.dart`, `docs/plan-003.yaml`, `docs/cycles/3.4.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01TxJSLJPBPRWCkAJAaHom9m`
+
+Out of bounds: adding a sparkline draw-in animation (FU-17 won't-do); changing the production `monitorColorsOf` path; new deps; any non-chart widget.
+
+STOP conditions: the FU-17 no-implicit-animation guard breaks; production colour resolution changes.
+
+Final report (≤ 150 words): files, reviewer verdict + agent ID per pass, gate count, FU-17-preserved confirmation, deviations.
+</code></pre>
+          </figure>
+          <hr>
+
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 3.5 (Close http client on re-auth)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-57" aria-label="Copy prompt for Session — Cycle 3.5 (Close http client on re-auth)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-57">
+You are the Cycle 3.5 orchestrator for u60-monitor. Add `AgentClient.close()` and wire the active client through `_SpeedHomeState` so the old connection pool is released promptly on re-auth, plus delete the dead `FakeMultiClient` edge flags. Fresh context. Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 170 words.
+
+Architecture review: **none** (connection-pool resource hygiene on an already-tested dispose path; no auth/token/password/base-url change — reason in plan). Skip the architect call. The reviewer must STILL confirm no auth-path regression.
+
+Depends on **3.1** (both write `lib/app.dart` + `test/app_flow_test.dart`) — run only after the collapse is merged. Parallel-safe with 3.2/3.3/3.4/3.6 otherwise. Do NOT touch `pubspec.yaml`.
+
+Reviewer separation mandatory. If `Agent` unavailable → STOP + STATUS.md.
+
+Mandatory reads: root `/CLAUDE.md`; `projects/personal/u60-monitor/CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-003.yaml` (cycle 3.5); `docs/cycles/1.4.yaml` (the AgentClient auth flow that MUST stay unchanged); `lib/core/agent_client.dart` (the `_client` field, the locked class doc) + `lib/app.dart` (`_startPollers`/`_disposePollers`, post-3.1) + `test/core/agent_client_test.dart` + `test/app_flow_test.dart` (post-3.1) + `test/support/fake_multi_client.dart` (the dead flags to delete).
+
+Key rule: `close()` releases the `http.Client` only — touch NO auth/token/password/base-url code path (Cycle-1.4 auth flow stays byte-equivalent in behaviour). Ordering on re-auth: cancel subs → dispose pollers → close-then-null the old client (null guard prevents a double-close on final dispose). FU-08 deletion is pure dead-code removal — the suite stays green because nothing references the flags.
+
+Gate: `flutter test test/core/agent_client_test.dart test/app_flow_test.dart` green (incl. the close-delegation unit test + the re-auth close-once app test) + full suite green + `flutter analyze` clean.
+
+Commit: `fix(core): close http client on re-auth`. Stage `lib/core/agent_client.dart`, `lib/app.dart`, `test/core/agent_client_test.dart`, `test/app_flow_test.dart`, `test/support/fake_multi_client.dart`, `docs/plan-003.yaml`, `docs/cycles/3.5.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01TxJSLJPBPRWCkAJAaHom9m`
+
+Out of bounds: ANY auth/token/password/base-url change (that would make it security-tier — STOP and escalate); new deps; widgets unrelated to the close wiring.
+
+STOP conditions: the change touches an auth code path (becomes security-tier — STOP); a double-close throws; a re-auth test regresses; an in-flight request is severed by closing too early.
+
+Final report (≤ 170 words): files, reviewer verdict + agent ID per pass, gate count, no-auth-path-change + close-once confirmation, deviations.
+</code></pre>
+          </figure>
+          <hr>
+
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 3.6 (Tighten status-strip count finder)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-58" aria-label="Copy prompt for Session — Cycle 3.6 (Tighten status-strip count finder)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-58">
+You are the Cycle 3.6 orchestrator for u60-monitor. Tighten the StatusStrip client-count finder from a loose `find.textContaining('3')` to a specific `find.text('3')`/`findsOneWidget` (or a scoped `find.descendant`). Fresh context. Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 130 words.
+
+Architecture review: **none** (test-only finder tightening; no production change — reason in plan). Skip the architect call.
+
+Parallel-safe with 3.2 / 3.3 / 3.4 (disjoint files); independent of 3.5. Do NOT touch `pubspec.yaml`.
+
+Reviewer separation mandatory. If `Agent` unavailable → STOP + STATUS.md.
+
+Mandatory reads: root `/CLAUDE.md`; `projects/personal/u60-monitor/CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-003.yaml` (cycle 3.6); `lib/ui/widgets/status_strip.dart` (to confirm how the count cell renders) + `test/ui/widgets/status_strip_test.dart`.
+
+Key rule: this is specificity-strengthening, NOT a bug fix — the tightened assertion must still pass against the current `StatusStrip`. If the count cell isn't a bare digit, scope with `find.descendant` rather than loosening back.
+
+Gate: `flutter test test/ui/widgets/status_strip_test.dart` green + full suite green + `flutter analyze` clean.
+
+Commit: `test(app): tighten status-strip count finder`. Stage `test/ui/widgets/status_strip_test.dart`, `docs/plan-003.yaml`, `docs/cycles/3.6.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01TxJSLJPBPRWCkAJAaHom9m`
+
+Out of bounds: any production code change (`status_strip.dart`); new deps.
+
+Final report (≤ 130 words): files, reviewer verdict + agent ID per pass, gate count, still-passes confirmation, deviations.
+</code></pre>
+          </figure>
+          <hr>
+
+        </div>
+      </details>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-003.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

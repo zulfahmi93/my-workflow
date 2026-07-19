@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light" data-theme-key="u60-monitor-docs-theme">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>u60-monitor · plan-006 — Parallel runbook</title>
+<meta name="description" content="The parallel batch orchestration runbook for u60-monitor plan-006.">
+<link rel="stylesheet" href="../assets/style.css">
+<style>:root{--accent:#2563eb}</style>
+<script>(function(){try{var k=document.documentElement.getAttribute('data-theme-key')||'docs-theme';var t=localStorage.getItem(k)||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="../index.html" aria-label="u60-monitor plan docs home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      u60-monitor <span class="tag">plan-006</span>
+    </a>
+    <nav aria-label="Primary">
+      <a class="navlink" href="../index.html">All plans</a>
+      <a class="navlink" href="index.html">Overview</a>
+      <a class="navlink" href="plan.html">Cycles</a>
+      <a class="navlink" href="batches.html" aria-current="page">Parallel runbook</a>
+      <button class="theme-toggle" type="button" aria-label="Switch theme" aria-pressed="false"><svg class="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    </nav>
+    <button class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+  </div>
+</header>
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-rule" aria-hidden="true"></div>
+    <p class="eyebrow">The runbook · 2 batches</p>
+    <h1>plan-006 runbook — post-ship debt &amp; latent-bug sweep</h1>
+    <p class="lede">The canonical source for running plan-006 cycles across parallel sessions. One prompt block per fresh <code>/clear</code> session, each in its own git worktree.</p>
+    
+  </div>
+</section>
+<main id="main" class="layout">
+  <aside class="toc" aria-label="On this page">
+    <p class="toc-title" tabindex="0" role="button" aria-expanded="true">On this page <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg></p>
+    <ul>
+      <li><a href="#how-to-use">How to use</a></li>
+      <li><a href="#common-contract-applies-to-every-session">Common contract (applies to every session)</a></li>
+      <li><a href="#worktree-convention">Worktree convention</a></li>
+      <li><a href="#inter-batch-verification">Inter-batch verification</a></li>
+      <li><a href="#stop-conditions-across-all-batches">Stop conditions (across all batches)</a></li>
+      <li><a href="#final-state">Final state</a></li>
+      <li><a href="#batch-summary">Batch summary</a></li>
+      <li><a href="#p6.a">P6.A — latent-bug + adaptivity fixes (core ‖ UI)</a></li>
+      <li><a href="#p6.b">P6.B — login secret-read timeout (security-tier)</a></li>
+    </ul>
+  </aside>
+  <div class="content">
+<section class="section"><p>plan-006 closes the three genuinely-open follow-ups that survived the plan-001→005 scout + the post-plan-005 on-device fix round, as three small file-disjoint TDD cycles. 6.1 + 6.2 are non-security (no architect gate); 6.3 is security-tier (opus architect gate + security-reviewer second pass). ZERO new pubspec deps. Everything else in the backlog is closed, superseded, human-only, or a dormant invariant (§Fix inventory).</p>
+</section>
+<hr class="section-rule">
+<section id="how-to-use" class="section">
+        <h2>How to use</h2>
+        <p><strong>Sequencing.</strong> Run SEQUENTIALLY on main, one commit per cycle: <strong>6.1</strong> (ecio decimal-parse, core) → <strong>6.2</strong> (PEAK adaptive label, UI) → <strong>6.3</strong> (login secret-read timeout, security-tier, core). Although the three files are disjoint, the cycles are NOT parallelized: each cycle’s GREEN gate runs the whole <code>flutter test</code> suite, which is cross-attributable in a shared working tree (the plan-004/005 lesson). Commit scopes: <code>core</code> (6.1, 6.3), <code>app</code> (6.2).</p>
+
+      </section>
+<hr class="section-rule">
+<section id="common-contract-applies-to-every-session" class="section">
+        <h2>Common contract (applies to every session)</h2>
+        <p><strong>Architect gate.</strong> 6.1 + 6.2 = <code>none</code> (pure-function / presentation-only; both reuse an existing, already-reviewed helper). 6.3 = <code>required (opus)</code> per §Security tier. MODEL-TIER POLICY: architect gate + ALL REVIEW on <code>opus</code>; RED/GREEN/REFACTOR default <code>sonnet</code>; never <code>haiku</code>. 6.3 additionally takes the <code>security-reviewer</code> (opus) second pass; both reviewers APPROVED before COMMIT.</p>
+<p><strong>Workflow execution.</strong> Cycles run via <code>.claude/workflows/tdd-cycle.js</code> (<code>{ project: &quot;u60-monitor&quot;, projectPath: &quot;projects/personal/u60-monitor&quot;, plan: &quot;006&quot;, cycle, greenAgent: &quot;Flutter Expert&quot;, redAgent: &quot;Flutter Expert&quot;, securityTier }</code>). The workflow returns a schema-validated record (arch verdict, RED/GREEN reports, review passes + adversarial verification, security second pass); the orchestrator files the cycle note (reviewer-agent-id = <code>wf:&lt;runId&gt;/review-pass-&lt;N&gt;</code>), updates <code>status:</code>, regenerates docs, and commits. Commits stay OUTSIDE the workflow.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="worktree-convention" class="section">
+        <h2>Worktree convention</h2>
+        <p>Not applicable — the cycles run sequentially on <code>main</code>, not in parallel worktrees. (Harness note, carried: <code>isolation:worktree</code> creates an app-less ROOT-repo worktree because <code>/projects</code> is gitignored at the root — the nested u60-monitor repo’s worktrees must be managed MANUALLY. Sequential-on-main sidesteps this entirely.)</p>
+
+      </section>
+<hr class="section-rule">
+<section id="batch-summary" class="section">
+        <h2>Batch summary</h2>
+        <div class="table-wrap"><table class="data">
+<thead>
+<tr>
+<th>Batch</th>
+<th>Sessions</th>
+<th>Wall-time hint</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P6.A</strong></td>
+<td>6.1 ‖ 6.2</td>
+<td>40–70 min</td>
+<td>6.1 = ecio decimal-parse (lib/core/signal_snapshot.dart) — reuse parseDecimalInt. 6.2 = PEAK adaptive label (lib/ui/widgets/speed_history_chart.dart) — reuse splitRate. File-disjoint (core vs ui) but EXECUTED SEQUENTIALLY on main (shared-tree full-suite gate cross-attribution). Neither security-tier; no architect gate (state none). 6.1 may opportunistically refresh lib/core/core.dart’s stale doc header.</td>
+</tr>
+<tr>
+<td><strong>P6.B</strong></td>
+<td>6.3</td>
+<td>50–90 min</td>
+<td>6.3 = bound the secure-store password read with a timeout + a concurrent warm-expiry re-login regression test (lib/core/agent_client.dart + test). SECURITY-TIER: opus architect gate REQUIRED, security-reviewer second pass REQUIRED. Runs after 6.1/6.2 (independent file, but sequenced last so the security cycle lands on a clean tree). deps: none, but do not parallelize with 6.1 (both touch lib/core → shared-tree gate).</td>
+</tr>
+</tbody>
+</table></div>
+
+      </section>
+<hr class="section-rule">
+<section id="inter-batch-verification" class="section">
+        <h2>Inter-batch verification</h2>
+        <p>After each cycle: full <code>flutter test</code> green + <code>flutter analyze</code> clean + a fresh <code>code-reviewer</code> (opus) <code>APPROVED</code> (+ <code>security-reviewer</code> APPROVED for 6.3); update the cycle <code>status:</code> in plan-006.yaml; file <code>docs/cycles/6.X.yaml</code> (<code>npm run validate-cycle-note</code>); regenerate docs (<code>npm run build -- u60-monitor</code>; <code>html/</code> gitignored). One commit per cycle per <code>commit.md</code>.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="stop-conditions-across-all-batches" class="section">
+        <h2>Stop conditions (across all batches)</h2>
+        <ul>
+<li>6.3 architect returns <code>NO-GO</code>, or requires the <code>_login()</code> wrapper to become <code>async</code> (that would break the ADR-0013 single-sync-turn invariant) → STOP, escalate.</li>
+<li>A 6.3 timeout mapping that could issue an unauthenticated request on the timeout path (silent success) → BLOCKER, must be fixed before COMMIT.</li>
+<li>Any <code>dependencies:</code> add (none planned) → out-of-bounds STOP.</li>
+<li>Any existing test weakened to fit a fix → STOP (these cycles only ADD tests).</li>
+<li>A base-URL setter or a modem WRITE introduced (out of scope; the write path is a separate security-tier future cycle) → STOP.</li>
+</ul>
+
+      </section>
+<hr class="section-rule">
+<section id="final-state" class="section">
+        <h2>Final state</h2>
+        <p>Test trajectory: baseline 310 → roughly +3 (6.1) +4 (6.2) +3 (6.3) ≈ <strong>~320</strong> tests. The latent 3G Ec/Io decimal bug is fixed; the chart PEAK label is adaptive and consistent with the DL/UL twin; the login secret read is bounded so a hung read can no longer stall all six pollers, with a concurrent warm-expiry regression test closing the sec-A gap. ADR-0013 §Advisory discharged. ZERO new deps. No git remote — never push. Remaining after plan-006: only human-only on-device visual verification + the optional upstream agent-wrapper PR.</p>
+
+      </section>
+<hr class="section-rule">
+<section id="p6.a" class="section">
+      <h2>P6.A — latent-bug + adaptivity fixes (core ‖ UI)</h2>
+      
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 6.1 (ecio decimal-parse)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-86" aria-label="Copy prompt for Session — Cycle 6.1 (ecio decimal-parse)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-86">
+You are the Cycle 6.1 orchestrator for u60-monitor (plan-006). Fix the latent WCDMA `ecio` (3G Ec/Io) decimal-parse bug in `lib/core/signal_snapshot.dart`: it uses the integer `parseInt` while the sibling `nr5g_snr`/`lte_snr` use the rounding `parseDecimalInt` (Cycle-B), so a decimal Ec/Io string like `&quot;-8.5&quot;` returns null and 3G signal quality is silently dropped. Fresh context. Architecture review **none** (one-line parser swap; parseDecimalInt already exists + was reviewed in Cycle B). Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 150 words. If `Agent` unavailable → STOP.
+
+Mandatory reads: root + project `CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd}.md`; `docs/plan-006.yaml` this cycle; `lib/core/signal_snapshot.dart` (confirm the ecio→sinrDb branch + exact `.round()` behaviour BEFORE writing assertions) + `test/core/signal_snapshot_test.dart`.
+
+Gate: full `flutter test` green; `flutter analyze` clean; zero `flutter` import under `lib/core`; existing signal-snapshot cases untouched.
+
+Commit: `fix(core): parse WCDMA ecio as decimal string`. Stage `lib/core/signal_snapshot.dart`, `test/core/signal_snapshot_test.dart`, (optional) `lib/core/core.dart`, `docs/plan-006.yaml`, `docs/cycles/6.1.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01WPpTNRVdiXnPWJvc3Kx9is`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 6.2 (PEAK adaptive unit)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-87" aria-label="Copy prompt for Session — Cycle 6.2 (PEAK adaptive unit)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-87">
+You are the Cycle 6.2 orchestrator for u60-monitor (plan-006). Make the chart PEAK label adaptive (bps/Kbps/Mbps/Gbps) to match Cycle-C's adaptive DL/UL twin, instead of the current hardcoded Mbps that reads &quot;0 Mbps&quot; at low throughput. Reuse the existing `splitRate()` helper (lib/core/format.dart). Fresh context. Architecture review **none** (presentation-only, reuses an existing helper). Run RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → stop before COMMIT. Report ≤ 160 words. If `Agent` unavailable → STOP.
+
+Mandatory reads: root + project `CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,review-checklist}.md`; `docs/plan-006.yaml` this cycle; `lib/ui/widgets/speed_history_chart.dart` + `test/ui/widgets/speed_history_chart_test.dart` + `lib/core/format.dart` (`splitRate` shape) + `lib/ui/widgets/speed_twin.dart` (how the twin renders the adaptive unit).
+
+LOCKED: reuse `splitRate(peakBytesPerSec)`; PRESERVE the `reconnecting → &quot;PEAK —&quot;` and `zero/non-finite → &quot;—&quot;` branches verbatim; reuse the existing PEAK TextStyle; no new overflow at 1.3× (the label must still fit the header row).
+
+Gate: full `flutter test` green (incl. low-throughput Kbps, mid Mbps, em-dash branches, 1.3× no-overflow); `flutter analyze` clean; manual chart smoke at low + mid throughput.
+
+Commit: `fix(app): make chart PEAK label adaptive unit`. Stage `lib/ui/widgets/speed_history_chart.dart`, `test/ui/widgets/speed_history_chart_test.dart`, `docs/plan-006.yaml`, `docs/cycles/6.2.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01WPpTNRVdiXnPWJvc3Kx9is`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+    </section>
+<hr class="section-rule">
+<section id="p6.b" class="section">
+      <h2>P6.B — login secret-read timeout (security-tier)</h2>
+      
+      <details class="collapse">
+        <summary><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="9 6 15 12 9 18"/></svg>Session — Cycle 6.3 (login secret-read timeout, security-tier)<span class="spacer"></span><span class="pill"><span class="dot"></span>prompt</span></summary>
+        <div class="collapse-body">
+          
+          <figure class="code">
+            <figcaption><span class="lang">prompt</span><span class="path">paste verbatim into a fresh /clear session</span><span class="spacer"></span><button class="copy-btn" type="button" data-copy-target="#prompt-88" aria-label="Copy prompt for Session — Cycle 6.3 (login secret-read timeout, security-tier)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy prompt</button></figcaption>
+            <pre><code id="prompt-88">
+You are the Cycle 6.3 orchestrator for u60-monitor (plan-006). SECURITY-TIER cycle. Bound the login's secure-store password read with a timeout so a hung read cannot stall the shared single-flight login (and thus all six pollers), per ADR-0013 §Advisory; and add a concurrent warm-token-expiry re-login regression test (the sec-A coverage gap). Fresh context. Architecture review **REQUIRED (opus)**. Run ARCHITECT (opus, GO/NO-GO) → RED → GREEN → REVIEW (fresh `code-reviewer` via `Agent`, opus) → (REFACTOR → REVIEW)* → APPROVED → SECURITY-REVIEWER second pass (opus, APPROVED) → stop before COMMIT. Report ≤ 220 words. Reviewer separation mandatory. If `Agent` unavailable → STOP + `AUTONOMOUS_RUN_STATUS.md`.
+
+Mandatory reads: root + project `CLAUDE.md`; `.claude/rules/{cycle-orchestration,tdd,commit,review-checklist}.md`; `docs/plan-006.yaml` this cycle; `docs/adr/0013-polling-cadence-and-login-guard.md`; `lib/core/agent_client.dart` (esp. `_login`, `_performLogin`, `_loginInFlight`, `_timeout`) + `test/core/agent_client_test.dart` (Test 3 single-caller expiry, Test 10/10c cold concurrency — the model to extend).
+
+LOCKED (architect confirms): `await provider().timeout(_timeout)`; TimeoutException → AuthRequired/AgentError (never silent success → never an unauthenticated request); `_login()` stays NON-`async` (single sync turn); `whenComplete` clears `_loginInFlight` on the timeout path too; the guard's shape is unchanged. Record the threat model (attacker-can / mitigation-blocks / residual-risk) in the cycle note.
+
+Anti-hallucination guard for REVIEW:
+```
+grep -n &quot;provider().timeout\|_loginInFlight\|_login()\|whenComplete&quot; lib/core/agent_client.dart
+grep -rn &quot;import 'package:flutter&quot; lib/core/   # expect 0
+flutter analyze &amp;&amp; flutter test test/core/agent_client_test.dart &amp;&amp; flutter test
+```
+
+Gate: full `flutter test` green (incl. the timeout auth-halt + recovery, no-silent-success, concurrent warm-expiry single-flight); `flutter analyze` clean; zero `flutter` import under `lib/core`. Both `code-reviewer` AND `security-reviewer` APPROVED.
+
+Commit: `fix(core): bound login secret read with a timeout`. Body explains the threat (hung secure-store read stalls the shared login → all pollers) + the mitigation (bounded read → recoverable auth-halt) — security commit bodies are normal tone, not caveman. Stage `lib/core/agent_client.dart`, `test/core/agent_client_test.dart`, `docs/plan-006.yaml`, `docs/cycles/6.3.yaml`. Trailers:
+`Co-Authored-By: Claude Opus 4.8 (1M context) &lt;noreply@anthropic.com&gt;`
+`Claude-Session: https://claude.ai/code/session_01WPpTNRVdiXnPWJvc3Kx9is`
+</code></pre>
+          </figure>
+          
+        </div>
+      </details>
+    </section>
+
+  </div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <span class="mono">u60-monitor · docs</span>
+    <span>Live ZTE U60 Pro speed · Flutter · zulfahmi.dev</span>
+    <span style="margin-left:auto" class="mono">Source: plan-006.yaml</span>
+  </div>
+</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>
