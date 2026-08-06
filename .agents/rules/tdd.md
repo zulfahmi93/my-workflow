@@ -60,7 +60,7 @@ If any gate fails, GREEN is not done. Loop back to fix before invoking REVIEW.
 ## Deferral policy — fix now, don't pile up
 
 - `[BLOCKER]` and `[REFACTOR]` items are resolved in this cycle's REFACTOR pass, full stop. No silent deferral.
-- `[NIT]` items: fix now if the fix is trivial — bounded as **< 1 hour AI-assisted wall-clock** (≈ **< 4 hours of unaided human work**). The cycle is agent-executed, so the ceiling is measured against agent effort, not hand-coding time. Otherwise log in the project's plan §"Open questions" as a tracked follow-up — never silently skip.
+- `[NIT]` items: fix now if the fix is trivial — bounded as **< 1 hour AI-assisted wall-clock** (≈ **< 4 hours of unaided human work**). The cycle is agent-executed, so the ceiling is measured against agent effort, not hand-coding time. Otherwise log in the project's plan §"Cycle follow-ups" as a tracked follow-up — never silently skip.
 - Genuine deferral (item requires its own RED/GREEN — e.g. RLS policies, indexes that need access patterns from a later phase) requires:
   1. Explicit user approval in the current session, AND
   2. A new cycle entry added to the project's plan with a clear gate.
