@@ -1,0 +1,11 @@
+{
+  "productName": "wallet-ai",
+  "accent": "#7c3aed",
+  "themeKey": "wallet-ai-docs-theme",
+  "footerTagline": "Telegram capture into Wallet by BudgetBakers · .NET · zulfahmi.dev",
+  "landing": {
+    "eyebrow": "wallet-ai · build documentation",
+    "title": "Build plans for wallet-ai",
+    "lede": "wallet-ai turns a two-word Telegram message into a real record in Wallet by BudgetBakers, because the app's data model is good and its entry UX is not. Built on Wallet's official REST API — probed live during design, which is how we learned it has no idempotency key: the identical request sent twice creates two transactions. Every expensive part of the plan exists to make that survivable. Each plan below is a sequence of disciplined TDD cycles. Pick a plan to read its cycles and parallel runbook."
+  }
+}

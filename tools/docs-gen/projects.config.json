@@ -142,6 +142,17 @@
           "id": "007"
         }
       ]
+    },
+    {
+      "name": "wallet-ai",
+      "docsRoot": "projects/personal/wallet-ai/docs",
+      "outDir": "projects/personal/wallet-ai/docs/html",
+      "site": "wallet-ai.site.json",
+      "plans": [
+        {
+          "id": "001"
+        }
+      ]
     }
   ]
 }
