@@ -262,6 +262,23 @@ async function validateAllHooksResolve(cwd) {
   }
 }
 
+// First `projects/<group>/<name>/` that is its own git repository, in a stable order. Returns
+// null in a root-only clone or a git worktree, where `projects/` is absent entirely.
+async function firstNestedRepo() {
+  const projects = path.join(repoRoot, 'projects');
+  const dirs = async (parent) => (await readdir(parent, { withFileTypes: true }).catch(() => []))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  for (const group of await dirs(projects)) {
+    for (const project of await dirs(path.join(projects, group))) {
+      const dir = path.join(projects, group, project);
+      if (await access(path.join(dir, '.git')).then(() => true).catch(() => false)) return dir;
+    }
+  }
+  return null;
+}
+
 async function validateCommitHookBehaviour() {
   const apostrophe = String.fromCharCode(39);
   const cases = [
@@ -279,9 +296,15 @@ async function validateCommitHookBehaviour() {
   ];
 
   // Run from inside a nested project repo when one exists — that is exactly where a
-  // root-resolution bug hides, because .agents/ lives only at the monorepo root.
-  const nested = path.join(repoRoot, 'projects/personal/u60-monitor');
-  const cwd = await access(nested).then(() => nested).catch(() => repoRoot);
+  // root-resolution bug hides, because `.agents/` lives only at the monorepo root while
+  // `git rev-parse --show-toplevel` down there answers with the NESTED repo.
+  //
+  // Found on disk rather than named. This used to hardcode projects/personal/u60-monitor; when
+  // that project was retired the `access` fallback quietly moved every case below back to
+  // repoRoot — the one cwd this check exists NOT to be run from — and the suite stayed green
+  // while covering nothing. A `.git` entry is the discriminator because it is precisely what
+  // makes rev-parse answer wrong.
+  const cwd = (await firstNestedRepo()) || repoRoot;
 
   await validateAllHooksResolve(cwd);
 
@@ -368,8 +391,9 @@ async function validateLinks() {
 // The dead set is derived from disk rather than hardcoded, so the next canonical directory to
 // move is covered the day it moves. That derivation is also what keeps the check from
 // over-reaching: an adapter path is flagged only when `.agents/` has that name and the adapter
-// does not, which leaves `.claude/settings.json`, `.claude/workflows/`, `.claude/skills/` and
-// tinjau's `~/.claude/projects/` (Claude's own session store, which that project reads) alone.
+// does not. That leaves `.claude/settings.json`, `.claude/workflows/` and `.claude/skills/` alone
+// because those still exist, and leaves `.claude/worktrees/` alone in the other direction —
+// adapter-only, with no canonical counterpart it could have moved away from.
 async function deadAdapterDirs() {
   const subdirs = async (rel) => new Set(
     (await readdir(path.join(repoRoot, rel), { withFileTypes: true }).catch(() => []))
@@ -389,17 +413,40 @@ async function deadAdapterDirs() {
 // cycle note correctly quotes the path that cycle's agents were told to read at the time.
 const CORPUS_PRUNE = new Set(['node_modules', '.git', 'html', 'cycles']);
 
-// Two exemptions, and they have to stay two. plan-009 is the plan that SPECIFIES this sweep —
-// cycle 9.2 is titled "Sweep the dead .claude/rules path from the plan YAMLs" — so its
-// occurrences are the statement of the defect, the rewrite instruction, and the literal grep the
-// cycle is gated on. Rewriting them would invert that gate into counting the new path. The
-// open-issues file is a dated snapshot of what was broken on 2026-07-19; rewriting it would make
-// the record claim a defect that never existed. Every other file naming a dead adapter directory
-// holds a live pointer an agent will follow into nothing: fix the file, do not extend this list.
-const POINTER_EXEMPT = new Set([
-  'projects/personal/u60-monitor/docs/plan-009.yaml',
-  'projects/personal/u60-monitor/docs/open-issues-2026-07-19.md',
-]);
+// Files where a dead adapter path is the SUBJECT rather than a pointer, so rewriting it destroys
+// the record. Exactly two shapes have ever qualified: the plan that SPECIFIES this sweep — its
+// cycle is gated on a literal grep for the dead path, so rewriting it inverts the gate into
+// counting the new path — and a dated open-issues snapshot of what was broken on the day it was
+// written, which rewriting would make claim a defect that never existed. Every other file naming
+// a dead adapter directory holds a live pointer an agent will follow into nothing: fix the file,
+// do not extend this list.
+//
+// It is empty because both entries it shipped with named files under
+// projects/personal/u60-monitor, and that project was retired on 2026-08-06. Nothing failed when
+// they went: an exemption is keyed on a path, so it dies with the file and goes on reading as
+// live policy while excusing nothing. validateExemptionsResolve() below is what makes that state
+// loud, so the list gets pruned by the change that retires the file rather than by whoever next
+// happens to open this one.
+const POINTER_EXEMPT = new Set([]);
+
+// The exemption list is the one part of this check that cannot self-heal: everything else is
+// derived from disk (deadAdapterDirs, the corpus walk), while an exemption names a literal path
+// and stays behind when that path goes. Checking it against disk is the whole fix — a named file
+// that is missing is an error, and the error is the prompt to prune.
+//
+// Skipped when the entry's own top-level directory is absent, for the same reason
+// validateCanonicalPointers() skips `projects/`: the root repo gitignores the nested project
+// repos, so a root-only clone — and the git worktrees the harness routinely hands to subagents —
+// have none of them. Absent is an environment state, not a finding; hard-failing there produces
+// false `git bisect` failures across the whole history.
+async function validateExemptionsResolve() {
+  const present = (rel) => access(path.join(repoRoot, rel)).then(() => true).catch(() => false);
+  for (const rel of POINTER_EXEMPT) {
+    if (!(await present(rel.split('/')[0]))) continue;
+    if (await present(rel)) continue;
+    errors.push(`POINTER_EXEMPT: ${rel} does not exist — a dead exemption excuses nothing; drop the entry in the change that removes the file`);
+  }
+}
 
 async function validateCanonicalPointers() {
   const dead = await deadAdapterDirs();
@@ -458,6 +505,7 @@ await validateCodexRuntimeAdapters();
 await validateCommitHookBehaviour();
 await validateLinks();
 await validateCanonicalPointers();
+await validateExemptionsResolve();
 
 if (errors.length) {
   for (const error of errors) console.error(error);
