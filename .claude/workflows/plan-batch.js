@@ -9,7 +9,9 @@ export const meta = {
 }
 
 // Required args: { project, projectPath, plan, batch }
-// Optional: cycles [{cycle, greenAgent, redAgent?, securityTier?}] to restrict/override, models {top, mid}
+// Optional: cycles [{cycle, greenAgent|greenRole, redAgent|redRole?, securityTier?}] — or bare
+//   cycle-id strings — to restrict/override; models {top, mid}; and notice / maxReviewPasses /
+//   maxRefutedOnlyPasses, forwarded verbatim to every tdd-cycle child.
 //
 // `args` can arrive as a JSON STRING rather than an object — see the note in tdd-cycle.js.
 const A = normalizeArgs(args)
@@ -36,10 +38,19 @@ const PRE_SCHEMA = {
     ok: { type: 'boolean' },
     notes: { type: 'string' },
     testCollisionRisk: { type: 'boolean' },
-    cycles: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['cycle', 'greenAgent', 'securityTier'], properties: {
+    // The neutral spec (.agents/workflows/plan-batch.md §Preflight record) names the roles
+    // greenRole / redRole; this adapter's child-workflow keys are greenAgent / redAgent. The
+    // schema used to accept only the legacy spelling, so a preflight that followed the spec
+    // verbatim was thrown out by its own contract — ajv: "must have required property
+    // 'greenAgent'" AND "must NOT have additional properties: greenRole". Accept either
+    // spelling, still demand exactly one implementation role: a record naming neither is the
+    // failure this required-list exists to catch, and must not slip through the alias.
+    cycles: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['cycle', 'securityTier'], anyOf: [{ required: ['greenAgent'] }, { required: ['greenRole'] }], properties: {
       cycle: { type: 'string' },
       greenAgent: { type: 'string' },
+      greenRole: { type: 'string' },
       redAgent: { type: 'string' },
+      redRole: { type: 'string' },
       securityTier: { type: 'boolean' },
     } } },
   },
@@ -54,13 +65,27 @@ Return data only.`, { label: 'preflight', phase: 'Preflight', schema: PRE_SCHEMA
 if (!pre) throw new Error('preflight died')
 if (!pre.ok) return { halted: 'preflight-failed', notes: pre.notes, cycles: pre.cycles }
 
+// Accept the neutral spec's greenRole / redRole spellings wherever a cycle record enters,
+// the way tdd-cycle.js does at its own arg boundary. Normalize each source BEFORE the merge
+// rather than once after it: merging first let a preflight-supplied `greenAgent` win the
+// `||` against a caller's `greenRole` override for the same cycle, so the override was
+// accepted, validated, and then silently discarded.
+const withRoleAliases = (c) => {
+  const n = { ...c }
+  if (n.greenRole && !n.greenAgent) n.greenAgent = n.greenRole
+  if (n.redRole && !n.redAgent) n.redAgent = n.redRole
+  delete n.greenRole
+  delete n.redRole
+  return n
+}
+
 // Narrow AFTER preflight, in code, never in the prompt. Two reasons the old prompt-only
 // form was wrong: the job list was built from whatever the agent chose to return, so a
 // preflight that ignored the instruction silently ran the WHOLE batch; and because the
 // agent validated the already-narrowed set, a file-ownership clash with an EXCLUDED
 // sibling went undetected — the exact check the preflight exists to perform.
 const overrides = {}
-for (const c of (A.cycles || [])) if (c && c.cycle) overrides[c.cycle] = c
+for (const c of (A.cycles || [])) if (c && c.cycle) overrides[c.cycle] = withRoleAliases(c)
 const requested = (A.cycles || []).map(c => (c && c.cycle) || c).filter(Boolean)
 let selected = pre.cycles
 if (requested.length) {
@@ -72,8 +97,7 @@ if (requested.length) {
   selected = pre.cycles.filter(c => requested.includes(c.cycle))
   log(`restricted to ${selected.length} of ${pre.cycles.length} batch cycles: ${requested.join(', ')}`)
 }
-const jobs = selected.map(c => ({ ...c, ...(overrides[c.cycle] || {}) }))
-  .map(c => ({ ...c, greenAgent: c.greenAgent || c.greenRole, redAgent: c.redAgent || c.redRole }))
+const jobs = selected.map(c => ({ ...withRoleAliases(c), ...(overrides[c.cycle] || {}) }))
 
 phase('Cycles')
 const runOne = (c) => workflow('tdd-cycle', {

@@ -29,6 +29,8 @@ Unknown fields are rejected.
 
 Stop with `preflight-failed` when `ok=false`.
 
+Stop with `requested-cycle-not-in-batch` when a restriction names a cycle the batch does not contain, reporting the batch's actual cycle list so the caller can tell a mistyped id from the wrong batch. Silently running the cycles that did match would execute a batch nobody asked for.
+
 ## Execution
 
 Each selected cycle runs through the canonical [TDD cycle workflow](tdd-cycle.md).
