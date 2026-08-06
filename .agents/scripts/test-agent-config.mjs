@@ -5,7 +5,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeTier } from '../../tools/docs-gen/lib/load-yaml-source.mjs';
+// Imported lazily. This module pulls in `yaml` from tools/docs-gen, whose node_modules is
+// gitignored, so a static import made the ENTIRE suite die with ERR_MODULE_NOT_FOUND in any
+// fresh clone or git worktree — which reads as "this commit is broken" and makes `git bisect`
+// report false failures across the whole history. Skip the one check, run the rest.
+let normalizeTier = null;
+try {
+  ({ normalizeTier } = await import('../../tools/docs-gen/lib/load-yaml-source.mjs'));
+} catch {
+  console.error('note: skipping normalizeTier check — run `npm i` in tools/docs-gen/ to enable it');
+}
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const failures = [];
@@ -107,7 +116,7 @@ try {
 }
 
 for (const [input, expected] of Object.entries({ opus: 'top', sonnet: 'mid', haiku: 'cheap', top: 'top', mid: 'mid', cheap: 'cheap' })) {
-  if (normalizeTier(input) !== expected) failures.push(`normalizeTier(${input}): expected ${expected}`);
+  if (normalizeTier && normalizeTier(input) !== expected) failures.push(`normalizeTier(${input}): expected ${expected}`);
 }
 
 const workflow = await readFile(path.join(repoRoot, '.claude/workflows/tdd-cycle.js'), 'utf8');

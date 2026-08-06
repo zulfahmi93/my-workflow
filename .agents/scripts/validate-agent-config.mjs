@@ -142,17 +142,50 @@ async function validateSkills() {
   }
 }
 
+// Each Claude hook: the portable policy it must delegate to, and the settings.json event +
+// matcher that must actually invoke it. The second half is the point — checking only that a
+// script names its delegate proves the script is correct, not that anything RUNS it. Before
+// this, the whole `hooks` block could be deleted from settings.json and the config still
+// validated clean.
+const CLAUDE_HOOKS = {
+  'block-commit-flags.sh': { target: '.agents/scripts/check-commit-command.sh', event: 'PreToolUse', matcher: 'Bash' },
+  'block-generated-writes.sh': { target: '.agents/scripts/check-generated-command.py', event: 'PreToolUse', matcher: 'Bash' },
+  'block-generated-html.sh': { target: '.agents/scripts/check-generated-path.sh', event: 'PreToolUse', matcher: 'Edit|Write|NotebookEdit' },
+  'validate-docs-yaml.sh': { target: '.agents/scripts/validate-docs-yaml.sh', event: 'PostToolUse', matcher: 'Edit|Write' },
+};
+
+async function validateClaudeSettings() {
+  const file = '.claude/settings.json';
+  let settings;
+  try {
+    settings = JSON.parse(await readFile(path.join(repoRoot, file), 'utf8'));
+  } catch (error) {
+    errors.push(`${file}: invalid JSON (${error.message})`);
+    return;
+  }
+  for (const [filename, { event, matcher }] of Object.entries(CLAUDE_HOOKS)) {
+    const entries = settings?.hooks?.[event];
+    if (!Array.isArray(entries)) {
+      errors.push(`${file}: missing ${event} hooks (${filename} is unwired)`);
+      continue;
+    }
+    const group = entries.find((e) => e && e.matcher === matcher);
+    if (!group) {
+      errors.push(`${file}: no ${event} entry with matcher "${matcher}" (${filename} is unwired)`);
+      continue;
+    }
+    const wired = (group.hooks || []).some((h) => typeof h?.command === 'string' && h.command.includes(filename));
+    if (!wired) errors.push(`${file}: ${event}/"${matcher}" does not invoke ${filename}`);
+  }
+}
+
 async function validateClaudeRuntimeAdapters() {
-  const hooks = {
-    'block-commit-flags.sh': '.agents/scripts/check-commit-command.sh',
-    'block-generated-html.sh': '.agents/scripts/check-generated-path.sh',
-    'validate-docs-yaml.sh': '.agents/scripts/validate-docs-yaml.sh',
-  };
-  for (const [filename, target] of Object.entries(hooks)) {
-    const source = await readFile(path.join(repoRoot, '.claude/hooks', filename), 'utf8');
+  for (const [filename, { target }] of Object.entries(CLAUDE_HOOKS)) {
+    const source = await readFile(path.join(repoRoot, '.claude/hooks', filename), 'utf8').catch(() => '');
+    if (!source) { errors.push(`.claude/hooks/${filename}: missing`); continue; }
     if (!source.includes(target)) errors.push(`.claude/hooks/${filename}: does not delegate to ${target}`);
   }
-  for (const name of ['tdd-cycle', 'plan-batch']) {
+  for (const name of ['tdd-cycle', 'plan-batch', 'cycle-to-commit']) {
     const adapter = await readFile(path.join(repoRoot, `.claude/workflows/${name}.js`), 'utf8');
     if (!adapter.includes('.agents/rules')) errors.push(`.claude/workflows/${name}.js: does not use canonical rules`);
     const spec = await readFile(path.join(repoRoot, `.agents/workflows/${name}.md`), 'utf8');
@@ -277,15 +310,47 @@ async function validateLinks() {
   }
   for (const root of roots) await collect(root);
 
+  // GitHub's heading-slug rules, which is what these #anchors are written against.
+  // Each space becomes its own hyphen — NOT collapsed. Removing an em-dash from
+  // "Deferral policy — fix now" leaves two adjacent spaces, and the real anchor is
+  // `deferral-policy--fix-now`; collapsing runs would look for a single hyphen and
+  // report every correct link in the repo as broken.
+  const slug = (heading) => heading.trim().toLowerCase()
+    .replace(/[`*_~]/g, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s/g, '-');
+  const anchorCache = new Map();
+  async function anchorsOf(file) {
+    if (!anchorCache.has(file)) {
+      const text = await readFile(file, 'utf8').catch(() => '');
+      const found = new Set();
+      for (const m of text.matchAll(/^#{1,6}\s+(.+?)\s*$/gm)) found.add(slug(m[1]));
+      anchorCache.set(file, found);
+    }
+    return anchorCache.get(file);
+  }
+
   for (const file of files) {
     const source = await readFile(file, 'utf8');
     for (const match of source.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
       const raw = match[1];
       if (/^(https?:|mailto:|#)/.test(raw) || raw.includes('<')) continue;
-      const target = raw.split('#', 1)[0];
+      const [target, fragment] = raw.split('#');
       if (!target) continue;
       const resolved = path.resolve(path.dirname(file), target);
-      await access(resolved).catch(() => errors.push(`${path.relative(repoRoot, file)}: missing link target ${raw}`));
+      const ok = await access(resolved).then(() => true).catch(() => {
+        errors.push(`${path.relative(repoRoot, file)}: missing link target ${raw}`);
+        return false;
+      });
+      // Check the #fragment too. Previously it was split off and discarded, so a renamed
+      // heading silently broke every rule that pointed at it — and these rules lean on
+      // section links heavily.
+      if (ok && fragment && resolved.endsWith('.md')) {
+        const anchors = await anchorsOf(resolved);
+        if (anchors.size && !anchors.has(fragment.toLowerCase())) {
+          errors.push(`${path.relative(repoRoot, file)}: link ${raw} points at no heading in ${path.relative(repoRoot, resolved)}`);
+        }
+      }
     }
   }
 }
@@ -295,6 +360,7 @@ if (!claudeShim.startsWith('@AGENTS.md\n')) errors.push('CLAUDE.md: must import 
 
 await validateRoles();
 await validateSkills();
+await validateClaudeSettings();
 await validateClaudeRuntimeAdapters();
 await validateCodexRuntimeAdapters();
 await validateCommitHookBehaviour();
