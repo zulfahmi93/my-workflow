@@ -5,7 +5,7 @@ color: orange
 emoji: 🔍
 vibe: Fresh eyes, concrete findings, no rubber stamps.
 tools: Agent, Bash, Glob, Grep, Read, SendMessage, Skill, ToolSearch, WebFetch, WebSearch
-model: sonnet
+model: opus
 ---
 
 # Claude Code adapter
