@@ -13,6 +13,7 @@ export const meta = {
 
 // Required args: { project, projectPath, plan, cycle, greenAgent }
 // Optional: redAgent (default 'Test Engineer'), securityTier (bool), models ({top, mid} override),
+//           maxReviewPasses (default 6, productive passes only), maxRefutedOnlyPasses (default 3),
 //           notice (extra text appended to every delegate's preamble — e.g. an isolation warning
 //           when projectPath points at a git worktree rather than the project's primary checkout)
 //
@@ -51,6 +52,17 @@ Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), the nearest loca
 Tone: write idiomatic code/tests/docs (caveman is chat-only and does not apply to subagents).
 NO-DEFER: every [BLOCKER]/[REFACTOR] finding is resolved this cycle (${RULES}/tdd.md §Deferral policy).
 Out of bounds unless the cycle spec says otherwise: package additions, schema edits, API-contract changes, editing tests during GREEN.${A.notice ? `\n${A.notice}` : ''}`
+
+// The finding-verifier is READ-ONLY, so it must not inherit COMMON's implementer clauses —
+// a refuter told "NO-DEFER: every finding is resolved this cycle" is being pointed at the
+// opposite of its job. It does need the environment half, above all A.notice: that is the
+// only channel a wrapper workflow uses to relocate the working dir (cycle-to-commit.js
+// passes its worktree assertion through it), and a verifier running the gate command in the
+// wrong tree refutes findings against the wrong code — the exact failure that wrapper was
+// written after. Previously this prompt was standalone and hardcoded "cwd = repo root",
+// so it was the one delegate isolation could never reach.
+const VERIFY_COMMON = `Project: ${A.project}. Working dir is the repo root.${A.notice ? `\n${A.notice}` : ''}
+You are read-only: run commands and read files, but never edit, create, commit, or branch.`
 
 const GATE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -113,9 +125,15 @@ const VERDICT_SCHEMA = {
   required: ['verdict', 'findings', 'skippedCategories'],
   properties: {
     verdict: { type: 'string', enum: ['APPROVED', 'NEEDS_FIX'] },
-    findings: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['tag', 'finding'], properties: {
+    findings: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['tag', 'finding', 'evidence'], properties: {
       tag: { type: 'string', enum: ['BLOCKER', 'REFACTOR', 'NIT'] },
       finding: { type: 'string' },
+      // The command + output the reviewer actually ran to establish this finding. Required
+      // on every finding so the verifier re-runs ONE quoted command instead of re-deriving
+      // the whole claim, and so a reviewer cannot assert a defect it never observed. The two
+      // recorded false BLOCKERs in this repo (isc 1.8, kobu 005.3) were both wrong-baseline
+      // errors that a stated command would have exposed at authoring time.
+      evidence: { type: 'string' },
       file: { type: 'string' },
       line: { type: 'number' },
       expectedRemediation: { type: 'string' },
@@ -124,10 +142,28 @@ const VERDICT_SCHEMA = {
   },
 }
 
+// One verifier per PASS, not per finding: the per-finding fan-out paid a fresh context and
+// often a fresh gate run for every claim (cycle 8.3 spent 7+5+2+2 = 16 verifier agents), and
+// every refutation this repo has recorded was a self-contained single-claim check that gains
+// nothing from being isolated from its siblings. `verdicts` is index-aligned with the
+// blocking findings it was given, and the count is checked before any of it is trusted.
 const REFUTE_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['refuted', 'evidence'],
-  properties: { refuted: { type: 'boolean' }, evidence: { type: 'string' } },
+  required: ['verdicts'],
+  properties: {
+    verdicts: {
+      type: 'array',
+      items: {
+        type: 'object', additionalProperties: false,
+        required: ['index', 'refuted', 'evidence'],
+        properties: {
+          index: { type: 'number' },
+          refuted: { type: 'boolean' },
+          evidence: { type: 'string' },
+        },
+      },
+    },
+  },
 }
 
 // ---- Gate ----
@@ -217,7 +253,29 @@ const refactors = []
 let lastReport = green
 let approved = false
 
-for (let pass = 1; pass <= MAX_REVIEW_PASSES && !approved; pass++) {
+// Three counters, because they bound different failures:
+//   attempt         — every review invocation; drives labels and the reviewer-id convention.
+//   productivePass  — a pass whose findings survived verification and drove a REFACTOR.
+//                     Only these consume MAX_REVIEW_PASSES, which exists to bound genuine
+//                     convergence (7 → 5 → 2 → 2). Previously a pass whose findings were ALL
+//                     refuted still incremented it, so a hallucinating reviewer could burn
+//                     the whole budget of `top`-tier passes and halt a cycle that had nothing
+//                     wrong with it — the stop then read as "reviewer dispute".
+//   refutedOnlyPass — bounded separately: not free, just not charged to the wrong budget.
+let attempt = 0
+let productivePasses = 0
+let refutedOnlyPasses = 0
+const MAX_REFUTED_ONLY = A.maxRefutedOnlyPasses || 3
+
+while (!approved) {
+  if (productivePasses >= MAX_REVIEW_PASSES) {
+    return { halted: 'review-not-approved', detail: `NEEDS FIX after ${productivePasses} productive review passes — autonomous stop condition 5.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+  }
+  if (refutedOnlyPasses >= MAX_REFUTED_ONLY) {
+    return { halted: 'reviewer-hallucination-loop', detail: `${refutedOnlyPasses} consecutive review passes produced only refuted findings. The reviewer is not converging on real defects; a human should read the rejected claims below.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+  }
+  attempt += 1
+  const pass = attempt
   const guard = hallucinationsRejected.length
     ? `\nHallucination guard (${RULES}/cycle-orchestration.md §Reviewer hallucination guard): earlier passes produced findings that contradicted verified state. Verify paths with ls/grep and run the gate command BEFORE asserting anything is missing. Rejected claims + evidence:\n${hallucinationsRejected.map(h => `- "${h.claim}" — refuted: ${h.evidence}`).join('\n')}\nPrior gate result stands: ${lastReport.gateResult}.`
     : ''
@@ -231,7 +289,8 @@ ${lockedBlock}
 Implementer gate result: ${lastReport.gateResult} (command: ${lastReport.command})${guard}
 ${noTdd
   ? `This is a no-tdd DOCUMENTATION cycle: there is no new test, so the fact-check IS the gate. Verify EVERY factual claim the diff asserts against current source — open the cited file, read the cited line. A claim you cannot verify against source is a BLOCKER, not a NIT, even when it reads plausibly. A stale cross-reference, a path that no longer resolves, or a cited line number that has moved is likewise a BLOCKER. Skip the test-coverage category and say so in skippedCategories.\n`
-  : ''}Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.`,
+  : ''}Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.
+EVERY finding requires an \`evidence\` field: the exact command you ran and the output line that establishes it — not a description of what you expect it to show. Establish your baseline first: you are reviewing THIS cycle's diff in the working dir named above, so a failure originating in another cycle's files, or a diff taken against the wrong base, is not a finding here. If you cannot produce a command whose output shows the defect, you have not established it — do not raise it.`,
     { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.top })
   if (!review) throw new Error(`reviewer pass ${pass} died`)
   const blocking = review.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
@@ -243,26 +302,47 @@ ${noTdd
   }
   if (mechanicallyApproved) { approved = true; break }
 
-  // Adversarial verification — the hallucination guard, systematized.
-  const verificationResults = await parallel(blocking.map(f => () =>
-    agent(`Adversarially verify a code-review finding against ACTUAL repo state (cwd = repo root).
-Finding [${f.tag}] on ${f.file || 'unknown file'}: ${f.finding}
-Use ls / grep / file reads, and run the gate command (${lastReport.command}) if relevant. refuted=true ONLY with hard evidence the finding misstates repo state (the file exists, the branch is covered, the import is used). Plausible-but-unverified stays refuted=false. evidence: the exact command + output line that decides it.`,
-      { label: `verify:p${pass}`, phase: 'REVIEW', schema: REFUTE_SCHEMA, model: MODELS.mid })
-      .then(v => ({ f, v }))
-  ))
-  const checked = Array.isArray(verificationResults) ? verificationResults : []
+  // Adversarial verification — the hallucination guard, systematized. One verifier for the
+  // whole pass: see REFUTE_SCHEMA for why the per-finding fan-out was not worth its tokens.
+  const verification = await agent(`${VERIFY_COMMON}
 
-  const completedVerifications = checked.filter(x => x && x.v).length
-  if (completedVerifications !== blocking.length) {
-    return { halted: 'finding-verification-failed', detail: `${blocking.length - completedVerifications} blocking finding verifier(s) returned no result.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+Verify ${blocking.length} code-review finding(s) against ACTUAL repo state, with one independent verdict each.
+Gate command for this cycle: ${lastReport.command}
+Confirm your working directory with pwd before you trust any command output.
+
+Findings:
+${blocking.map((f, i) => `[${i}] ${f.tag} — ${f.file || 'unknown file'}${f.line ? `:${f.line}` : ''}\n     claim: ${f.finding}\n     reviewer's stated evidence: ${f.evidence}`).join('\n')}
+
+Return one { index, refuted, evidence } per finding, index matching the [n] above — every finding, no extras, no duplicates.
+Start by re-running the reviewer's own stated evidence command: if it does not reproduce their claim, that is a refutation. Then check the claim independently.
+refuted=true ONLY with hard evidence the finding misstates repo state (the file exists, the branch is covered, the import is used, the failure came from a different cycle's files). Plausible-but-unverified stays refuted=false — an unverifiable finding survives.
+Judge each finding on its own; sharing a file is not sharing a fate. evidence: the exact command + the output line that decides it.`,
+    { label: `verify:pass-${pass}`, phase: 'REVIEW', schema: REFUTE_SCHEMA, agentType: 'Finding Verifier', model: MODELS.mid })
+
+  // Index-align defensively: a duplicated, missing, or out-of-range index must read as
+  // "not verified", never as a refutation.
+  const byIndex = new Map()
+  for (const v of (verification && verification.verdicts) || []) {
+    if (Number.isInteger(v.index) && v.index >= 0 && v.index < blocking.length && !byIndex.has(v.index)) {
+      byIndex.set(v.index, v)
+    }
   }
-  const confirmed = checked.filter(x => x.v && !x.v.refuted).map(x => x.f)
-  for (const x of checked.filter(x => x.v && x.v.refuted)) {
-    hallucinationsRejected.push({ claim: `[${x.f.tag}] ${x.f.finding}`, evidence: x.v.evidence, pass })
+  if (byIndex.size !== blocking.length) {
+    return { halted: 'finding-verification-failed', detail: `Verifier returned ${byIndex.size} usable verdict(s) for ${blocking.length} blocking finding(s); missing verification is never treated as refutation.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
   }
+
+  // Read through a default rather than indexing directly: an absent verdict must resolve to
+  // "not refuted" on its own, so the invariant holds even if the coverage halt above is ever
+  // bypassed. A finding survives unless something actively refuted it.
+  const verdictFor = (i) => byIndex.get(i) || { refuted: false, evidence: 'no verdict returned' }
+  const confirmed = blocking.filter((_, i) => !verdictFor(i).refuted)
+  blocking.forEach((f, i) => {
+    if (verdictFor(i).refuted) hallucinationsRejected.push({ claim: `[${f.tag}] ${f.finding}`, evidence: verdictFor(i).evidence, pass })
+  })
   log(`REVIEW pass ${pass}: ${blocking.length} blocking — ${confirmed.length} confirmed, ${blocking.length - confirmed.length} refuted`)
-  if (!confirmed.length) continue // every finding refuted → fresh pass with the guard inlined
+  if (!confirmed.length) { refutedOnlyPasses += 1; continue } // all refuted → fresh pass, guard inlined, budget untouched
+  refutedOnlyPasses = 0
+  productivePasses += 1
 
   phase('REFACTOR')
   const refactor = await agent(`${COMMON}
@@ -275,10 +355,6 @@ Return resolutions: one entry per finding stating exactly how it was resolved. g
   if (!refactor) throw new Error(`REFACTOR pass ${pass} died`)
   refactors.push({ pass, filesTouched: refactor.filesTouched, gateResult: refactor.gateResult, resolutions: refactor.resolutions, deviations: refactor.deviations })
   lastReport = refactor
-}
-
-if (!approved) {
-  return { halted: 'review-not-approved', detail: `NEEDS FIX after ${MAX_REVIEW_PASSES} passes — autonomous stop condition 5.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
 }
 
 // ---- Security tier second pass ----

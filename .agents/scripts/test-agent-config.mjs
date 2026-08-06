@@ -116,9 +116,132 @@ for (const guard of [
   "halted: 'inconsistent-review-verdict'",
   "halted: 'inconsistent-security-verdict'",
   "halted: 'finding-verification-failed'",
-  'completedVerifications !== blocking.length',
+  'byIndex.size !== blocking.length',
+  "halted: 'reviewer-hallucination-loop'",
 ]) {
   if (!workflow.includes(guard)) failures.push(`TDD workflow: missing guard ${guard}`);
+}
+
+// A wrapper workflow relocates the working dir by passing `notice` (cycle-to-commit.js sends
+// its worktree assertion that way), so EVERY delegate must receive it — a verifier running
+// the gate command in the wrong tree refutes findings against the wrong code. Grepping for a
+// `${COMMON}` interpolation would not have caught this: the finding-verifier sits inside a
+// parallel() thunk with its own standalone prompt. Render the workflow instead.
+async function renderCycle({ notice, reviewScript, verifyFor }) {
+  const calls = [];
+  let review = 0;
+  const respond = (label, opts) => {
+    if (label === 'gate:read-plan') return { mode: 'none', specSummary: 's', securityTier: false, noTdd: false, lockedDecisions: [] };
+    if (label === 'red') return { testFiles: ['t.py'], failingCommand: 'p', failureLine: 'f', gateResult: 'Passed: 0 / Failed: 1' };
+    if (label === 'green' || label === 'author') return { filesTouched: ['a.py'], gateResult: 'Passed: 1 / Failed: 0', command: 'p', deviations: [] };
+    if (label.startsWith('refactor:')) return { filesTouched: ['a.py'], gateResult: 'Passed: 1 / Failed: 0', command: 'p', deviations: [], resolutions: [{ finding: 'x', resolution: 'y' }] };
+    if (label.startsWith('review:pass-')) return reviewScript(review += 1);
+    if (label.startsWith('verify:')) return verifyFor(opts.lastBlocking);
+    return {};
+  };
+  let lastBlocking = 0;
+  const stubs = {
+    args: { project: 'p', projectPath: 'projects/personal/p', plan: '001', cycle: '9.9', greenAgent: 'Python Expert', ...(notice ? { notice } : {}) },
+    agent: async (prompt, opts = {}) => {
+      const label = opts.label || '(unlabelled)';
+      calls.push({ label, prompt, agentType: opts.agentType || null, model: opts.model || null });
+      const result = respond(label, { ...opts, lastBlocking });
+      if (label.startsWith('review:pass-')) {
+        lastBlocking = (result.findings || []).filter((f) => f.tag === 'BLOCKER' || f.tag === 'REFACTOR').length;
+      }
+      return result;
+    },
+    parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
+    phase: () => {},
+    log: () => {},
+  };
+  const render = new Function(
+    ...Object.keys(stubs),
+    `return (async () => {\n${workflow.replace(/^export const meta/m, 'const meta')}\n})()`,
+  );
+  return { result: await render(...Object.values(stubs)), calls };
+}
+
+const blockingFinding = (n) => ({ tag: 'BLOCKER', finding: `x${n}`, evidence: `ran cmd; saw line ${n}`, file: 'a.py' });
+const allVerdicts = (refuted) => (count) => ({ verdicts: Array.from({ length: count }, (_, i) => ({ index: i, refuted, evidence: 'e' })) });
+
+// A wrapper workflow relocates the working dir by passing `notice` (cycle-to-commit.js sends
+// its worktree assertion that way), so EVERY delegate must receive it — a verifier running
+// the gate command in the wrong tree refutes findings against the wrong code. Grepping for a
+// `${COMMON}` interpolation would not have caught this: the finding-verifier had its own
+// standalone prompt. Render the workflow instead.
+{
+  const NOTICE = 'WORKTREE-SENTINEL-FOR-TEST';
+  const { calls } = await renderCycle({
+    notice: NOTICE,
+    reviewScript: (n) => (n === 1
+      ? { verdict: 'NEEDS_FIX', findings: [blockingFinding(1)], skippedCategories: [] }
+      : { verdict: 'APPROVED', findings: [], skippedCategories: [] }),
+    verifyFor: allVerdicts(true),
+  });
+  if (!calls.length) failures.push('TDD workflow: notice probe invoked no delegates');
+  const verifier = calls.find((c) => c.label.startsWith('verify:'));
+  if (!verifier) failures.push('TDD workflow: notice probe never reached the finding-verifier');
+  else if (verifier.agentType !== 'Finding Verifier') {
+    failures.push(`TDD workflow: verifier agentType is ${verifier.agentType}, expected Finding Verifier`);
+  }
+  for (const { label, prompt } of calls) {
+    if (!prompt.includes(NOTICE)) failures.push(`TDD workflow: delegate ${label} does not receive args.notice`);
+  }
+  // Batched, not fanned out: one verifier call per pass regardless of finding count.
+  const passes = calls.filter((c) => c.label.startsWith('review:pass-')).length;
+  const verifiers = calls.filter((c) => c.label.startsWith('verify:')).length;
+  if (verifiers > passes) failures.push(`TDD workflow: ${verifiers} verifier calls for ${passes} review passes — expected at most one per pass`);
+}
+
+// Refuted-only passes must not consume the productive-pass budget, but must be bounded.
+{
+  const { result, calls } = await renderCycle({
+    reviewScript: () => ({ verdict: 'NEEDS_FIX', findings: [blockingFinding(1), blockingFinding(2)], skippedCategories: [] }),
+    verifyFor: allVerdicts(true), // every finding refuted, forever
+  });
+  if (result.halted !== 'reviewer-hallucination-loop') {
+    failures.push(`TDD workflow: endless refuted-only passes halted as ${result.halted}, expected reviewer-hallucination-loop`);
+  }
+  const reviews = calls.filter((c) => c.label.startsWith('review:pass-')).length;
+  if (reviews > 4) failures.push(`TDD workflow: refuted-only loop ran ${reviews} review passes before halting — budget not bounded`);
+  // One verifier per pass, not one per finding, even with 2 blocking findings each pass.
+  const verifiers = calls.filter((c) => c.label.startsWith('verify:')).length;
+  if (verifiers !== reviews) failures.push(`TDD workflow: ${verifiers} verifier calls for ${reviews} passes — expected exactly one per pass`);
+}
+
+// A verdict list that does not cover every finding is never treated as refutation.
+{
+  const { result } = await renderCycle({
+    reviewScript: () => ({ verdict: 'NEEDS_FIX', findings: [blockingFinding(1), blockingFinding(2)], skippedCategories: [] }),
+    verifyFor: () => ({ verdicts: [{ index: 0, refuted: true, evidence: 'e' }] }), // only 1 of 2
+  });
+  if (result.halted !== 'finding-verification-failed') {
+    failures.push(`TDD workflow: partial verdict list halted as ${result.halted}, expected finding-verification-failed`);
+  }
+}
+
+// Duplicated indexes must not pass the coverage check either.
+{
+  const { result } = await renderCycle({
+    reviewScript: () => ({ verdict: 'NEEDS_FIX', findings: [blockingFinding(1), blockingFinding(2)], skippedCategories: [] }),
+    verifyFor: () => ({ verdicts: [{ index: 0, refuted: true, evidence: 'e' }, { index: 0, refuted: true, evidence: 'e' }] }),
+  });
+  if (result.halted !== 'finding-verification-failed') {
+    failures.push(`TDD workflow: duplicated verdict index halted as ${result.halted}, expected finding-verification-failed`);
+  }
+}
+
+// Confirmed findings still drive REFACTOR and reach approval.
+{
+  const { result, calls } = await renderCycle({
+    reviewScript: (n) => (n === 1
+      ? { verdict: 'NEEDS_FIX', findings: [blockingFinding(1)], skippedCategories: [] }
+      : { verdict: 'APPROVED', findings: [], skippedCategories: [] }),
+    verifyFor: allVerdicts(false), // confirmed
+  });
+  if (!result.approved) failures.push(`TDD workflow: confirmed-finding path did not approve (halted: ${result.halted})`);
+  if (!calls.some((c) => c.label.startsWith('refactor:'))) failures.push('TDD workflow: confirmed finding did not drive a REFACTOR pass');
 }
 
 const cycleValidator = await readFile(path.join(repoRoot, 'tools/docs-gen/scripts/validate-cycle-note.mjs'), 'utf8');

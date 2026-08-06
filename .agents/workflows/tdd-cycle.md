@@ -6,9 +6,9 @@ Canonical vendor-neutral contract for one plan-driven cycle. Runtime adapters im
 
 Required: `project`, `projectPath`, `plan`, `cycle`, `greenRole`.
 
-Optional: `redRole` (default `Test Engineer`), `securityTier`, `maxReviewPasses` (default 6), runtime mappings for semantic model tiers (`top`, `mid`), and `notice` — extra text appended to every delegate's preamble.
+Optional: `redRole` (default `Test Engineer`), `securityTier`, `maxReviewPasses` (default 6), `maxRefutedOnlyPasses` (default 3), runtime mappings for semantic model tiers (`top`, `mid`), and `notice` — extra text appended to every delegate's preamble.
 
-`notice` exists for isolation: when `projectPath` points at a git worktree rather than the project's primary checkout, every delegate must be told so explicitly. A delegate that edits the primary checkout out of habit corrupts a tree the cycle does not own, and the mistake surfaces only at integration.
+`notice` exists for isolation: when `projectPath` points at a git worktree rather than the project's primary checkout, every delegate must be told so explicitly. A delegate that edits the primary checkout out of habit corrupts a tree the cycle does not own, and the mistake surfaces only at integration. Every delegate means every delegate, including read-only ones: a verifier that runs the gate command in the wrong tree refutes findings against code the cycle does not own.
 
 ## Global invariants
 
@@ -28,8 +28,10 @@ Runtime adapters must reject unknown fields and require the following shapes:
 - RED: `testFiles[]`, `failingCommand`, `failureLine`, `gateResult`.
 - Implementation: `filesTouched[]`, `gateResult`, `command`, `deviations[{change,rationale}]`, optional `notes`.
 - REFACTOR: the implementation fields plus `resolutions[{finding,resolution}]`.
-- Review verdict: `verdict(APPROVED|NEEDS_FIX)`, `findings[{tag,finding,file?,line?,expectedRemediation?}]`, `skippedCategories[{category,reason}]`; tags are `BLOCKER|REFACTOR|NIT`.
-- Finding verification: `refuted`, `evidence`.
+- Review verdict: `verdict(APPROVED|NEEDS_FIX)`, `findings[{tag,finding,evidence,file?,line?,expectedRemediation?}]`, `skippedCategories[{category,reason}]`; tags are `BLOCKER|REFACTOR|NIT`.
+- Finding verification: `verdicts[{index,refuted,evidence}]`, one entry per blocking finding, `index` aligned to the order the findings were supplied in.
+
+`evidence` on a finding is the command the reviewer ran and the output line that establishes the defect — not a description of what that command would show. It exists so verification re-runs one stated command instead of re-deriving the claim, and so a reviewer cannot assert a defect it never observed.
 
 ## Sequence
 
@@ -56,18 +58,20 @@ When `noTdd` is set this is an AUTHOR pass instead: make only the documentation 
 
 ### 4. REVIEW and REFACTOR loop
 
-Run at most `maxReviewPasses` review passes (default 6). Four proved too low for a large cycle: one converged 7 → 5 → 2 → 2 blocking findings with zero refutations and then halted on the cap with documentation findings still open, which reads as a reviewer dispute when the cycle is plainly still converging.
+Run at most `maxReviewPasses` **productive** passes (default 6) — a pass whose findings survived verification and drove a refactor. Four proved too low for a large cycle: one converged 7 → 5 → 2 → 2 blocking findings with zero refutations and then halted on the cap with documentation findings still open, which reads as a reviewer dispute when the cycle is plainly still converging.
+
+A pass whose blocking findings are *all* refuted is not productive and must not consume that budget; otherwise a hallucinating reviewer exhausts the allowance meant for genuine convergence and halts a cycle that had nothing wrong with it. Such passes are bounded separately by `maxRefutedOnlyPasses` (default 3).
 
 1. Delegate a fresh `Code Reviewer` at `top` capability with no write permission. Every review pass runs at `top`; a cheaper reviewer is what the separation rule exists to prevent.
    When `noTdd` is set, the reviewer runs as a source-verified fact-check: every claim the diff asserts is checked against the cited file and line, an unverifiable claim is a `BLOCKER` rather than a `NIT`, and the test-coverage category is recorded in `skippedCategories`.
 2. Derive approval mechanically: `APPROVED` is valid only when there are no `BLOCKER` or `REFACTOR` findings. Stop with `inconsistent-review-verdict` when the claimed verdict contradicts the finding list.
-3. Adversarially verify every blocking finding against actual repository state and the implementer's gate command. A finding is refuted only by hard evidence.
-4. Stop with `finding-verification-failed` if any finding verifier dies or returns no result; missing verification is never treated as refutation.
+3. Adversarially verify the pass's blocking findings against actual repository state and the implementer's gate command, in a single delegate holding no review context — one independent verdict per finding, judged on its own. A finding is refuted only by hard evidence; re-running the reviewer's own stated evidence command is the first check. The verifier is read-only at the tool layer, because a verifier that repairs what it was asked to check makes its own refutation true.
+4. Stop with `finding-verification-failed` unless every blocking finding has exactly one usable verdict. A missing, duplicated, or out-of-range verdict is never treated as refutation.
 5. Record refuted claims with their evidence and inject them into later review prompts as a hallucination guard.
-6. If all blocking findings are refuted, run a fresh review pass without changing code.
+6. If all blocking findings are refuted, run a fresh review pass without changing code, charged to `maxRefutedOnlyPasses`. Stop with `reviewer-hallucination-loop` when that bound is reached — the reviewer is not converging on real defects and a human must read the rejected claims.
 7. Otherwise delegate `greenRole` to resolve every confirmed finding, rerun the gate, record one resolution per finding, and loop.
 
-Stop with `review-not-approved` if that many passes do not reach approval.
+Stop with `review-not-approved` if that many productive passes do not reach approval.
 
 ### 5. Security review
 
