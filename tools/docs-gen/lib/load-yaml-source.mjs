@@ -55,7 +55,7 @@ function buildPlanModel(doc) {
     // D4: extra overview prose, rendered as its own sections on the overview page after
     // Context. The MD path never surfaced these; the YAML now does — by design.
     // Two forms, both supported + concatenated in order:
-    //   1. named keys (kept for back-compat): stack, tdd-cycle-format, plan-003-note
+    //   1. named keys (kept for back-compat): stack, tdd-cycle-format
     //   2. a general ordered list `extra-sections[]` of { id, heading, body } so any plan
     //      can carry its own arbitrary prose (susun's Core concept / Project root / Phases).
     overviewExtras: buildOverviewExtras(ov),
@@ -70,7 +70,6 @@ function buildOverviewExtras(ov) {
   const out = [];
   if (ov.stack) out.push({ id: 'stack', heading: 'Stack', body: ov.stack });
   if (ov['tdd-cycle-format']) out.push({ id: 'tdd-cycle-format', heading: 'TDD cycle format', body: ov['tdd-cycle-format'] });
-  if (ov['plan-003-note']) out.push({ id: 'plan-003-note', heading: 'Plan-003 dependency', body: ov['plan-003-note'] });
   for (const s of ov['extra-sections'] || []) {
     out.push({ id: s.id || slugify(s.heading), heading: s.heading || s.id, body: s.body || '' });
   }

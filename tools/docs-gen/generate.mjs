@@ -366,7 +366,7 @@ function renderBatchesPage(project, site, pd, nav) {
       body += `<section id="ownership" class="section">
         <h2>File-ownership map</h2>
         <p>Within a batch the cycles are file-disjoint &mdash; that is what makes them conflict-free to run in parallel and to fast-forward merge.</p>
-        ${hasMatrix ? T.ownershipMatrix(meta) : ''}
+        ${hasMatrix ? T.ownershipMatrix(meta, site) : ""}
         ${hasMatrix ? `<div class="conv" style="margin-top:18px"><h4>${T.ICONS.check} Conflict notes from source</h4></div>` : ''}
         ${T.prose(hasMatrix ? stripLeadingTable(s.body) : s.body)}
       </section>\n<hr class="section-rule">\n`;
@@ -656,7 +656,14 @@ function validateAll(targetProject, targetPlan) {
     for (const pl of project.plans) {
       if (targetPlan && pl.id !== targetPlan) continue;
       const yamlName = pl.yaml || `plan-${pl.id}.yaml`;
-      if (!sourceExists(project.docsRoot, yamlName)) continue; // MD-sourced plan; nothing to validate here
+      // A registered plan with no source file is a registry error, not something to skip.
+      // The old `continue` cited the MD-triad format that docs-site.md declares removed, so
+      // `npm run validate` passed clean on a plan that `npm run build` would hard-error on.
+      if (!sourceExists(project.docsRoot, yamlName)) {
+        failed++;
+        console.error(`\n${project.name}/${yamlName}: listed in projects.config.json but no such file\n`);
+        continue;
+      }
       checked++;
       try {
         validateDoc(parseYamlDoc(join(REPO_ROOT, project.docsRoot, yamlName)), `${project.name}/${yamlName}`);

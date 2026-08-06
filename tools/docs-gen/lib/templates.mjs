@@ -355,9 +355,14 @@ export function statusPill(status, label) {
 // ---------------------------------------------------------------------------
 // File-ownership matrix
 // ---------------------------------------------------------------------------
-const MATRIX_COLS = [
+// Default columns. docs-site.md §Boundaries requires the generator to stay project-agnostic
+// — project identity belongs in site.json — but these regexes encode one repo's directory
+// names. They stay here only as the fallback for projects that declare nothing; a project
+// whose layout differs sets `matrix-columns` in its site.json instead of editing this file.
+const DEFAULT_MATRIX_COLS = [
   { key: 'web', label: 'web', match: (d) => /apps\/web/.test(d) },
   { key: 'api', label: 'api', match: (d) => /apps\/api/.test(d) },
+  { key: 'app', label: 'app', match: (d) => /apps\/app/.test(d) },
   { key: 'solver', label: 'solver', match: (d) => /services\/solver/.test(d) },
   // ocr/py: the OCR + import Python services, or a stray .py NOT under services/solver
   // (which has its own column above).
@@ -366,10 +371,27 @@ const MATRIX_COLS = [
   { key: 'infra', label: 'infra', match: (d) => /^infra\/|^scripts\/|\.github|Dockerfile|docker-compose|Caddyfile|caddy/.test(d) },
 ];
 
-export function ownershipMatrix(meta) {
+// site.json form: "matrix-columns": [{ "key": "app", "label": "app", "match": "apps/app" }]
+// `match` is a regex SOURCE string, since JSON cannot carry a function.
+function matrixColumns(site) {
+  const declared = site && site['matrix-columns'];
+  if (!Array.isArray(declared) || !declared.length) return DEFAULT_MATRIX_COLS;
+  return declared.map((c) => {
+    let re;
+    try {
+      re = new RegExp(c.match);
+    } catch (e) {
+      throw new Error(`site.json matrix-columns: column "${c.key || c.label}" has an invalid match regex (${e.message})`);
+    }
+    return { key: c.key, label: c.label || c.key, match: (d) => re.test(d) };
+  });
+}
+
+export function ownershipMatrix(meta, site) {
+  const cols = matrixColumns(site);
   const rows = meta.fileOwnership
     .map((o) => {
-      const cells = MATRIX_COLS.map((col) => {
+      const cells = cols.map((col) => {
         const owns = (o.dirs || []).some((d) => col.match(d));
         return owns
           ? '<td class="own"><span class="dot" title="owns"></span></td>'
@@ -379,7 +401,7 @@ export function ownershipMatrix(meta) {
       return `            <tr><td class="mono">${esc(o.cycle)}</td>${cells}<td style="font-size:.82rem">${newFiles}</td></tr>`;
     })
     .join('\n');
-  const heads = MATRIX_COLS.map((c) => `<th>${esc(c.label)}</th>`).join('');
+  const heads = cols.map((c) => `<th>${esc(c.label)}</th>`).join('');
   return `<div class="table-wrap">
         <table class="data matrix">
           <thead><tr><th>Cycle</th>${heads}<th>New top-level files</th></tr></thead>

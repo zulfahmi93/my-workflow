@@ -18,7 +18,6 @@
         "context": { "type": "string" },
         "stack": { "type": "string" },
         "tdd-cycle-format": { "type": "string" },
-        "plan-003-note": { "type": "string" },
         "extra-sections": {
           "type": "array",
           "items": {
@@ -157,7 +156,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "model": { "type": "string", "enum": ["top", "mid", "cheap", "opus", "sonnet", "haiku"] },
+        "model": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
         "agent": { "type": "string" },
         "meta-raw": { "type": "string" },
         "body": { "type": "string" },

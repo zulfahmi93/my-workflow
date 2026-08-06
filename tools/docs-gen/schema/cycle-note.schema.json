@@ -27,7 +27,7 @@
       "required": ["verdict"],
       "properties": {
         "verdict": { "type": "string", "enum": ["GO", "NO-GO"] },
-        "tier": { "type": "string", "enum": ["top", "mid", "cheap", "opus", "sonnet", "haiku"] },
+        "tier": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
         "reviewer": { "type": "string" },
         "summary": { "type": "string" },
         "locked-decisions": { "type": "array", "items": { "type": "string" } }
@@ -60,7 +60,7 @@
           "reviewer-agent-id": { "$ref": "#/$defs/reviewer-agent-id" },
           "verdict": { "type": "string", "enum": ["APPROVED", "NEEDS FIX"] },
           "role": { "type": "string", "enum": ["code-reviewer", "security-reviewer"] },
-          "model": { "type": "string", "enum": ["top", "mid", "cheap", "opus", "sonnet", "haiku"] },
+          "model": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
           "findings-count": { "type": "integer", "minimum": 0 }
         }
       }
