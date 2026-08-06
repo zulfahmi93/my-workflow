@@ -1,26 +1,6 @@
 {
   "projects": [
     {
-      "name": "ballot-counter",
-      "docsRoot": "projects/personal/ballot-counter/docs",
-      "outDir": "projects/personal/ballot-counter/docs/html",
-      "site": "ballot-counter.site.json",
-      "plans": [
-        {
-          "id": "002"
-        },
-        {
-          "id": "003"
-        },
-        {
-          "id": "004"
-        },
-        {
-          "id": "005"
-        }
-      ]
-    },
-    {
       "name": "susun-jadual",
       "docsRoot": "projects/personal/susun-jadual/docs",
       "outDir": "projects/personal/susun-jadual/docs/html",
@@ -89,17 +69,6 @@
         },
         {
           "id": "004"
-        }
-      ]
-    },
-    {
-      "name": "whatsapp-bot",
-      "docsRoot": "projects/rintis/whatsapp-bot/docs",
-      "outDir": "projects/rintis/whatsapp-bot/docs/html",
-      "site": "whatsapp-bot.site.json",
-      "plans": [
-        {
-          "id": "001"
         }
       ]
     },
