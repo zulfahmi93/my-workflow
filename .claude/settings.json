@@ -2,7 +2,7 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-8"
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5"
   },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true
