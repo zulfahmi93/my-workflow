@@ -12,47 +12,6 @@
       ]
     },
     {
-      "name": "u60-monitor",
-      "docsRoot": "projects/personal/u60-monitor/docs",
-      "outDir": "projects/personal/u60-monitor/docs/html",
-      "site": "u60-monitor.site.json",
-      "plans": [
-        {
-          "id": "001"
-        },
-        {
-          "id": "002"
-        },
-        {
-          "id": "003"
-        },
-        {
-          "id": "004"
-        },
-        {
-          "id": "005"
-        },
-        {
-          "id": "006"
-        },
-        {
-          "id": "007"
-        },
-        {
-          "id": "008"
-        },
-        {
-          "id": "009"
-        },
-        {
-          "id": "010"
-        },
-        {
-          "id": "011"
-        }
-      ]
-    },
-    {
       "name": "isc-workflow-web",
       "docsRoot": "projects/rintis/isc-workflow-web/docs",
       "outDir": "projects/rintis/isc-workflow-web/docs/html",
