@@ -19,9 +19,12 @@ def changed_paths(payload: dict[str, object]) -> list[tuple[str, str]]:
     if not isinstance(tool_input, dict):
         return []
     paths: list[tuple[str, str]] = []
-    file_path = tool_input.get("file_path")
-    if isinstance(file_path, str) and file_path:
-        paths.append(("Update", file_path))
+    # notebook_path as well as file_path: a notebook edit names its target differently, and
+    # reading only file_path silently waves every notebook through.
+    for key in ("file_path", "notebook_path"):
+        value = tool_input.get(key)
+        if isinstance(value, str) and value:
+            paths.append(("Update", value))
     command = tool_input.get("command")
     if isinstance(command, str):
         for line in command.splitlines():
@@ -36,7 +39,17 @@ def main() -> int:
     if len(sys.argv) != 2 or sys.argv[1] not in {"block-generated", "validate-yaml"}:
         print("usage: dispatch-file-policy.py block-generated|validate-yaml", file=sys.stderr)
         return 2
-    payload = json.load(sys.stdin)
+    # Report a malformed payload loudly and fail OPEN, matching read-hook-field.py on the
+    # Claude side. Previously this raised a raw JSONDecodeError traceback, which reads as a
+    # harness crash rather than "the policy did not run".
+    try:
+        payload = json.load(sys.stdin)
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        print(f"file-policy: hook payload is not valid JSON ({error}); policy NOT applied", file=sys.stderr)
+        return 0
+    if not isinstance(payload, dict):
+        print("file-policy: hook payload is not a JSON object; policy NOT applied", file=sys.stderr)
+        return 0
     repo_root = Path(__file__).resolve().parents[2]
     if sys.argv[1] == "block-generated":
         script = repo_root / ".agents/scripts/check-generated-path.sh"

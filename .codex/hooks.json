@@ -9,6 +9,12 @@
             "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec \"$root/.codex/hooks/block-commit-flags.sh\"",
             "timeout": 30,
             "statusMessage": "Checking commit policy"
+          },
+          {
+            "type": "command",
+            "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec \"$root/.codex/hooks/block-generated-writes.sh\"",
+            "timeout": 30,
+            "statusMessage": "Checking generated-output writes"
           }
         ]
       },

@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
-"""Read one `tool_input` field from a hook payload on stdin.
+"""Read a `tool_input` field from a hook payload on stdin.
 
-Usage: read-hook-field.py [field]     # field defaults to "command"
+Usage: read-hook-field.py [field ...]   # defaults to "command"
+
+Several field names may be given; the first one present wins. Different tools name the
+same thing differently — Edit/Write send `file_path`, NotebookEdit sends `notebook_path` —
+and a hook that asks for only one of them reads empty for the others and exits clean,
+which looks exactly like "nothing to check". The NotebookEdit arm of the generated-path
+policy was inert for that reason: matched, ran, always allowed.
 
 Replaces `jq -r '.tool_input.<field> // empty' 2>/dev/null` in the adapter hooks. That
 form swallowed every failure — a missing `jq`, malformed JSON, an unexpected shape — and
@@ -19,7 +25,7 @@ import sys
 
 
 def main() -> int:
-    field = sys.argv[1] if len(sys.argv) > 1 else "command"
+    fields = sys.argv[1:] or ["command"]
 
     try:
         payload = json.load(sys.stdin)
@@ -35,14 +41,17 @@ def main() -> int:
         # No tool_input at all is a legitimate shape for some events.
         return 0
 
-    value = tool_input.get(field)
-    if value is None:
+    for field in fields:
+        value = tool_input.get(field)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            print(f"tool_input.{field} is {type(value).__name__}, expected string", file=sys.stderr)
+            return 1
+        sys.stdout.write(value)
         return 0
-    if not isinstance(value, str):
-        print(f"tool_input.{field} is {type(value).__name__}, expected string", file=sys.stderr)
-        return 1
 
-    sys.stdout.write(value)
+    # None of the requested fields is present — a legitimate shape for many events.
     return 0
 
 

@@ -8,7 +8,9 @@ root="${CLAUDE_PROJECT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)}"
 
 # python3 rather than jq: `jq … 2>/dev/null` swallowed a missing binary or malformed
 # payload and yielded an empty path, silently disabling the policy.
-if ! fp=$(python3 "$root/.agents/scripts/read-hook-field.py" file_path); then
+# Both names: Edit/Write send file_path, NotebookEdit sends notebook_path. Asking for only
+# the first made the NotebookEdit arm of this matcher inert — it ran and always allowed.
+if ! fp=$(python3 "$root/.agents/scripts/read-hook-field.py" file_path notebook_path); then
   echo "generated-path policy: could not read hook payload; policy NOT applied" >&2
   exit 0
 fi
