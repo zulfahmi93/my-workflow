@@ -39,11 +39,36 @@ for (const k of ['project', 'projectPath', 'plan', 'cycle', 'greenAgent']) {
   if (!A[k]) throw new Error(`args.${k} is required — e.g. { project: "isc-workflow-web", projectPath: "projects/rintis/isc-workflow-web", plan: "004", cycle: "4.2", greenAgent: "React Expert" }`)
 }
 
-// Claude-specific tier→model binding for .agents/rules/lifecycle.md §Model capability tiers.
+const RULES = '.agents/rules'
+// Claude-specific tier→model binding for .agents/rules/lifecycle.md §Model capability tiers. That rule
+// has exactly two tiers — `top` (architect gate, REVIEW, security review) and `mid` (RED, GREEN,
+// REFACTOR, finding-verifier) — and no third, cheaper one. This loop is what makes "the adapter
+// binds { top, mid } and rejects any other tier key" true rather than merely asserted.
+//
+// The spread is the documented override channel, and it was trusted with no validation, which made
+// it the way a non-compliant binding got in silently. Rendered against stubbed globals (the
+// renderCycle technique in .agents/scripts/test-agent-config.mjs), two overrides reached `agent()`
+// without a complaint: `{ top: undefined }` beat the default — spread copies an own key even when
+// its value is undefined — and handed `model: undefined` to BOTH the architect gate and the REVIEW
+// gate; and `{ top: 'haiku' }` bound both to the cheap tier. lifecycle.md is explicit that a REVIEW
+// verdict produced below `mid` is non-compliant and that architect gates are top-tier only. Neither
+// case fails at the call site — the delegate just runs on whatever the harness defaults to — so the
+// verdict comes back looking exactly like a compliant one. Fail loudly at the binding instead.
 const MODELS = { top: 'opus', mid: 'sonnet', ...(A.models || {}) }
+const CHEAP_ALIASES = new Set(['cheap', 'haiku', 'claude-haiku'])
+for (const [tier, model] of Object.entries(MODELS)) {
+  if (tier !== 'top' && tier !== 'mid') {
+    throw new Error(`args.models.${tier} is not a tier this workflow binds — pass only { top, mid }. Per ${RULES}/lifecycle.md §Model capability tiers there is no third, cheaper tier; the mechanical work that used to justify one runs at \`mid\`.`)
+  }
+  if (typeof model !== 'string' || !model.trim()) {
+    throw new Error(`args.models.${tier} must be a non-empty model name, got ${JSON.stringify(model)} — omit the key to keep the default (top: opus, mid: sonnet).`)
+  }
+  if (CHEAP_ALIASES.has(model.trim().toLowerCase())) {
+    throw new Error(`args.models.${tier} = ${JSON.stringify(model)} binds a below-\`mid\` model to \`${tier}\`. Per ${RULES}/lifecycle.md §Model capability tiers \`mid\` is the floor — a REVIEW verdict produced below it is non-compliant — and architect gates are top-tier only.`)
+  }
+}
 const RED_AGENT = A.redAgent || 'Test Engineer'
 const PLAN_PATH = `${A.projectPath}/docs/plan-${A.plan}.yaml`
-const RULES = '.agents/rules'
 // 4 was too low for a large cycle. Cycle 8.3 (plan-008) converged 7 → 5 → 2 → 2 blocking
 // findings across four passes with zero hallucinations rejected, then halted on the cap with two
 // documentation findings outstanding — a stop that read as "reviewer dispute" when the cycle was

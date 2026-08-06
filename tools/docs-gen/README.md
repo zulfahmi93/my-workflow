@@ -177,9 +177,12 @@ non-zero) and is two-layer:
 
 - **JSON Schema** (`schema/plan.schema.json`, draft 2020-12, via **ajv**) — required fields,
   enums (`status` ∈ idle|wip|ok; `arch-review.state` ∈ required|none|deferred, and when
-  `required` → `tier` ∈ top|mid (legacy opus|sonnet accepted); phase `model` ∈
-  top|mid|cheap (legacy opus|sonnet|haiku accepted). Legacy aliases normalize to semantic
-  tiers while loading), types, and
+  `required` → `tier` ∈ top|mid; phase `model` ∈ top|mid — legacy `opus`/`sonnet` accepted
+  for both and normalized to those two tiers while loading. `cheap`/`haiku` were accepted
+  here until the tier they named was retired from
+  [lifecycle.md §Model capability tiers](../../.agents/rules/lifecycle.md#model-capability-tiers);
+  both are now rejected. A declared tier is validated but never published — the site renders
+  the tier the runtime actually binds, see `PHASE_TIER` in `lib/load-yaml-source.mjs`), types, and
   `additionalProperties:false` everywhere so a typo'd / unknown key (or a misindented block
   scalar that lands as the wrong type) fails loudly.
 - **Referential integrity** (in `lib/validate-source.mjs`, which ajv can't express) — every

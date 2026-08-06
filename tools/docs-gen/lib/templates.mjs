@@ -204,7 +204,11 @@ export function cycleCard(cycle, { open = false } = {}) {
       archBadge = `<span class="pill info"${title}><span class="dot"></span>architect: deferred</span>`;
     }
   } else {
-    const archClass = arch.tier === 'top' ? 'accent' : arch.tier === 'mid' ? 'wip' : 'idle';
+    // Two states left: no gate, or a gate at the published tier. The `mid` → wip branch that used
+    // to sit here styled a plan's DECLARED architect tier, and the loader stopped passing that
+    // through once it turned out nothing honoured it (see PHASE_TIER in load-yaml-source.mjs), so
+    // it could only ever have rendered a downgrade the runtime never performs.
+    const archClass = arch.tier === 'none' ? 'idle' : 'accent';
     const archText = arch.tier === 'none' ? 'architect: none' : `architect: required (${arch.tier})`;
     const archTitle = arch.reason ? ` title="${esc(arch.reason)}"` : '';
     archBadge = `<span class="pill ${archClass}"${archTitle}><span class="dot"></span>${esc(archText)}</span>`;

@@ -18,17 +18,28 @@ Maintain one task per phase (architect-gate if required, RED, GREEN, REVIEW, REF
 
 ## Architect gate — read from the plan, not from your head
 
-Every cycle in the project's plan file carries an `**Architecture review:**` field on its primary line. Three values:
+Every cycle in the project's `docs/plan-NNN.yaml` carries an `arch-review:` mapping — required by [`plan.schema.json`](../../tools/docs-gen/schema/plan.schema.json) `$defs.cycle`, and the first thing the [`tdd-cycle` workflow](../workflows/tdd-cycle.md) gate phase reads. Its `state:` takes three values:
 
-- **`required (<reviewer>, <one-line reason>)`** — top-tier gate BEFORE RED (tier→model binding: [lifecycle.md §Model capability tiers](lifecycle.md#model-capability-tiers)). Invoke `software-architect` (or named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
-- **`deferred to Cycle <X.Y>`** — sibling cycle inherits the prior verdict. Read the referenced cycle's `architect-verdict` from `<project>/docs/cycles/<X.Y>.yaml` before RED; do not call architect again.
-- **`none — <reason>`** — explicitly trivial. Skip the architect call. Reason MUST be in the plan (e.g. "single pure-function regex normalizer").
+```yaml
+- id: "007.1"
+  arch-review:
+    state: required          # required | none | deferred
+    tier: opus               # top | mid | opus | sonnet (opus→top, sonnet→mid)
+    reviewer: software-architect
+    reason: first code in the repo that ORIGINATES webhook signatures
+```
 
-**If the field is missing → STOP. Ask the user to mark the cycle in the plan before proceeding.** No orchestrator-side judgment. No silent skip path.
+- **`state: required`** — top-tier gate BEFORE RED (tier→model binding: [lifecycle.md §Model capability tiers](lifecycle.md#model-capability-tiers)). `tier:` is schema-mandatory here; `reviewer:` names the agent and `reason:` gives the one-line why. Invoke `software-architect` (or the named reviewer). Verdict ≤ 400 words, `GO` / `NO-GO`. Lock decisions into the RED/GREEN spec.
+- **`state: deferred`** + **`deferred-to: "<X.Y>"`** — sibling cycle inherits the prior verdict. Read the referenced cycle's `architect-verdict` from `<project>/docs/cycles/<X.Y>.yaml` before RED; do not call architect again. `deferred-to` may point at a cycle in an earlier plan of the same project (kobu-bot 004.3 → 002.10) — cycle notes are keyed by cycle id, not by plan.
+- **`state: none`** — explicitly trivial. Skip the architect call. `reason:` MUST be in the plan (e.g. "single pure-function regex normalizer"); the schema does not enforce it, this rule does.
+
+**If the `arch-review` mapping is missing → STOP. Ask the user to mark the cycle in the plan before proceeding.** No orchestrator-side judgment. No silent skip path. **Same STOP for a dangling `deferred-to`** — a target cycle that does not exist, or whose own `arch-review.state` is anything but `required`: the chain then terminates in no verdict, so there is nothing to inherit. Nothing checks this mechanically; you find out when you go read the target's `architect-verdict`, so read it before RED as the deferred branch already tells you to.
 
 This rule trades a small one-time plan-editing cost for permanent immunity to "I thought this cycle was trivial" drift.
 
-**[Security tier](#security-tier) override:** if the cycle touches any security-tier item, the architect tier is **top**, regardless of what the plan field says. The plan field should already reflect this; if it doesn't, STOP and ask the user to upgrade it.
+Read the YAML key, never the rendered label. This section used to describe the field as `**Architecture review:**` "on the cycle's primary line", with prose values like `deferred to Cycle 2.1` — the MD-triad plan format the plans left behind; `Architecture review.` now survives only as a string the docs generator prints. Some plans (susun-jadual 001, isc-workflow-web 001–004, landing-website 001) still restate the gate as `Architecture review:` prose inside the cycle body, a migration leftover that is narration and can drift from the mapping; the other plans carry none at all. `arch-review` is what the schema requires and the workflow reads.
+
+**[Security tier](#security-tier) override:** if the cycle touches any security-tier item, the architect tier is **top**, regardless of what `arch-review` says. `arch-review.tier` should already reflect this; if it doesn't, STOP and ask the user to upgrade it. (`state: none` on a security-tier cycle is the same stop — the workflow halts it as `security-tier-plan-mismatch`.)
 
 ## Reviewer separation — never self-review
 
@@ -90,7 +101,7 @@ A cycle is in the security tier if it touches any of:
 
 For security-tier cycles:
 
-- **Architecture review tier: top** per [lifecycle.md §Model capability tiers](lifecycle.md#model-capability-tiers) (never mid, never cheap).
+- **Architecture review tier: top** per [lifecycle.md §Model capability tiers](lifecycle.md#model-capability-tiers) (never mid — and there is no tier below it).
 - **Second-pass review: `security-reviewer` agent** in addition to `code-reviewer`. Both must return `APPROVED` before COMMIT.
 - **Caveman tone does NOT apply** to security code or to security-tier commit messages. Code stays idiomatic; commit body explains the threat + mitigation.
 - **No silent assumptions.** Threat model spelled out in the cycle notes under §"Threat model": what the attacker can do, what the mitigation blocks, what residual risk remains.
@@ -110,7 +121,7 @@ Subagent returns a concise report: files touched, gate result (`Passed: N / Fail
 
 ## Reviewer hallucination guard
 
-Reviewers (cheap-tier especially) sometimes fabricate findings — e.g. "tests missing" when files exist in a subdirectory the reviewer skipped, or "import X is unused" when it's transitively required.
+Reviewers sometimes fabricate findings — e.g. "tests missing" when files exist in a subdirectory the reviewer skipped, or "import X is unused" when it's transitively required. (This used to be qualified "cheap-tier especially"; that tier is gone, and REVIEW runs at `top` regardless, so the guard applies to every pass.)
 
 Rule: if a reviewer finding contradicts independently-verified state, reject it. The next REVIEW pass prompt MUST inline:
 
@@ -197,8 +208,8 @@ Every cycle in the run satisfies the full [Definition of done](#definition-of-do
 Halt the run and write `<project>/docs/AUTONOMOUS_RUN_STATUS.md` when ANY of:
 
 1. Architect returns `NO-GO`.
-2. A cycle's `Architecture review:` field is missing from the plan.
-3. A security-tier cycle whose plan field doesn't reflect the top-tier gate.
+2. A cycle's `arch-review` mapping is missing from the plan, or its `deferred-to` points at a cycle with no verdict to inherit (see [§Architect gate](#architect-gate--read-from-the-plan-not-from-your-head)).
+3. A security-tier cycle whose `arch-review.tier` doesn't reflect the top-tier gate.
 4. A `[BLOCKER]`/`[REFACTOR]` finding requires genuine deferral (needs user approval per [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up)).
 5. REVIEW still `NEEDS FIX` after 3 REFACTOR passes, or a reviewer dispute survives the hallucination guard.
 6. The test gate cannot reach green for a reason outside the cycle's scope.

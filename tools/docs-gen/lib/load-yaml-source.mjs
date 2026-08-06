@@ -8,7 +8,9 @@
 // table, dependency DAG, batch-summary table, and file-ownership matrix are VIEWS derived
 // here from cycles[] + batches[]. Runbook prose that is not cycle-scoped lives under
 // `runbook`. Verbatim fields (phase code src, session prompts, worktree bash) pass through
-// untouched — never near the markdown renderer.
+// untouched — never near the markdown renderer. The one exception is documented at
+// spliceArchLine(): a session prompt's architect-gate line is a prose copy of the structured
+// `arch-review` field, so it is re-derived from that field rather than trusted.
 //
 // Validation (schema + referential integrity) runs in validate-source.mjs BEFORE this loads.
 
@@ -80,32 +82,61 @@ function slugify(s) {
   return (s || '').toLowerCase().replace(/[^\w]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
+// Legacy Claude aliases → the semantic tiers of .agents/rules/lifecycle.md §Model capability
+// tiers. There is no third mapping: `haiku: 'cheap'` sat here until no schema-valid source could
+// reach it — schema/plan.schema.json and schema/cycle-note.schema.json both enum every tier field
+// to top|mid|opus|sonnet — and `cheap` had no binding downstream either, since the runtime adapter
+// builds MODELS = { top, mid } (.claude/workflows/tdd-cycle.js), so the branch resolved to an
+// undefined model. Anything else passes through unchanged.
 export function normalizeTier(tier) {
-  return ({ opus: 'top', sonnet: 'mid', haiku: 'cheap' })[tier] || tier || '';
+  return ({ opus: 'top', sonnet: 'mid' })[tier] || tier || '';
 }
+
+// The tier the RUNTIME actually uses, which is the only tier this site publishes. A plan's own
+// `phases.*.model` and `arch-review.tier` are never read by anything: .claude/workflows/tdd-cycle.js
+// reads `arch-review.state` (+ `deferred-to`) and dispatches the architect gate and every REVIEW /
+// security-review at `top`, RED / GREEN / REFACTOR at `mid`, whatever the plan declares. Rendering
+// the declared value therefore advertised a cost the runtime never pays — six susun-jadual cycles
+// published "architect: required (mid)" for a gate that has always run at `top`, and 40 of the 111
+// required gates across the corpus declare a tier below the policy floor. Feeding the declared
+// values the other way (into the runtime) would silently downgrade every gate and review below the
+// standing policy — architect gates and ALL REVIEW on the top tier — so the declared tier is
+// dropped from the published card instead of honoured.
+const PHASE_TIER = { red: 'mid', green: 'mid', review: 'top', refactor: 'mid', 'security-review': 'top' };
+const ARCH_GATE_TIER = 'top';
 
 function archReviewModel(a) {
   if (!a || !a.state) return { tier: 'none', reason: '' };
   if (a.state === 'none') return { tier: 'none', reason: a.reason || '' };
   if (a.state === 'deferred') return { tier: 'deferred', reason: a.reason || '', deferTo: a['deferred-to'] || '' };
-  return { tier: normalizeTier(a.tier || 'top'), reason: a.reason || '' };
+  // a.tier is deliberately not consulted — see PHASE_TIER above.
+  return { tier: ARCH_GATE_TIER, reason: a.reason || '' };
 }
 
 function phasesModel(phases) {
-  const order = ['red', 'green', 'review', 'refactor', 'security-review'];
   const out = [];
-  for (const key of order) {
+  // PHASE_TIER doubles as the render order, so a phase key cannot gain a position without a tier
+  // (or the reverse) the way it could when the two lists sat apart.
+  for (const [key, tier] of Object.entries(PHASE_TIER)) {
     const p = phases[key];
     if (!p) continue;
-    const meta = p['meta-raw'] != null ? p['meta-raw'] : (p.model && p.agent ? `\`${normalizeTier(p.model)}\` - \`${p.agent}\`` : '');
+    // Published meta line: the runtime tier for this phase + whoever the source names. `meta-raw`
+    // is unconstrained free text and carries both shapes — 42 of the 58 in the corpus open with
+    // their own declared tier ("`opus` — `code-reviewer`"), the rest are whole prose paragraphs —
+    // so only a leading tier token is stripped and the remainder passes through.
+    const who = p['meta-raw'] != null ? stripDeclaredTier(p['meta-raw']) : (p.agent ? `\`${p.agent}\`` : '');
     out.push({
       name: key.toUpperCase(),
-      meta,
+      meta: who ? `\`${tier}\` — ${who}` : '',
       prose: p.body || '',
       code: (p.code || []).map((c) => ({ lang: c.lang || 'text', text: c.src != null ? c.src : (c.text || '') })),
     });
   }
   return out;
+}
+
+function stripDeclaredTier(raw) {
+  return String(raw).replace(/^`([^`]+)`\s*[—–-]\s*/, (m, token) => (['top', 'mid'].includes(normalizeTier(token)) ? '' : m));
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +213,13 @@ function buildBatchesModel(doc) {
   const sessionFor = (id) => {
     const c = cycleById[id];
     if (!c || !c.session) return null;
-    return { title: c.session.title || `Cycle ${id}`, cycleId: id, prompt: c.session.prompt || '', before: c.session.before || '', after: c.session.after || '' };
+    return {
+      title: c.session.title || `Cycle ${id}`,
+      cycleId: id,
+      prompt: spliceArchLine(c.session.prompt || '', c['arch-review']),
+      before: c.session.before || '',
+      after: c.session.after || '',
+    };
   };
   const batchGroups = (doc.batches || []).map((b) => ({
     id: b.id,
@@ -192,6 +229,37 @@ function buildBatchesModel(doc) {
   }));
 
   return { h1, intro: rb.intro || '', sections, batches: batchGroups };
+}
+
+// The "Architecture review: **…**" line inside a session prompt is a SECOND copy of the structured
+// `arch-review` field — 85 of them across six plans — which docs-site.md forbids ("never enumerate
+// them in prose; prose copies drift"; a drifted pair was found in a since-retired project). The plan
+// YAMLs live in nested repos and are not this generator's to edit, so the copy is corrected at build
+// time: the declaration is re-derived from the fields the runtime actually reads (`state`,
+// `deferred-to`) plus the published gate tier, the same derived-view treatment batchSummaryBody()
+// gives the batch table. Only the BOLD declaration is replaced — the rest of the source line carries
+// operational instructions (which reviewer to spawn, what to lock, the NO-GO stop) that are nobody
+// else's copy — so the splice is correct whether or not a plan still restates the field in prose:
+// present → overwritten in place, absent → prepended as its own line. Prompts otherwise still pass
+// through verbatim, and never through the markdown renderer.
+const ARCH_LINE_RE = /^([ \t]*Architecture review:[ \t]*)\*\*([^*]*)\*\*/m;
+
+function archDeclaration(a) {
+  if (!a || !a.state) return '';
+  if (a.state === 'none') return 'NONE';
+  if (a.state === 'deferred') return `DEFERRED to Cycle ${a['deferred-to'] || '(unstated)'}`;
+  return `REQUIRED (${ARCH_GATE_TIER})`;
+}
+
+function spliceArchLine(prompt, archReview) {
+  const decl = archDeclaration(archReview);
+  // An empty prompt stays empty: generate.mjs counts prompt-bearing sessions to decide whether a
+  // plan gets a runbook page at all, and a derived line must not conjure one.
+  if (!decl || !prompt.trim()) return prompt;
+  if (!ARCH_LINE_RE.test(prompt)) return `Architecture review: **${decl}**\n\n${prompt}`;
+  // A trailing period the source put INSIDE the bold stays inside it; one placed after the bold is
+  // outside the match and survives untouched. Either way the sentence keeps exactly one.
+  return prompt.replace(ARCH_LINE_RE, (m, label, inner) => `${label}**${decl}${/\.\s*$/.test(inner) ? '.' : ''}**`);
 }
 
 // D2: a single `notes` field per batch holds the rich value used by both the timeline

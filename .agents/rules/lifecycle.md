@@ -91,11 +91,12 @@ Rules, plans, and role prompts reference semantic **tiers**, never provider mode
 |---|---|---|
 | `top` | Strongest available reasoning tier | Architect gates and security-tier reviews |
 | `mid` | Production coding and review tier | REVIEW verdict floor and RED/GREEN/REFACTOR default |
-| `cheap` | Fast, low-cost mechanical tier | File inventories and lint-style checks only; never REVIEW verdicts or architect gates |
 
-A REVIEW verdict produced below `mid` is non-compliant. Provider-specific model aliases and cost decisions belong in the runtime adapter, not this rule.
+`mid` is the floor: a REVIEW verdict produced below it is non-compliant. Provider-specific model aliases and cost decisions belong in the runtime adapter, not this rule.
 
-Compatibility bridge: untouched nested projects may still store legacy Claude aliases (`opus`, `sonnet`, `haiku`) in plan and cycle-note YAML. The root schemas temporarily accept both forms and interpret them as `top`, `mid`, and `cheap` respectively. New shared configuration uses semantic tiers; remove the aliases only when nested projects are migrated separately.
+There is no third, cheaper tier. One was documented here — reserved for inventories and lint, "never REVIEW verdicts" — but nothing enforced that: both root schemas accepted `cheap` and `haiku` on a review phase, so 36 cycles across three plans declared a haiku reviewer and validated clean. Both tokens are now out of the phase and review-pass enums, and no adapter ever bound them anyway — `.claude/workflows/tdd-cycle.js` binds `{ top, mid }` and rejects any other tier key at the binding. Declaring either fails `npm run validate` with a message that lists the allowed values and never mentions this rule — read the enum, not the error, if you are wondering why. Mechanical work that used to justify the tier runs at `mid`.
+
+Compatibility bridge: untouched nested projects still store legacy Claude aliases in plan and cycle-note YAML, so the schemas accept `opus` and `sonnet` alongside `top` and `mid` and read them as those same two tiers. This half of the bridge is load-bearing, not vestigial — the registered projects' plan YAMLs are still written overwhelmingly in aliases. New shared configuration uses semantic tiers; remove the aliases only when nested projects are migrated separately.
 
 ---
 
@@ -115,4 +116,4 @@ Every role in `.agents/roles/` follows this structure so the system reads cohere
 - **Collaboration & Handoffs** — one agent-keyed table (`| Agent | Collaboration & handoff | Escalate / gate |`) covering the standing relationship, the artifact handed each way, and the escalation trigger per agent — so each relationship appears once. Process-level **Review** and **Feedback loop** bullets sit below the table.
 - **Quality Standards You Enforce / Avoid / Communication Contract.**
 
-Keep the generic lifecycle, research, and commercial content *here* — roles reference it, never restate it. Changing the lifecycle means editing this file, not 24 role definitions.
+Keep the generic lifecycle, research, and commercial content *here* — roles reference it, never restate it. Changing the lifecycle means editing this file, not every role definition.

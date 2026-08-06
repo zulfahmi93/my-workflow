@@ -6,7 +6,7 @@ Findings carry tags per [tdd.md §Reviewer issue tags](tdd.md#reviewer-issue-tag
 
 ## Correctness + test coverage
 
-- Code does what the cycle spec says (architect verdict + plan §cycle § "CYCLE X.Y").
+- Code does what the cycle spec says (architect verdict + the cycle's entry in `<project>/docs/plan-NNN.yaml`, addressed by its `id:` — e.g. `id: "007.1"`). There is no `§ "CYCLE X.Y"` plan section to look for; that was the retired MD-triad format.
 - Tests cover happy path + boundary + error per [tdd.md §Test quality](tdd.md#test-quality). Missing any branch → `[BLOCKER]`.
 - Full pre-cycle suite still green (no regression).
 - Bug fixes have a regression test that fails before the fix.

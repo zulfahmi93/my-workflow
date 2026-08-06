@@ -4,6 +4,7 @@ import { access, chmod, copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFi
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 // Imported lazily. This module pulls in `yaml` from tools/docs-gen, whose node_modules is
 // gitignored, so a static import made the ENTIRE suite die with ERR_MODULE_NOT_FOUND in any
@@ -18,6 +19,18 @@ try {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const failures = [];
+
+// ajv is a tools/docs-gen dependency and is resolved against THAT package, not this script's own
+// directory: `.agents/` has no node_modules and must not grow one to be testable. Gated the same
+// way as normalizeTier above and for the same reason — those deps are gitignored, so a fresh
+// clone or worktree skips the checks that need them instead of reading as a broken commit.
+let Ajv = null;
+try {
+  const mod = createRequire(path.join(repoRoot, 'tools/docs-gen/package.json'))('ajv');
+  Ajv = mod.default || mod;
+} catch {
+  console.error('note: skipping schema checks — run `npm i` in tools/docs-gen/ to enable them');
+}
 
 function run(command, args = [], options = {}) {
   return spawnSync(command, args, {
@@ -272,10 +285,24 @@ if (normalizeTier) {
 
     const presentDocs = path.join(docsGenRoot, 'projects/personal/present/docs');
     await mkdir(presentDocs, { recursive: true });
+    // Cycle 1.2 is the drift fixture: it DECLARES `tier: mid` and its session prompt restates the
+    // gate as "REQUIRED (sonnet)", while the runtime gates every required review at the top tier
+    // regardless. Both stale values have to be schema-valid to be worth testing — plan.schema.json
+    // enums `tier` to top|mid|opus|sonnet and leaves the prompt an unconstrained string, which is
+    // exactly why the drift was invisible. Same for `meta-raw`, which opens with its own declared
+    // `opus` on a phase whose runtime tier is fixed.
     await writeFile(path.join(presentDocs, 'plan-001.yaml'), [
       'id: "001"', 'project: present', 'title: Fixture plan', 'cycles:',
       '  - id: "1.1"', '    title: A cycle', '    primary: [Test Engineer]',
-      '    arch-review:', '      state: none', '    status: idle', '',
+      '    arch-review:', '      state: none', '    status: idle',
+      '  - id: "1.2"', '    title: A gated cycle', '    primary: [Test Engineer]',
+      '    arch-review:', '      state: required', '      tier: mid', '      reviewer: Test Engineer',
+      '    status: idle',
+      '    phases:', '      review:', '        meta-raw: "`opus` — `code-reviewer`"', '        body: review it',
+      '    session:', '      title: Cycle 1.2', '      prompt: |',
+      '        Architecture review: **REQUIRED (sonnet)**. Spawn `software-architect` (sonnet) via `Agent` BEFORE RED.',
+      '        Begin Cycle 1.2.',
+      'batches:', '  - id: B1', '    cycles: ["1.2"]', '',
     ].join('\n'));
 
     const generate = path.join(toolDir, 'generate.mjs');
@@ -300,6 +327,37 @@ if (normalizeTier) {
     if (!(await exists('projects/personal/present/docs/html/index.html'))) {
       failures.push('docs-gen: successful build wrote no landing page — the ordering fix must not skip output');
     }
+
+    // Everything the site publishes about a cycle's tier must come from the fields the RUNTIME
+    // reads — `arch-review.state` / `deferred-to` plus the standing policy — never from the plan's
+    // own declaration or from the prose restatement in the session prompt. Both of those drifted:
+    // six susun-jadual cycles advertised "architect: required (mid)" for a gate that has always
+    // run at `top`, 40 of 111 required gates across the corpus declared a tier below the policy
+    // floor, and 85 session prompts carry a second, hand-maintained copy of the same field. A
+    // reader costing a plan off this site was being told a price nothing charges.
+    //
+    // Asserted through a real build rather than against the loader's exports: the badge, the phase
+    // meta line and the runbook prompt are three separate render paths off one policy constant,
+    // and only the built page proves all three agree.
+    const planHtml = await readFile(path.join(docsGenRoot, 'projects/personal/present/docs/html/001/plan.html'), 'utf8').catch(() => '');
+    const runbookHtml = await readFile(path.join(docsGenRoot, 'projects/personal/present/docs/html/001/batches.html'), 'utf8').catch(() => '');
+    const publishes = (label, html, wanted, forbidden) => {
+      if (!html) { failures.push(`docs-gen: ${label} was not generated`); return; }
+      for (const want of wanted) if (!html.includes(want)) failures.push(`docs-gen: ${label} does not publish ${JSON.stringify(want)}`);
+      for (const no of forbidden) if (html.includes(no)) failures.push(`docs-gen: ${label} still publishes ${JSON.stringify(no)} — that value came from the plan's declaration, not from the runtime policy`);
+    };
+    publishes('the cycle badge', planHtml,
+      ['architect: required (top)', 'architect: none'],
+      ['architect: required (mid)', 'architect: required (sonnet)']);
+    // The phase meta line publishes the runtime tier and drops the declared one that opened
+    // `meta-raw`, keeping the agent name that followed it.
+    publishes('the phase meta line', planHtml, ['`top` — `code-reviewer`'], ['`opus` — `code-reviewer`']);
+    // The runbook prompt: only the BOLD declaration is re-derived. The operational tail is nobody
+    // else's copy — it names which reviewer to spawn — so it must survive the splice untouched,
+    // stale parenthetical and all.
+    publishes('the runbook session prompt', runbookHtml,
+      ['Architecture review: **REQUIRED (top)**.', 'Spawn `software-architect` (sonnet) via `Agent` BEFORE RED.', 'Begin Cycle 1.2.'],
+      ['REQUIRED (sonnet)']);
     await writeRegistry([entry('present', [{ id: '001' }, { id: '999' }]), entry('ghost', [{ id: '001' }])]);
     expectStatus('docs-gen validate with a registry typo in a checked-out project', run('node', [generate, '--validate']), 1);
   } finally {
@@ -307,8 +365,22 @@ if (normalizeTier) {
   }
 }
 
-for (const [input, expected] of Object.entries({ opus: 'top', sonnet: 'mid', haiku: 'cheap', top: 'top', mid: 'mid', cheap: 'cheap' })) {
-  if (normalizeTier && normalizeTier(input) !== expected) failures.push(`normalizeTier(${input}): expected ${expected}`);
+// The two live provider aliases map, and the canonical tiers are idempotent.
+for (const [input, expected] of Object.entries({ opus: 'top', sonnet: 'mid', top: 'top', mid: 'mid' })) {
+  if (normalizeTier && normalizeTier(input) !== expected) {
+    failures.push(`normalizeTier(${input}): expected ${expected}, got ${JSON.stringify(normalizeTier(input))}`);
+  }
+}
+// Everything else comes back verbatim, and `haiku` is the case this pins. It used to normalize to
+// `cheap`, a tier .agents/rules/lifecycle.md no longer defines and .claude/workflows/tdd-cycle.js
+// refuses to bind — so the mapping laundered a foreign token into tier vocabulary and produced a
+// published tier that resolved to no model at all. Passthrough keeps a foreign token foreign.
+// This must assert the contract rather than the current table: `cheap` is here to prove no alias
+// RESOLVES to it either, which is the property the retirement actually bought.
+for (const input of ['haiku', 'claude-haiku', 'cheap', 'gpt-5']) {
+  if (normalizeTier && normalizeTier(input) !== input) {
+    failures.push(`normalizeTier(${input}): expected the input back unchanged, got ${JSON.stringify(normalizeTier(input))} — only opus/sonnet are aliases, and none may resolve to a tier the runtime does not bind`);
+  }
 }
 
 const workflow = await readFile(path.join(repoRoot, '.claude/workflows/tdd-cycle.js'), 'utf8');
@@ -332,6 +404,7 @@ for (const guard of [
 // one file is what hid the review-scope narrowing below for as long as it existed.
 async function renderCycle({
   notice,
+  models,
   reviewScript,
   verifyFor,
   greenFiles = ['a.py'],
@@ -360,10 +433,24 @@ async function renderCycle({
   };
   let lastBlocking = 0;
   const stubs = {
-    args: { project: 'p', projectPath: 'projects/personal/p', plan: '001', cycle: '9.9', greenAgent: 'Python Expert', ...(notice ? { notice } : {}) },
+    args: {
+      project: 'p', projectPath: 'projects/personal/p', plan: '001', cycle: '9.9', greenAgent: 'Python Expert',
+      ...(notice ? { notice } : {}),
+      // Spread on presence, not truthiness: `{ top: undefined }` is a real caller shape and the
+      // one the tier guard exists for, so it must reach the workflow rather than be filtered here.
+      ...(models !== undefined ? { models } : {}),
+    },
     agent: async (prompt, opts = {}) => {
       const label = opts.label || '(unlabelled)';
-      calls.push({ label, prompt, agentType: opts.agentType || null, model: opts.model || null });
+      // `hasModel` separately from `model`: the defect being pinned is a model KEY that is present
+      // with an undefined value, which `opts.model || null` would render indistinguishable from a
+      // delegate that declares no tier at all (gate:read-plan is one).
+      calls.push({
+        label, prompt,
+        agentType: opts.agentType || null,
+        hasModel: Object.prototype.hasOwnProperty.call(opts, 'model'),
+        model: opts.model,
+      });
       const result = respond(label, { ...opts, lastBlocking });
       if (label.startsWith('review:pass-')) {
         lastBlocking = (result.findings || []).filter((f) => f.tag === 'BLOCKER' || f.tag === 'REFACTOR').length;
@@ -383,6 +470,66 @@ async function renderCycle({
 
 const blockingFinding = (n) => ({ tag: 'BLOCKER', finding: `x${n}`, evidence: `ran cmd; saw line ${n}`, file: 'a.py' });
 const allVerdicts = (refuted) => (count) => ({ verdicts: Array.from({ length: count }, (_, i) => ({ index: i, refuted, evidence: 'e' })) });
+
+// The tier→model binding, which is the first thing the workflow does. `args.models` is the
+// documented override channel and was spread over the defaults with nothing checking it, so three
+// shapes reached `agent()` in silence: `{ top: undefined }` beat the default — spread copies an
+// own key even when its value is undefined — and handed `model: undefined` to the architect gate
+// AND the REVIEW gate; `{ top: 'haiku' }` bound both below the floor .agents/rules/lifecycle.md
+// §Model capability tiers sets; and `{ cheap: … }`, the tier that used to exist, bound nothing at
+// all while reading as though it had. None of them fails at the call site — the delegate just runs
+// on whatever the harness defaults to — so a non-compliant verdict comes back looking exactly like
+// a compliant one. The only place this is observable is the binding, so assert there.
+{
+  const approving = {
+    securityTier: true, // gate:read-plan only reports the gate as required on a security-tier cycle
+    reviewScript: () => ({ verdict: 'APPROVED', findings: [], skippedCategories: [] }),
+    verifyFor: allVerdicts(false),
+  };
+  const rejects = async (label, models) => {
+    const error = await renderCycle({ ...approving, models }).then(() => null, (e) => e);
+    if (!error) failures.push(`TDD workflow: models ${label} was accepted — a binding outside { top, mid }, or one naming no model, must throw rather than reach agent()`);
+  };
+  await rejects('{ cheap: "haiku" }', { cheap: 'haiku' });
+  await rejects('{ top: undefined }', { top: undefined });
+  await rejects('{ top: "haiku" }', { top: 'haiku' });
+  await rejects('{ mid: "" }', { mid: '' });
+
+  // The other half, and it is what makes those four mean anything: a guard that rejected
+  // everything would satisfy them all and break every real cycle. So every delegate that declares
+  // a tier must receive a real model name, and the tiers must land where lifecycle.md puts them —
+  // architect gate, REVIEW and security review at `top`, RED / GREEN / REFACTOR at `mid`. The
+  // third case is the one that keeps the guard honest as models change: it must recognise a tier
+  // that is BELOW the floor, not enumerate the model ids that are above it, or the next model
+  // release breaks every override.
+  const TIER_OF = { 'gate:architect': 'top', red: 'mid', green: 'mid', 'review:pass-1': 'top', 'security:pass-1': 'top' };
+  const DEFAULTS = { top: 'opus', mid: 'sonnet' };
+  for (const [label, models] of [
+    ['default binding', undefined],
+    ['explicit defaults', { top: 'opus', mid: 'sonnet' }],
+    ['an unrecognised but compliant model id', { top: 'claude-opus-5', mid: 'claude-sonnet-5' }],
+  ]) {
+    const outcome = await renderCycle({ ...approving, models }).then((r) => r, (e) => e);
+    if (outcome instanceof Error) {
+      failures.push(`TDD workflow: ${label} was rejected at the binding — "${outcome.message.split(' — ')[0]}". A compliant override must run; the guard has to recognise a below-floor tier, not enumerate the model ids above it.`);
+      continue;
+    }
+    const { calls } = outcome;
+    for (const call of calls) {
+      if (call.hasModel && !(typeof call.model === 'string' && call.model.trim())) {
+        failures.push(`TDD workflow: ${label} handed model ${JSON.stringify(call.model)} to delegate ${call.label}`);
+      }
+    }
+    for (const [callLabel, tier] of Object.entries(TIER_OF)) {
+      const call = calls.find((c) => c.label === callLabel);
+      if (!call) { failures.push(`TDD workflow: ${label} probe never reached ${callLabel}`); continue; }
+      const want = (models || DEFAULTS)[tier];
+      if (call.model !== want) {
+        failures.push(`TDD workflow: ${label} ran ${callLabel} at ${JSON.stringify(call.model)}, expected the ${tier} tier (${want})`);
+      }
+    }
+  }
+}
 
 // A wrapper workflow relocates the working dir by passing `notice` (cycle-to-commit.js sends
 // its worktree assertion that way), so EVERY delegate must receive it — a verifier running
@@ -554,6 +701,71 @@ const sameList = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   }
   if (calls.some((c) => c.label.startsWith('review:pass-'))) {
     failures.push('TDD workflow: an implementer report naming no files still reached a reviewer');
+  }
+}
+
+// PRE_SCHEMA is the contract between plan-batch and its own preflight delegate, and it used to
+// reject the record its neutral spec defines: .agents/workflows/plan-batch.md §Preflight record
+// names the roles greenRole / redRole, while the schema required `greenAgent` under
+// additionalProperties:false — so a preflight that followed the written spec verbatim was thrown
+// out by its own workflow ("must have required property 'greenAgent'" AND "must NOT have
+// additional properties: greenRole"). Take the schema off the `agent()` call rather than
+// restating it here: a copy in the test would only ever prove the copy.
+async function planBatchPreflight() {
+  const source = await readFile(path.join(repoRoot, '.claude/workflows/plan-batch.js'), 'utf8');
+  let schema = null;
+  const stubs = {
+    args: { project: 'p', projectPath: 'projects/personal/p', plan: '001', batch: 'B1' },
+    // ok:false halts the workflow on the next line, so nothing past the preflight runs.
+    agent: async (_prompt, opts = {}) => {
+      if (opts.label === 'preflight') schema = opts.schema;
+      return { ok: false, cycles: [], testCollisionRisk: false, notes: 'probe' };
+    },
+    workflow: async () => ({}),
+    parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
+    phase: () => {},
+    log: () => {},
+  };
+  const render = new Function(
+    ...Object.keys(stubs),
+    `return (async () => {\n${source.replace(/^export const meta/m, 'const meta')}\n})()`,
+  );
+  // Run first, then read `schema`: object properties evaluate left to right, so returning
+  // `{ schema, result: await render(...) }` reads the capture before the workflow has filled it.
+  const result = await render(...Object.values(stubs));
+  return { schema, result };
+}
+
+if (Ajv) {
+  const { schema, result } = await planBatchPreflight();
+  if (result.halted !== 'preflight-failed') {
+    failures.push(`plan-batch: an ok:false preflight halted as ${result.halted}, expected preflight-failed`);
+  }
+  if (!schema) {
+    failures.push('plan-batch: the preflight delegate is called with no schema — its record reaches the run unvalidated');
+  } else {
+    const validate = new Ajv({ allErrors: true }).compile(schema);
+    const record = (cycles) => ({ ok: true, testCollisionRisk: false, notes: '', cycles });
+    for (const [label, value, want] of [
+      // The spec's own spelling, and the adapter's. Both are the same record; the schema has to
+      // agree with the document a delegate is told to follow.
+      ['spec-shaped record (greenRole / redRole)', record([{ cycle: '4.1', greenRole: 'React Expert', redRole: 'Test Engineer', securityTier: false }]), true],
+      ['adapter-shaped record (greenAgent / redAgent)', record([{ cycle: '4.1', greenAgent: 'React Expert', redAgent: 'Test Engineer', securityTier: false }]), true],
+      // …and the alias must not have turned into permissiveness. A cycle naming NEITHER role is
+      // exactly the failure the required-list exists to catch, and is what accepting two spellings
+      // is easiest to break.
+      ['cycle naming no implementation role', record([{ cycle: '4.1', securityTier: false }]), false],
+      ['cycle missing securityTier', record([{ cycle: '4.1', greenRole: 'React Expert' }]), false],
+      ['cycle missing its id', record([{ greenRole: 'React Expert', securityTier: false }]), false],
+      ['unknown key on the cycle record', record([{ cycle: '4.1', greenRole: 'React Expert', securityTier: false, worktree: 'wt-1' }]), false],
+      ['unknown key on the preflight record', { ...record([]), batchName: 'B1' }, false],
+      ['ok returned as a string', { ...record([]), ok: 'yes' }, false],
+      ['preflight record missing testCollisionRisk', { ok: true, notes: '', cycles: [] }, false],
+    ]) {
+      if (validate(value) === want) continue;
+      failures.push(`plan-batch PRE_SCHEMA: ${label} should ${want ? 'validate' : 'be rejected'}` +
+        (want ? ` — ajv said ${JSON.stringify(validate.errors)}` : ''));
+    }
   }
 }
 
