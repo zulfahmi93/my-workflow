@@ -215,4 +215,15 @@ User reviews STATUS + diffs, resolves the blocker, re-authorizes with the remain
 
 ### Never, even when authorized
 
-Push, open PRs, `--amend`, `--no-verify`, force operations, or commits outside the cycle's bounded diff (code + plan `status:` + cycle note).
+**Hook-enforced** — the commit gate returns exit 2 on these, in interactive and autonomous runs alike:
+
+- `--amend` and `--no-verify` / `-n` on a commit.
+- Force pushes: `--force`, `--force-with-lease`, `--force-if-includes`, `-f`, and any unambiguous abbreviation of them.
+- `gh pr create` and `gh pr merge`.
+
+**Advisory — not enforced, and the run is on its honour:**
+
+- Plain `git push`. Deliberately left open: pushing `zulfahmi-portfolio` to `main` is what deploys zulfahmi.dev, so a blanket block would break a real workflow to close a theoretical hole. An autonomous run still must not push.
+- Commits outside the cycle's bounded diff (code + plan `status:` + cycle note). No gate can see the cycle's bounds.
+
+The split is deliberate. These were one list, of which two items were enforced and three were not — so the unenforced ones borrowed the credibility of the enforced ones, and seven repos with live GitHub remotes were protected by nothing but compliance. If you add an item here, put it under the heading that matches reality.

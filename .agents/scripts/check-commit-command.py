@@ -58,6 +58,64 @@ SHELL_EXECUTABLES = {"bash", "sh", "zsh", "dash", "ksh"}
 SHELL_OPTIONS_WITH_VALUE = {"-o", "+o"}
 # Depth cap so a pathological `bash -c "bash -c \"...\""` chain cannot spin.
 MAX_SHELL_NESTING = 3
+
+# Generic exec wrappers: each parses its OWN options and then EXECS the command that follows.
+# Every one of them was opaque here, so `nohup git commit --amend`, `timeout 120 git commit
+# --no-verify`, `nice`, `setsid`, `stdbuf`, `time`, `ionice` and `chrt` all reached
+# commit_arguments() as an executable that is not `git`; it returned None and BOTH checks
+# were skipped in silence. Measured: seven one-word prefixes each turned a hard-blocked
+# command into exit 0, defeating the one UNCONDITIONAL guarantee .agents/rules/commit.md
+# makes (the subject check is documented as skippable; the flag check is not).
+#
+# Per wrapper: (options taking a SEPARATE value, valueless flags, positional operands the
+# wrapper consumes BEFORE the command). `timeout` eats a DURATION and `chrt` a PRIORITY;
+# the other six exec the very next word.
+EXEC_WRAPPERS = {
+    "nohup": (frozenset(), frozenset(), 0),
+    "nice": (frozenset({"-n", "--adjustment"}), frozenset(), 0),
+    "setsid": (frozenset(), frozenset({"-c", "--ctty", "-f", "--fork", "-w", "--wait"}), 0),
+    "stdbuf": (
+        frozenset({"-i", "--input", "-o", "--output", "-e", "--error"}),
+        frozenset(),
+        0,
+    ),
+    "time": (
+        frozenset({"-f", "--format", "-o", "--output"}),
+        frozenset({"-a", "--append", "-p", "--portability", "-v", "--verbose"}),
+        0,
+    ),
+    "timeout": (
+        frozenset({"-s", "--signal", "-k", "--kill-after"}),
+        frozenset({"--foreground", "--preserve-status", "-v", "--verbose"}),
+        1,
+    ),
+    "ionice": (
+        frozenset({"-c", "--class", "-n", "--classdata", "-p", "--pid", "-P", "--pgid",
+                   "-u", "--uid"}),
+        frozenset({"-t", "--ignore"}),
+        0,
+    ),
+    "chrt": (
+        frozenset({"-p", "--pid", "-T", "--sched-runtime", "-P", "--sched-period",
+                   "-D", "--sched-deadline"}),
+        frozenset({"-a", "--all-tasks", "-b", "--batch", "-d", "--deadline", "-f", "--fifo",
+                   "-i", "--idle", "-m", "--max", "-o", "--other", "-r", "--rr",
+                   "-R", "--reset-on-fork", "-v", "--verbose"}),
+        1,
+    ),
+}
+# Accepted by every wrapper above and shared rather than repeated eight times. They take no
+# value and exec no command, so classifying them costs nothing and keeps `nice --help` from
+# reporting itself as unresolvable.
+WRAPPER_TERMINAL_FLAGS = frozenset({"--help", "--version"})
+# POSIX legacy `nice -10 cmd` — the increment written as the option itself. Gated to `nice`
+# on purpose: for `timeout`/`chrt` a bare `-<n>` is not an option, and swallowing one there
+# would shift their operand onto `git` and hide the commit again.
+NICE_ADJUSTMENT = re.compile(r"^-\d+$")
+# `timeout`'s DURATION and `chrt`'s PRIORITY. Anything else in that slot (`timeout $T git
+# commit --amend`) is not something this script can resolve, so it must NOT be consumed as
+# the operand — see UnresolvedWrapper.
+WRAPPER_OPERAND = re.compile(r"^\d*\.?\d+[smhd]?$")
 SUDO_OPTIONS_WITH_VALUE = {
     "-C", "--close-from", "-D", "--chdir", "-g", "--group", "-h", "--host",
     "-p", "--prompt", "-R", "--chroot", "-T", "--command-timeout", "-u", "--user",
@@ -120,6 +178,71 @@ HEREDOC_OPENER = re.compile(r"<<-?\s*(['\"]?)([^\s'\";)]+)\1")
 FORBIDDEN_FALLBACK = re.compile(
     r"\bgit\b[^\n;&|]*\bcommit\b[^\n;&|]*?(?:--amend|--no-verify)\b"
 )
+
+
+class UnresolvedWrapper(ValueError):
+    """An exec wrapper's option grammar could not be resolved for this segment.
+
+    Raised instead of returning None from executable_index(), because None means "no
+    executable here" and is waved through — which is exactly how the wrappers became a
+    bypass. This routes the segment to unresolvable_segment() instead, so a `git commit
+    --amend` hiding behind an option we could not classify still gets caught textually.
+    """
+
+
+def skip_wrapper(
+    name: str,
+    spec: tuple[frozenset[str], frozenset[str], int],
+    segment: list[str],
+    index: int,
+) -> int:
+    """Advance past an exec wrapper's own options (and operand) to the command it execs.
+
+    Fails CLOSED: an option this table does not know could take a value, and guessing wrong
+    slides the index onto `git` and hides the whole invocation. So an unrecognised token
+    raises rather than being skipped as if it were valueless.
+    """
+    options_with_value, flags, operands = spec
+    index += 1
+    while index < len(segment):
+        token = segment[index]
+        if token == "--":
+            index += 1
+            break
+        if len(token) < 2 or not token.startswith("-"):
+            break
+        long_name = token.split("=", 1)[0]
+        if token.startswith("--") and "=" in token:
+            if long_name not in options_with_value and long_name not in flags:
+                raise UnresolvedWrapper(f"{name}: unrecognised option {token}")
+            index += 1
+            continue
+        if token in flags or token in WRAPPER_TERMINAL_FLAGS:
+            index += 1
+            continue
+        if token in options_with_value:
+            index += 2
+            continue
+        # Attached short value: `stdbuf -o0`, `ionice -c2`, `nice -n19`.
+        if not token.startswith("--") and token[:2] in options_with_value:
+            index += 1
+            continue
+        if name == "nice" and NICE_ADJUSTMENT.fullmatch(token):
+            index += 1
+            continue
+        raise UnresolvedWrapper(f"{name}: unrecognised option {token}")
+    for _ in range(operands):
+        if index >= len(segment):
+            return index  # wrapper with nothing after it — no command to check
+        if not WRAPPER_OPERAND.fullmatch(segment[index]):
+            raise UnresolvedWrapper(f"{name}: {segment[index]!r} is not a resolvable operand")
+        index += 1
+    # `timeout 30 -- git commit --amend`: a separator AFTER the operand. Consuming it costs
+    # nothing on a benign command and stops `--` being read as the executable, which is the
+    # same "executable is not git" hole the wrappers themselves opened.
+    if index < len(segment) and segment[index] == "--":
+        index += 1
+    return index
 
 
 def command_segments(command: str) -> list[list[str]]:
@@ -207,6 +330,10 @@ def executable_index(segment: list[str]) -> int | None:
                 break
             continue
 
+        if executable in EXEC_WRAPPERS:
+            index = skip_wrapper(executable, EXEC_WRAPPERS[executable], segment, index)
+            continue
+
         return index
 
     return None
@@ -246,7 +373,42 @@ def shell_payload(segment: list[str]) -> str | None:
     return segment[index]
 
 
-def commit_arguments(segment: list[str]) -> list[str] | None:
+def eval_payload(segment: list[str]) -> str | None:
+    """The command string `eval` will run, if this segment is an eval.
+
+    `eval` is NOT an exec wrapper and must not be added to EXEC_WRAPPERS: it does not exec
+    its first operand, it CONCATENATES all of them into one command line and re-parses that.
+    So it gets the shell_payload() treatment — join, then re-lex through check_command() —
+    which is what `eval "git commit --amend --no-edit"` needs; measured as exit 0 before.
+    """
+    index = executable_index(segment)
+    if index is None or os.path.basename(segment[index]) != "eval":
+        return None
+    operands = segment[index + 1 :]
+    if operands and operands[0] == "--":  # `eval -- '<cmd>'` is the same eval
+        operands = operands[1:]
+    return " ".join(operands) if operands else None
+
+
+def unresolvable_segment(segment: list[str], reason: str) -> int:
+    """Policy for one segment this script could not resolve down to an executable.
+
+    Fails open like unparseable_fallback(), behind the same narrow textual scan — but over
+    the SEGMENT rather than the whole command, so one unresolvable segment cannot make a
+    sibling `echo "git commit --amend"` read as an invocation.
+    """
+    if FORBIDDEN_FALLBACK.search(" ".join(segment)):
+        print(
+            "Blocked by .agents/rules/commit.md: forbidden git commit flag detected "
+            f"({reason}).",
+            file=sys.stderr,
+        )
+        return 2
+    print(f"commit-policy: skipping unresolvable command ({reason})", file=sys.stderr)
+    return 0
+
+
+def git_subcommand_arguments(segment: list[str], subcommand: str) -> list[str] | None:
     index = executable_index(segment)
     if index is None or os.path.basename(segment[index]) != "git":
         return None
@@ -254,7 +416,7 @@ def commit_arguments(segment: list[str]) -> list[str] | None:
 
     while index < len(segment):
         token = segment[index]
-        if token == "commit":
+        if token == subcommand:
             return segment[index + 1 :]
         if not token.startswith("-"):
             return None
@@ -263,6 +425,10 @@ def commit_arguments(segment: list[str]) -> list[str] | None:
             continue
         index += 1
     return None
+
+
+def commit_arguments(segment: list[str]) -> list[str] | None:
+    return git_subcommand_arguments(segment, "commit")
 
 
 def forbidden_flag(args: list[str]) -> str | None:
@@ -291,6 +457,89 @@ def forbidden_flag(args: list[str]) -> str | None:
                     break
         index += 1
     return None
+
+
+# `.agents/rules/cycle-orchestration.md` §"Never, even when authorized" listed five things.
+# Two were hard-blocked here; push, force ops and opening PRs were honor-system, and sitting in
+# one list they inherited the credibility of the enforced pair. Seven repos in this monorepo have
+# live GitHub remotes, so an unattended run reached real GitHub with nothing in the way.
+#
+# Deliberately NOT blocking plain `git push`: pushing zulfahmi-portfolio to main is what deploys
+# zulfahmi.dev, so a blanket block would break a real workflow to close a theoretical hole. What
+# is blocked is the subset that cannot be undone by pushing again — rewriting published history —
+# plus opening or merging PRs, which is outward-facing. The rule file now separates the enforced
+# items from the advisory ones so the two stop sharing a heading.
+FORCE_PUSH_TARGETS = ("--force", "--force-with-lease", "--force-if-includes")
+PUSH_LONG_OPTIONS_WITH_VALUE = {"--repo", "--exec", "--receive-pack", "--push-option"}
+PUSH_SHORT_OPTIONS_WITH_VALUE = {"o"}
+GH_OPTIONS_WITH_VALUE = {"--repo", "-R"}
+GH_FORBIDDEN_SUBCOMMANDS = {("pr", "create"), ("pr", "merge")}
+
+
+def forbidden_push_flag(args: list[str]) -> str | None:
+    index = 0
+    while index < len(args):
+        token = args[index]
+        if token == "--":
+            return None
+        long_name = token.split("=", 1)[0]
+        # Same abbreviation rule git's parse-options uses, and the same >= 4 floor the commit
+        # flag check uses: `--forc` resolves to --force, while `--f`/`--fo` are ambiguous with
+        # --follow-tags and git rejects them itself.
+        if token.startswith("--") and any(
+            target.startswith(long_name) and len(long_name) >= 4
+            for target in FORCE_PUSH_TARGETS
+        ):
+            return token
+        if long_name in PUSH_LONG_OPTIONS_WITH_VALUE and "=" not in token:
+            index += 2
+            continue
+        if token.startswith("-") and not token.startswith("--") and len(token) > 1:
+            cluster = token[1:]
+            for offset, option in enumerate(cluster):
+                if option == "f":
+                    return token
+                if option in PUSH_SHORT_OPTIONS_WITH_VALUE:
+                    if offset == len(cluster) - 1:
+                        index += 1
+                    break
+        index += 1
+    return None
+
+
+def forbidden_gh_operation(segment: list[str]) -> str | None:
+    index = executable_index(segment)
+    if index is None or os.path.basename(segment[index]) != "gh":
+        return None
+    index += 1
+
+    words: list[str] = []
+    while index < len(segment) and len(words) < 2:
+        token = segment[index]
+        if token == "--":
+            index += 1
+            continue
+        if token in GH_OPTIONS_WITH_VALUE:
+            index += 2
+            continue
+        if token.startswith("-"):
+            index += 1
+            continue
+        words.append(token)
+        index += 1
+
+    if len(words) == 2 and (words[0], words[1]) in GH_FORBIDDEN_SUBCOMMANDS:
+        return f"gh {words[0]} {words[1]}"
+    return None
+
+
+def forbidden_remote_operation(segment: list[str]) -> str | None:
+    push = git_subcommand_arguments(segment, "push")
+    if push is not None:
+        flag = forbidden_push_flag(push)
+        if flag:
+            return f"git push {flag}"
+    return forbidden_gh_operation(segment)
 
 
 def strip_heredoc_bodies(command: str) -> str:
@@ -485,16 +734,44 @@ def check_command(command: str, depth: int = 0) -> int:
             return unparseable_fallback(command, first_error)
 
     for segment in segments:
-        payload = shell_payload(segment)
-        if payload is not None:
-            # `command` is passed as the raw text for heredoc resolution, so the nested call
-            # gets the payload as ITS raw text — the heredoc a nested commit uses lives there.
-            status = check_command(payload, depth + 1)
+        try:
+            payload = shell_payload(segment)
+            if payload is None:
+                payload = eval_payload(segment)
+            if payload is not None:
+                if depth >= MAX_SHELL_NESTING:
+                    # Out of unwrapping budget. Returning 0 here made a deep enough nest a
+                    # free bypass, so fall closed onto the textual scan instead.
+                    status = unresolvable_segment(segment, "shell nesting limit reached")
+                    if status:
+                        return status
+                    continue
+                # `command` is passed as the raw text for heredoc resolution, so the nested
+                # call gets the payload as ITS raw text — the heredoc a nested commit uses
+                # lives there.
+                status = check_command(payload, depth + 1)
+                if status:
+                    return status
+                continue
+
+            remote = forbidden_remote_operation(segment)
+            if remote:
+                print(
+                    f"Blocked by .agents/rules/cycle-orchestration.md §Never, even when "
+                    f"authorized: {remote} is forbidden.\n"
+                    "Plain `git push` is allowed; rewriting published history and opening or "
+                    "merging PRs are not. Ask the user to run it.",
+                    file=sys.stderr,
+                )
+                return 2
+
+            args = commit_arguments(segment)
+        except UnresolvedWrapper as error:
+            status = unresolvable_segment(segment, str(error))
             if status:
                 return status
             continue
 
-        args = commit_arguments(segment)
         if args is None:
             continue
         blocked = forbidden_flag(args)
