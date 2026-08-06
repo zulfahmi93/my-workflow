@@ -15,7 +15,7 @@
 // home paths are hardcoded.
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, copyFileSync, existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadYamlSource, parseYamlDoc } from './lib/load-yaml-source.mjs';
@@ -42,6 +42,20 @@ function loadSite(siteFile) {
 
 function sourceExists(docsRoot, name) {
   return !!name && existsSync(join(REPO_ROOT, docsRoot, name));
+}
+
+// Is the project actually checked out, or is this docsRoot just a shell an earlier build left
+// behind? Deliberately NOT `existsSync(docsRoot)`: buildProject's `mkdir -p` of outDir also
+// materialises docsRoot and every ancestor above it, so a single aborted build against an
+// absent project was enough to make the shell indistinguishable from a real checkout — and
+// validateAll then reported "no such file" for ever after, on unchanged inputs. The only entry
+// a build can leave in docsRoot is the generated output dir; anything else (plan-*.yaml,
+// cycles/, research/) means a human put it there.
+function projectCheckedOut(project) {
+  const abs = join(REPO_ROOT, project.docsRoot);
+  if (!existsSync(abs)) return false;
+  const generated = basename(project.outDir);
+  return readdirSync(abs).some((entry) => entry !== generated);
 }
 
 // Load one plan from its single YAML source. The generator is YAML-only: `plan-<id>.yaml`
@@ -84,11 +98,17 @@ function buildProject(project, onlyPlanId = null, opts = {}) {
   // Compare-dir override: build YAML output beside the live html/ without touching it.
   const outRel = opts.outDir || project.outDir;
   const outAbs = join(REPO_ROOT, outRel);
-  mkdirSync(outAbs, { recursive: true });
-  copyAssets(outAbs);
 
   // Every plan's data is needed for the landing; render pages only for targeted plan(s).
+  // Resolve every source BEFORE creating a single directory: loadPlan throws on a missing or
+  // invalid YAML, and a build that is about to abort must leave nothing behind. Creating outDir
+  // up here meant one failed build against an absent project mkdir -p'd the whole
+  // projects/<group>/<name>/docs/html chain, and that stub then flipped `npm run validate` from
+  // "skipped — project not checked out" to a hard "no such file" permanently.
   const planData = project.plans.map((pc) => loadPlan(project, pc, opts));
+
+  mkdirSync(outAbs, { recursive: true });
+  copyAssets(outAbs);
 
   for (const pd of planData) {
     if (onlyPlanId && pd.id !== onlyPlanId) continue;
@@ -664,8 +684,12 @@ function validateAll(targetProject, targetPlan) {
       // repositories that the root repo does not track, so a root-only clone or worktree has
       // no project directories at all — an environment state, not a bad registry. Treating
       // that as failure made validate red on every fresh root checkout.
+      //
+      // The presence test is projectCheckedOut(), not existsSync(docsRoot): docsRoot is an
+      // ancestor of outDir, so a failed build used to create it as a side effect and this
+      // skip silently reverted to the failure ec047af removed.
       if (!sourceExists(project.docsRoot, yamlName)) {
-        if (existsSync(join(REPO_ROOT, project.docsRoot))) {
+        if (projectCheckedOut(project)) {
           failed++;
           console.error(`\n${project.name}/${yamlName}: listed in projects.config.json but no such file\n`);
         } else {
