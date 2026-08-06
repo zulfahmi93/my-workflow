@@ -47,7 +47,7 @@ const PRE_SCHEMA = {
 
 const pre = await agent(`Read ${PLAN_PATH} (cwd = repo root). Target batch: "${A.batch}".
 1. List the batch's cycles in id order. For each: greenAgent = the owning implementation role defined in .agents/roles/ (e.g. "React Expert"), redAgent if the plan assigns a separate test author, securityTier per the plan/cycle spec (cross-check .agents/rules/cycle-orchestration.md §Security tier).
-2. ok=false + explain in notes if ANY of: a cycle's deps are not all status=done; file-ownership overlaps between two cycles inside this batch; a cycle is missing its "Architecture review:" field.
+2. ok=false + explain in notes if ANY of: a cycle's deps are not all status=done; file-ownership overlaps between two cycles inside this batch; a cycle is missing its "arch-review" field.
 3. testCollisionRisk=true if these cycles' test suites contend for shared resources (same DB container, fixed ports, same dev server). When in doubt, true.
 ${A.cycles ? `Restrict to these cycles: ${JSON.stringify(A.cycles.map(c => (c && c.cycle) || c))}` : ''}
 Return data only.`, { label: 'preflight', phase: 'Preflight', schema: PRE_SCHEMA })

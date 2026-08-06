@@ -135,16 +135,16 @@ phase('Gate')
 const gate = await agent(`${COMMON}
 
 Task: read ${PLAN_PATH} and extract cycle ${A.cycle}.
-1. Find the cycle's "Architecture review:" field. Map to mode: required / deferred / none; if the field is absent, mode = "missing".
-2. If deferred to a sibling cycle, read that cycle's architect-verdict from ${A.projectPath}/docs/cycles/<X.Y>.yaml and return its locked-decisions as lockedDecisions (otherwise lockedDecisions = []).
+1. Read the cycle's "arch-review" mapping and return its "state" (required / deferred / none) as mode. Only if the cycle carries no "arch-review" key at all, look for a legacy prose "Architecture review:" line in the cycle's body before concluding mode = "missing".
+2. If mode is deferred, the sibling is the cycle's "arch-review.deferred-to". Read that cycle's architect-verdict from ${A.projectPath}/docs/cycles/<X.Y>.yaml and return its locked-decisions as lockedDecisions (otherwise lockedDecisions = []).
 3. specSummary: the cycle's spec in ≤ 200 words (title, phase steps, gate criteria, files in scope).
-4. securityTier: true if the plan marks it OR the spec touches any item in ${RULES}/cycle-orchestration.md §Security tier.
+4. securityTier: the cycle's "security-tier" field (absent → false), OR true if the spec touches any item in ${RULES}/cycle-orchestration.md §Security tier.
 5. noTdd: the cycle's "no-tdd" field, verbatim (absent → false). Report what the plan says; do not infer it from the spec.
 Return data only.`, { label: 'gate:read-plan', phase: 'Gate', schema: GATE_SCHEMA })
 if (!gate) throw new Error('gate reader died')
 
 if (gate.mode === 'missing') {
-  return { halted: 'architecture-review-field-missing', detail: `Cycle ${A.cycle} has no "Architecture review:" field in ${PLAN_PATH}. Per cycle-orchestration.md §Architect gate: STOP and ask the user to mark the cycle in the plan.` }
+  return { halted: 'architecture-review-field-missing', detail: `Cycle ${A.cycle} has no "arch-review" field in ${PLAN_PATH} (schema: plan.schema.json $defs.cycle requires it). Per cycle-orchestration.md §Architect gate: STOP and ask the user to mark the cycle in the plan.` }
 }
 
 const securityTier = Boolean(A.securityTier || gate.securityTier)
