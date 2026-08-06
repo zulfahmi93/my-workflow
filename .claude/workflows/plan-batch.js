@@ -49,20 +49,40 @@ const pre = await agent(`Read ${PLAN_PATH} (cwd = repo root). Target batch: "${A
 1. List the batch's cycles in id order. For each: greenAgent = the owning implementation role defined in .agents/roles/ (e.g. "React Expert"), redAgent if the plan assigns a separate test author, securityTier per the plan/cycle spec (cross-check .agents/rules/cycle-orchestration.md §Security tier).
 2. ok=false + explain in notes if ANY of: a cycle's deps are not all status=done; file-ownership overlaps between two cycles inside this batch; a cycle is missing its "arch-review" field.
 3. testCollisionRisk=true if these cycles' test suites contend for shared resources (same DB container, fixed ports, same dev server). When in doubt, true.
-${A.cycles ? `Restrict to these cycles: ${JSON.stringify(A.cycles.map(c => (c && c.cycle) || c))}` : ''}
+Report the batch's cycles in full — do NOT pre-filter. The caller narrows the run afterwards.
 Return data only.`, { label: 'preflight', phase: 'Preflight', schema: PRE_SCHEMA })
 if (!pre) throw new Error('preflight died')
 if (!pre.ok) return { halted: 'preflight-failed', notes: pre.notes, cycles: pre.cycles }
 
+// Narrow AFTER preflight, in code, never in the prompt. Two reasons the old prompt-only
+// form was wrong: the job list was built from whatever the agent chose to return, so a
+// preflight that ignored the instruction silently ran the WHOLE batch; and because the
+// agent validated the already-narrowed set, a file-ownership clash with an EXCLUDED
+// sibling went undetected — the exact check the preflight exists to perform.
 const overrides = {}
 for (const c of (A.cycles || [])) if (c && c.cycle) overrides[c.cycle] = c
-const jobs = pre.cycles.map(c => ({ ...c, ...(overrides[c.cycle] || {}) }))
+const requested = (A.cycles || []).map(c => (c && c.cycle) || c).filter(Boolean)
+let selected = pre.cycles
+if (requested.length) {
+  const known = new Set(pre.cycles.map(c => c.cycle))
+  const missing = requested.filter(id => !known.has(id))
+  if (missing.length) {
+    return { halted: 'requested-cycle-not-in-batch', detail: `Requested ${missing.join(', ')}, but batch "${A.batch}" contains ${[...known].join(', ')}.`, notes: pre.notes, cycles: pre.cycles }
+  }
+  selected = pre.cycles.filter(c => requested.includes(c.cycle))
+  log(`restricted to ${selected.length} of ${pre.cycles.length} batch cycles: ${requested.join(', ')}`)
+}
+const jobs = selected.map(c => ({ ...c, ...(overrides[c.cycle] || {}) }))
+  .map(c => ({ ...c, greenAgent: c.greenAgent || c.greenRole, redAgent: c.redAgent || c.redRole }))
 
 phase('Cycles')
 const runOne = (c) => workflow('tdd-cycle', {
   project: A.project, projectPath: A.projectPath, plan: A.plan,
   cycle: c.cycle, greenAgent: c.greenAgent, redAgent: c.redAgent,
   securityTier: c.securityTier, models: A.models,
+  // Forwarded so a batch can run in an isolated worktree and can lower the review ceiling
+  // for small cycles — both were declared on this workflow but never reached the child.
+  notice: A.notice, maxReviewPasses: A.maxReviewPasses, maxRefutedOnlyPasses: A.maxRefutedOnlyPasses,
 })
 
 let results = []

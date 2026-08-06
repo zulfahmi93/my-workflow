@@ -13,11 +13,18 @@ export const meta = {
 // Required args: { project, projectPath, plan, cycle, greenAgent }
 // Optional: redAgent, securityTier, models, maxCloseRounds (default 3), extraNotice
 const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
+// Accept the neutral spec's greenRole/redRole alongside the legacy greenAgent/redAgent
+// keys. Following .agents/workflows/*.md verbatim used to fail on a required-arg check.
+if (A.greenRole && !A.greenAgent) A.greenAgent = A.greenRole
+if (A.redRole && !A.redAgent) A.redAgent = A.redRole
 for (const k of ['project', 'projectPath', 'plan', 'cycle', 'greenAgent']) {
   if (!A[k]) throw new Error(`args.${k} is required`)
 }
 
-const TDD = '/Users/zulfahmi/Desktop/rintis-ai/.claude/workflows/tdd-cycle.js'
+// Resolved relative to THIS file, never an absolute path: the sibling adapter always sits
+// beside it, and a hardcoded home directory breaks on every other checkout — including a
+// git worktree, which is the one situation this workflow exists to serve.
+const TDD = new URL('./tdd-cycle.js', import.meta.url).pathname
 const MAX_ROUNDS = A.maxCloseRounds || 3
 const WT = A.projectPath
 
@@ -38,9 +45,20 @@ if (!cycleResult || cycleResult.halted) {
   return { halted: (cycleResult && cycleResult.halted) || 'tdd-cycle-died', cycleResult }
 }
 
-// tdd-cycle approves at zero BLOCKER/REFACTOR, so NITs survive approval. Collect them.
-const lastPass = cycleResult.reviewLog[cycleResult.reviewLog.length - 1]
-let open = (lastPass.findings || []).map(f => ({ tag: f.tag, file: f.file, finding: f.finding }))
+// tdd-cycle approves at zero BLOCKER/REFACTOR, so NITs survive approval. Collect them from
+// EVERY pass and from the security review, not just the last pass: a NIT raised on pass 1
+// that the approving reviewer did not restate would otherwise ship open, which is exactly
+// what this wrapper exists to prevent. Deduped on tag+file+text.
+const seen = new Set()
+let open = []
+for (const pass of [...(cycleResult.reviewLog || []), cycleResult.securityReview].filter(Boolean)) {
+  for (const f of pass.findings || []) {
+    const key = `${f.tag} ${f.file || ''} ${f.finding}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    open.push({ tag: f.tag, file: f.file, finding: f.finding })
+  }
+}
 
 const CLOSE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -109,6 +127,13 @@ Then review the cycle's whole diff and list every genuinely actionable remaining
   rounds.push({ round: r, classes: closed.classes, dry: verified.dry, remaining: verified.openFindings.length })
   open = verified.dry ? [] : verified.openFindings
   log(`close round ${r}: ${verified.dry ? 'dry' : `${open.length} still open`}`)
+}
+
+// Exhausting the rounds with findings still open is a stop, not an opinion to hand the
+// gate. This workflow's contract is "nothing ships open, however small"; falling through
+// silently downgraded a convergence failure into one reviewer's judgement call.
+if (open.length) {
+  return { halted: 'close-rounds-exhausted', detail: `${open.length} finding(s) still open after ${MAX_ROUNDS} close rounds.`, open, rounds, cycleResult }
 }
 
 phase('Gate')

@@ -31,6 +31,10 @@ function normalizeArgs(raw) {
     throw new Error(`args arrived as a non-JSON string: ${raw.slice(0, 80)} — pass an object, e.g. { project: "…", cycle: "4.2" }`)
   }
 }
+// Accept the neutral spec's greenRole/redRole alongside the legacy greenAgent/redAgent
+// keys. Following .agents/workflows/*.md verbatim used to fail on a required-arg check.
+if (A.greenRole && !A.greenAgent) A.greenAgent = A.greenRole
+if (A.redRole && !A.redAgent) A.redAgent = A.redRole
 for (const k of ['project', 'projectPath', 'plan', 'cycle', 'greenAgent']) {
   if (!A[k]) throw new Error(`args.${k} is required — e.g. { project: "isc-workflow-web", projectPath: "projects/rintis/isc-workflow-web", plan: "004", cycle: "4.2", greenAgent: "React Expert" }`)
 }
@@ -358,6 +362,11 @@ Return resolutions: one entry per finding stating exactly how it was resolved. g
 }
 
 // ---- Security tier second pass ----
+// Every pass is kept, not just the last: reassigning discarded a first-pass failure and its
+// findings the moment pass two approved, which is precisely the record a security-tier cycle
+// note is supposed to carry. `securityReview` stays the latest pass so existing readers and
+// the neutral spec's singular "security review" are unaffected.
+const securityReviews = []
 let securityReview = null
 if (securityTier) {
   for (let spass = 1; spass <= 2; spass++) {
@@ -371,13 +380,16 @@ verdict=APPROVED only with zero BLOCKER/REFACTOR findings. You never edit files.
     const claimedApproved = sec.verdict === 'APPROVED'
     const mechanicallyApproved = sblock.length === 0
     securityReview = { pass: spass, verdict: sec.verdict, mechanicallyApproved, findings: sec.findings }
+    securityReviews.push(securityReview)
     if (claimedApproved !== mechanicallyApproved) {
       return { halted: 'inconsistent-security-verdict', detail: `Security reviewer returned ${sec.verdict} with ${sblock.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview }
     }
     if (mechanicallyApproved) break
 
-    if (spass === 2 || !sblock.length) {
-      return { halted: 'security-review-not-approved', gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview }
+    // `!sblock.length` was dead here — zero blocking findings implies mechanicallyApproved,
+    // which already broke out of the loop above.
+    if (spass === 2) {
+      return { halted: 'security-review-not-approved', gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview, securityReviews }
     }
     phase('REFACTOR')
     const fix = await agent(`${COMMON}
@@ -395,7 +407,7 @@ return {
   approved: true,
   cycle: A.cycle, project: A.project, plan: A.plan, securityTier, noTdd,
   gate: { mode: gate.mode, specSummary: gate.specSummary },
-  architectVerdict, red, green, refactors, reviewLog, hallucinationsRejected, securityReview,
+  architectVerdict, red, green, refactors, reviewLog, hallucinationsRejected, securityReview, securityReviews,
   reviewerIdConvention: 'record reviewer-agent-id as wf:<runId>/review-pass-<N> (runId is in the Workflow tool result)',
   next: `Orchestrator: walk cycle-orchestration.md §Definition of done (1)-(8) — update plan status, file ${A.projectPath}/docs/cycles/${A.cycle}.yaml (npm run validate-cycle-note), regenerate docs (npm run build -- ${A.project}). Commit stays with the user / autonomous-run protocol.`,
 }
