@@ -355,6 +355,98 @@ async function validateLinks() {
   }
 }
 
+// Canonical agent config lives in `.agents/`; `.claude/` and `.codex/` are thin adapters (root
+// AGENTS.md §Layout). Some canonical directories have no adapter counterpart at all: the rules
+// moved from `.claude/rules/` to `.agents/rules/` in root commit 88949bb, and for six weeks
+// after that move 53 pointer lines across 11 project guides and 347 across 25 plan YAMLs still
+// sent agents to the old path. Nothing noticed, because a pointer in a guide is prose — it is
+// only ever followed by a subagent mid-cycle, which reads nothing and carries on. kobu-bot (paid
+// client) routed the security-tier gate for its HMAC-verify and admin-auth cycles into that dead
+// directory. validateLinks() below never saw any of it: most are backticked paths inside session
+// prompts, not Markdown links.
+//
+// The dead set is derived from disk rather than hardcoded, so the next canonical directory to
+// move is covered the day it moves. That derivation is also what keeps the check from
+// over-reaching: an adapter path is flagged only when `.agents/` has that name and the adapter
+// does not, which leaves `.claude/settings.json`, `.claude/workflows/`, `.claude/skills/` and
+// tinjau's `~/.claude/projects/` (Claude's own session store, which that project reads) alone.
+async function deadAdapterDirs() {
+  const subdirs = async (rel) => new Set(
+    (await readdir(path.join(repoRoot, rel), { withFileTypes: true }).catch(() => []))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name),
+  );
+  const canonical = await subdirs('.agents');
+  const dead = [];
+  for (const adapter of ['.claude', '.codex']) {
+    const present = await subdirs(adapter);
+    for (const name of canonical) if (!present.has(name)) dead.push(`${adapter}/${name}/`);
+  }
+  return dead;
+}
+
+// `docs/html/` is generated output; `docs/cycles/` is the historical execution record, where a
+// cycle note correctly quotes the path that cycle's agents were told to read at the time.
+const CORPUS_PRUNE = new Set(['node_modules', '.git', 'html', 'cycles']);
+
+// Two exemptions, and they have to stay two. plan-009 is the plan that SPECIFIES this sweep —
+// cycle 9.2 is titled "Sweep the dead .claude/rules path from the plan YAMLs" — so its
+// occurrences are the statement of the defect, the rewrite instruction, and the literal grep the
+// cycle is gated on. Rewriting them would invert that gate into counting the new path. The
+// open-issues file is a dated snapshot of what was broken on 2026-07-19; rewriting it would make
+// the record claim a defect that never existed. Every other file naming a dead adapter directory
+// holds a live pointer an agent will follow into nothing: fix the file, do not extend this list.
+const POINTER_EXEMPT = new Set([
+  'projects/personal/u60-monitor/docs/plan-009.yaml',
+  'projects/personal/u60-monitor/docs/open-issues-2026-07-19.md',
+]);
+
+async function validateCanonicalPointers() {
+  const dead = await deadAdapterDirs();
+  if (!dead.length) return;
+  const pattern = new RegExp(dead.map((d) => d.replaceAll('.', '\\.')).join('|'), 'g');
+
+  const corpus = [];
+  async function collect(dir) {
+    for (const entry of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!CORPUS_PRUNE.has(entry.name)) await collect(full);
+      } else if (entry.name.endsWith('.md') || /^plan-.+\.yaml$/.test(entry.name)) {
+        // Every Markdown file, not just the agent guides. The first pass of this check scanned
+        // only CLAUDE.md/AGENTS.md/plan-*.yaml and reported the corpus clean while
+        // tunas-lite/docs/parallel-waves.md still told an agent, verbatim, to read
+        // `.claude/rules/cycle-orchestration.md` before Wave 1. A dead pointer is dead wherever
+        // it is written; `cycles/` and `html/` are pruned above because those are records, not
+        // instructions.
+        corpus.push(full);
+      }
+    }
+  }
+
+  // `projects/` holds autonomous nested repositories that the root repo gitignores, so a
+  // root-only clone — and the git worktrees the harness routinely hands to subagents — have no
+  // project directories at all. Absent is an environment state, not a finding; hard-failing
+  // there produces false `git bisect` failures across the whole history, which is exactly what
+  // ec047af had to undo in the docs generator.
+  const projects = path.join(repoRoot, 'projects');
+  if (await access(projects).then(() => true).catch(() => false)) await collect(projects);
+  // The rules and roles themselves are the highest-value place for this rot to hide.
+  await collect(path.join(repoRoot, '.agents'));
+  for (const guide of ['AGENTS.md', 'CLAUDE.md']) corpus.push(path.join(repoRoot, guide));
+
+  for (const file of corpus.sort()) {
+    const rel = path.relative(repoRoot, file);
+    if (POINTER_EXEMPT.has(rel)) continue;
+    const lines = (await readFile(file, 'utf8').catch(() => '')).split('\n');
+    lines.forEach((line, index) => {
+      for (const hit of new Set(line.match(pattern) || [])) {
+        errors.push(`${rel}:${index + 1}: points at ${hit}, which does not exist — canonical config is .agents/${hit.split('/')[1]}/`);
+      }
+    });
+  }
+}
+
 const claudeShim = await readFile(path.join(repoRoot, 'CLAUDE.md'), 'utf8');
 if (!claudeShim.startsWith('@AGENTS.md\n')) errors.push('CLAUDE.md: must import @AGENTS.md first');
 
@@ -365,6 +457,7 @@ await validateClaudeRuntimeAdapters();
 await validateCodexRuntimeAdapters();
 await validateCommitHookBehaviour();
 await validateLinks();
+await validateCanonicalPointers();
 
 if (errors.length) {
   for (const error of errors) console.error(error);
