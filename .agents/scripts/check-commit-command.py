@@ -46,6 +46,18 @@ GIT_OPTIONS_WITH_VALUE = {
     "--work-tree",
 }
 ENV_OPTIONS_WITH_VALUE = {"-C", "--chdir", "-u", "--unset", "-S", "--split-string"}
+# `xargs git commit --amend` runs git directly, so xargs is transparent the same way
+# `env` and `sudo` are: skip it and its options, then keep looking for the executable.
+XARGS_OPTIONS_WITH_VALUE = {
+    "-a", "--arg-file", "-d", "--delimiter", "-E", "-e", "--eof", "-I", "-i", "--replace",
+    "-L", "-l", "--max-lines", "-n", "--max-args", "-P", "--max-procs", "-s", "--max-chars",
+}
+# `bash -c '<cmd>'` hides the whole command inside one token, so unwrapping it needs a
+# re-lex rather than an index skip — see shell_payload() and check_command()'s recursion.
+SHELL_EXECUTABLES = {"bash", "sh", "zsh", "dash", "ksh"}
+SHELL_OPTIONS_WITH_VALUE = {"-o", "+o"}
+# Depth cap so a pathological `bash -c "bash -c \"...\""` chain cannot spin.
+MAX_SHELL_NESTING = 3
 SUDO_OPTIONS_WITH_VALUE = {
     "-C", "--close-from", "-D", "--chdir", "-g", "--group", "-h", "--host",
     "-p", "--prompt", "-R", "--chroot", "-T", "--command-timeout", "-u", "--user",
@@ -98,7 +110,16 @@ UNRESOLVABLE = re.compile(r"[$`]")
 HEREDOC_OPENER = re.compile(r"<<-?\s*(['\"]?)([^\s'\";)]+)\1")
 
 # Last-resort scan when the command cannot be tokenized at all.
-FORBIDDEN_FALLBACK = re.compile(r"--amend\b|--no-verify\b")
+#
+# This must match an actual `git … commit … --amend` shape, NOT the bare flag. The earlier
+# `"commit" in command and (--amend|--no-verify)` substring pair fired on any unparseable
+# command that merely MENTIONED both — `echo it doesn't commit; grep -- --amend f` was
+# blocked live. That is a fail-CLOSED path inside a function whose whole contract is to
+# fail open. Requiring git + commit + the flag with no command separator between them keeps
+# the real bypass covered and drops the prose false positives.
+FORBIDDEN_FALLBACK = re.compile(
+    r"\bgit\b[^\n;&|]*\bcommit\b[^\n;&|]*?(?:--amend|--no-verify)\b"
+)
 
 
 def command_segments(command: str) -> list[list[str]]:
@@ -154,6 +175,22 @@ def executable_index(segment: list[str]) -> int | None:
                 break
             continue
 
+        if executable == "xargs":
+            index += 1
+            while index < len(segment):
+                token = segment[index]
+                if token == "--":
+                    index += 1
+                    break
+                if token in XARGS_OPTIONS_WITH_VALUE:
+                    index += 2
+                    continue
+                if token.startswith("-"):
+                    index += 1
+                    continue
+                break
+            continue
+
         if executable == "sudo":
             index += 1
             while index < len(segment):
@@ -173,6 +210,40 @@ def executable_index(segment: list[str]) -> int | None:
         return index
 
     return None
+
+
+def shell_payload(segment: list[str]) -> str | None:
+    """The command string a `bash -c '<cmd>'` style wrapper will execute, if any.
+
+    Without this, `bash -c 'git commit --amend'` reaches commit_arguments() as the single
+    executable `bash` and is waved through — a complete bypass of both checks. The payload
+    is re-lexed by check_command() rather than index-skipped, because it is one token here
+    and a whole command line to the shell that runs it.
+    """
+    index = executable_index(segment)
+    if index is None or os.path.basename(segment[index]) not in SHELL_EXECUTABLES:
+        return None
+    index += 1
+    saw_c = False
+    while index < len(segment):
+        token = segment[index]
+        if token == "--":
+            index += 1
+            if saw_c:
+                break
+            continue
+        if token in SHELL_OPTIONS_WITH_VALUE:
+            index += 2
+            continue
+        if len(token) > 1 and token[0] in "-+":
+            if "c" in token[1:]:
+                saw_c = True
+            index += 1
+            continue
+        break
+    if not saw_c or index >= len(segment):
+        return None
+    return segment[index]
 
 
 def commit_arguments(segment: list[str]) -> list[str] | None:
@@ -258,7 +329,9 @@ def unparseable_fallback(command: str, error: Exception) -> int:
     hard-forbidden. The subject check is skipped, consistent with this script's stated rule
     of skipping whatever it cannot read rather than guessing.
     """
-    if "commit" in command and FORBIDDEN_FALLBACK.search(command):
+    # Scan the heredoc-STRIPPED text: a commit message body is data, not an invocation, and
+    # a body quoting `--amend` must not read as one.
+    if FORBIDDEN_FALLBACK.search(strip_heredoc_bodies(command)):
         print(
             "Blocked by .agents/rules/commit.md: forbidden git commit flag detected "
             "(command could not be fully parsed).",
@@ -398,9 +471,8 @@ def oversized_subject(args: list[str], command: str) -> str | None:
     return None
 
 
-def main() -> int:
-    command = sys.argv[1] if len(sys.argv) > 1 else ""
-    if not command:
+def check_command(command: str, depth: int = 0) -> int:
+    if not command or depth > MAX_SHELL_NESTING:
         return 0
     try:
         segments = command_segments(command)
@@ -413,6 +485,15 @@ def main() -> int:
             return unparseable_fallback(command, first_error)
 
     for segment in segments:
+        payload = shell_payload(segment)
+        if payload is not None:
+            # `command` is passed as the raw text for heredoc resolution, so the nested call
+            # gets the payload as ITS raw text — the heredoc a nested commit uses lives there.
+            status = check_command(payload, depth + 1)
+            if status:
+                return status
+            continue
+
         args = commit_arguments(segment)
         if args is None:
             continue
@@ -430,6 +511,10 @@ def main() -> int:
             )
             return 2
     return 0
+
+
+def main() -> int:
+    return check_command(sys.argv[1] if len(sys.argv) > 1 else "")
 
 
 if __name__ == "__main__":

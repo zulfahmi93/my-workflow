@@ -36,6 +36,15 @@ for (const command of [
   'git commit -nq -m x',
   'git commit --am -m x',
   'git commit --no-verif -m x',
+  // Shell wrappers hide the whole command in one token, so the executable scan saw only
+  // `bash`/`xargs` and waved these through — a complete bypass of both checks.
+  "bash -c 'git commit --amend'",
+  'sh -c "git commit --no-verify -m x"',
+  "bash -lc 'git commit --amend'",
+  "bash -c -- 'git commit --amend'",
+  "cd /tmp && bash -c 'git commit --no-verify -m x'",
+  'xargs git commit --amend',
+  'xargs -n 1 git commit --amend',
 ]) {
   expectStatus(`blocked commit command: ${command}`, run(commitPolicy, [command]), 2);
 }
@@ -43,9 +52,22 @@ for (const command of [
   'git commit -m "document --amend policy"',
   'echo --amend && git commit -m ok',
   'git status',
+  "bash -c 'echo hello'",
+  'bash script.sh',
+  'xargs rm',
+  // The unparseable fallback must fail OPEN as its docstring promises. The old substring
+  // pair ("commit" anywhere + the flag anywhere) blocked ordinary prose: the apostrophe
+  // defeats the lexer, then `commit` and `--amend` both appear as DATA, not an invocation.
+  "echo it doesn't commit; grep -- --amend f",
 ]) {
   expectStatus(`allowed command: ${command}`, run(commitPolicy, [command]), 0);
 }
+// A subject long enough to block must still be measured through a shell wrapper.
+expectStatus(
+  'blocked long subject through bash -c',
+  run(commitPolicy, [`bash -c 'git commit -m "feat: ${'x'.repeat(60)}"'`]),
+  2,
+);
 
 const generatedPolicy = path.join(repoRoot, '.agents/scripts/check-generated-path.sh');
 expectStatus('relative generated path', run(generatedPolicy, ['docs/html/index.html']), 2);
