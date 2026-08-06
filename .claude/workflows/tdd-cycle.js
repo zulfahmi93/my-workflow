@@ -255,6 +255,20 @@ const reviewLog = []
 const hallucinationsRejected = []
 const refactors = []
 let lastReport = green
+// The review SCOPE accumulates; `lastReport` does not. Reassigning lastReport per pass also
+// narrowed the file list handed to the next reviewer: a cycle whose GREEN wrote a..e and whose
+// REFACTOR touched only `a` had its APPROVING pass told to review `a` alone, and then approved
+// the whole cycle. The security reviewer had it worse — it runs after the loop, so it was
+// permanently pointed at the last general refactor's files. Same bug class as `securityReviews`
+// below: the newest report is the right gate result and the right command, never the right diff.
+// Only filesTouched is cumulative.
+const reviewScope = new Set(green.filesTouched)
+// The degenerate case of the same defect: a reviewer handed [] has nothing to review and can
+// only return APPROVED. GREEN cannot flip a failing test without touching a file, and a no-tdd
+// AUTHOR cycle exists to change docs, so zero files is a broken report — not a real outcome.
+if (!reviewScope.size) {
+  return { halted: 'empty-review-scope', detail: `${noTdd ? 'AUTHOR' : 'GREEN'} reported filesTouched: [] — the reviewer would be handed an empty diff and could only approve. Re-run the phase, or fix the implementer's report if it did edit files.`, gate, architectVerdict, red, green }
+}
 let approved = false
 
 // Three counters, because they bound different failures:
@@ -286,7 +300,7 @@ while (!approved) {
 
   const review = await agent(`${COMMON}
 You are the independent REVIEW gate (pass ${pass}) for cycle ${A.cycle}. Apply ${RULES}/review-checklist.md to the diff.
-Files to review: ${JSON.stringify(lastReport.filesTouched)}${testFiles.length ? ` plus tests ${JSON.stringify(testFiles)}` : ''}
+Files to review: ${JSON.stringify([...reviewScope])}${testFiles.length ? ` plus tests ${JSON.stringify(testFiles)}` : ''}
 Cycle spec: ${gate.specSummary}
 Locked decisions:
 ${lockedBlock}
@@ -358,6 +372,7 @@ Return resolutions: one entry per finding stating exactly how it was resolved. g
     { label: `refactor:p${pass}`, phase: 'REFACTOR', schema: REFACTOR_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
   if (!refactor) throw new Error(`REFACTOR pass ${pass} died`)
   refactors.push({ pass, filesTouched: refactor.filesTouched, gateResult: refactor.gateResult, resolutions: refactor.resolutions, deviations: refactor.deviations })
+  refactor.filesTouched.forEach(f => reviewScope.add(f))
   lastReport = refactor
 }
 
@@ -372,7 +387,7 @@ if (securityTier) {
   for (let spass = 1; spass <= 2; spass++) {
     const sec = await agent(`${COMMON}
 SECURITY-TIER second-pass review (pass ${spass}) for cycle ${A.cycle} per ${RULES}/cycle-orchestration.md §Security tier. Review the diff against ${RULES}/review-checklist.md §Security plus threat-model completeness (attacker-can / mitigation-blocks / residual-risk).
-Files: ${JSON.stringify(lastReport.filesTouched)}; tests: ${JSON.stringify(testFiles)}; gate: ${lastReport.gateResult}.
+Files: ${JSON.stringify([...reviewScope])}; tests: ${JSON.stringify(testFiles)}; gate: ${lastReport.gateResult}.
 verdict=APPROVED only with zero BLOCKER/REFACTOR findings. You never edit files.`,
       { label: `security:pass-${spass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Security Reviewer', model: MODELS.top })
     if (!sec) throw new Error('security reviewer died')
@@ -399,6 +414,9 @@ Tests stay green. Return resolutions per finding. gateResult format "Passed: N /
       { label: 'refactor:security', phase: 'REFACTOR', schema: REFACTOR_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
     if (!fix) throw new Error('security refactor died')
     refactors.push({ pass: `security-${spass}`, filesTouched: fix.filesTouched, gateResult: fix.gateResult, resolutions: fix.resolutions, deviations: fix.deviations })
+    // The remediation's files belong in scope too: pass 2 is the gate that approves the cycle,
+    // so it has to see both the original diff and what the fix did to it.
+    fix.filesTouched.forEach(f => reviewScope.add(f))
     lastReport = fix
   }
 }
