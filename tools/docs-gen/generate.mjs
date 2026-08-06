@@ -651,7 +651,7 @@ function main() {
 // Validate every YAML-sourced plan (schema + referential integrity), no rendering.
 function validateAll(targetProject, targetPlan) {
   const projects = loadRegistry().filter((p) => !targetProject || p.name === targetProject);
-  let checked = 0, failed = 0;
+  let checked = 0, skipped = 0, failed = 0;
   for (const project of projects) {
     for (const pl of project.plans) {
       if (targetPlan && pl.id !== targetPlan) continue;
@@ -659,9 +659,18 @@ function validateAll(targetProject, targetPlan) {
       // A registered plan with no source file is a registry error, not something to skip.
       // The old `continue` cited the MD-triad format that docs-site.md declares removed, so
       // `npm run validate` passed clean on a plan that `npm run build` would hard-error on.
+      //
+      // But only when the project is actually present. `projects/` holds autonomous nested
+      // repositories that the root repo does not track, so a root-only clone or worktree has
+      // no project directories at all — an environment state, not a bad registry. Treating
+      // that as failure made validate red on every fresh root checkout.
       if (!sourceExists(project.docsRoot, yamlName)) {
-        failed++;
-        console.error(`\n${project.name}/${yamlName}: listed in projects.config.json but no such file\n`);
+        if (existsSync(join(REPO_ROOT, project.docsRoot))) {
+          failed++;
+          console.error(`\n${project.name}/${yamlName}: listed in projects.config.json but no such file\n`);
+        } else {
+          skipped++;
+        }
         continue;
       }
       checked++;
@@ -674,6 +683,7 @@ function validateAll(targetProject, targetPlan) {
       }
     }
   }
+  if (skipped) console.log(`  (${skipped} plan(s) skipped — project not checked out)`);
   if (checked === 0) console.log('  (no YAML-sourced plans found)');
   if (failed > 0) { console.error(`validate: ${failed} file(s) FAILED.`); process.exit(1); }
   console.log(`\nvalidate: ${checked} YAML source(s) OK.`);
