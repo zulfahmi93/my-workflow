@@ -3,6 +3,7 @@
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { READ_ONLY_ROLES } from './read-only-roles.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const sourceDir = path.join(repoRoot, '.agents/roles');
@@ -33,7 +34,7 @@ for (const filename of canonicalFiles) {
   const role = parseRole(source, filename);
   const adapterName = codexName(filename);
   const instructions = `Canonical role: .agents/roles/${filename}\nResolve relative paths and Markdown links from that canonical file.\n\n${role.body}`;
-  const readOnly = ['code-reviewer.md', 'security-reviewer.md'].includes(filename);
+  const readOnly = READ_ONLY_ROLES.includes(filename);
   const output = [
     `name = ${JSON.stringify(adapterName)}`,
     `description = ${JSON.stringify(role.description)}`,

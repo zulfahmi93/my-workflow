@@ -4,6 +4,7 @@ import { access, readdir, readFile, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { READ_ONLY_ROLES, FORBIDDEN_TOOLS } from './read-only-roles.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const errors = [];
@@ -44,7 +45,7 @@ function codexName(filename) {
 
 function expectedCodexRole(filename, role) {
   const instructions = `Canonical role: .agents/roles/${filename}\nResolve relative paths and Markdown links from that canonical file.\n\n${role.body}`;
-  const readOnly = ['code-reviewer.md', 'security-reviewer.md'].includes(filename);
+  const readOnly = READ_ONLY_ROLES.includes(filename);
   return [
     `name = ${JSON.stringify(codexName(filename))}`,
     `description = ${JSON.stringify(role.description)}`,
@@ -85,6 +86,27 @@ async function validateRoles() {
       errors.push(`.claude/agents/${filename}: routing frontmatter is stale`);
     }
     if (!adapter.includes(`Read \`.agents/roles/${filename}\` in full`)) errors.push(`.claude/agents/${filename}: wrong canonical target`);
+
+    // `tools:` is preserved from disk by sync-claude-adapters.mjs, never derived, so a new
+    // role ships with NO allowlist and nothing notices. For the review family that silently
+    // grants write access to agents whose whole contract is that they cannot write — the
+    // Code Reviewer's "your toolset carries no edit access, so the review stays a review".
+    // Only that family is checked, and per-role: the others' allowlists are a runtime choice
+    // with no canonical source to check them against, and the three review roles differ
+    // (security-reviewer keeps Write to file its threat model). See read-only-roles.mjs.
+    const forbidden = FORBIDDEN_TOOLS[filename];
+    if (forbidden) {
+      const toolsLine = fieldLines(adapterBlock, ['tools'])[0];
+      if (!toolsLine) {
+        errors.push(`.claude/agents/${filename}: review-family role has no tools allowlist`);
+      } else {
+        const granted = toolsLine.replace(/^tools:\s*/, '').split(',').map((tool) => tool.trim());
+        const violations = granted.filter((tool) => forbidden.includes(tool));
+        if (violations.length) {
+          errors.push(`.claude/agents/${filename}: must not grant ${violations.join(', ')}`);
+        }
+      }
+    }
 
     const role = parseRole(source, `.agents/roles/${filename}`);
     if (!role) continue;
