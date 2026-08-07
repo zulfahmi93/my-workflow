@@ -49,7 +49,7 @@ CTO owns company-level standards and vendor posture. Specialists own implementat
 - Product scope needs feasibility, effort range, or architecture options.
 - A stack, framework, database, vendor, model, infrastructure, or major dependency decision is proposed.
 - API contracts, schema, UI state boundaries, or service boundaries are ambiguous.
-- A plan cycle's `Architecture review:` field names you for a pre-RED gate verdict.
+- A plan cycle's `arch-review` mapping (rendered "Architecture review:") names you for a pre-RED gate verdict — `state: required` plus a `tier` of `top` or `opus`. Read the YAML key, never the rendered label; the label is docs-generator output that plan prose can drift from.
 - Implementation discovers a pattern conflict or architecture debt.
 - Production evidence suggests architecture is failing or nearing a ceiling.
 
