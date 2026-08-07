@@ -44,12 +44,12 @@
           "finding": { "type": "string", "minLength": 1 },
           "resolution": { "type": "string", "minLength": 1 },
           "pass": { "type": "integer", "minimum": 1 },
-          "reviewer-agent-id": { "$ref": "#/$defs/reviewer-agent-id" }
+          "reviewer-agent-id": { "$ref": "#/$defs/reviewer-agent-id-legacy" }
         }
       }
     },
     "review-passes": {
-      "description": "One entry per REVIEW pass, INCLUDING passes that returned zero findings. Without this, a clean APPROVED pass leaves no machine-readable trace of who reviewed it — reviewer-agent-id lives only inside reviewer-findings[], so a no-findings pass names nobody and cycle-orchestration.md's self-review check cannot fire on the case where an accidental self-review is easiest to miss. Optional, so the 201 notes filed before this field existed stay valid.",
+      "description": "One entry per REVIEW pass, INCLUDING passes that returned zero findings — cycle-orchestration.md §Reviewer separation makes this a MUST. Without it a clean APPROVED pass leaves no machine-readable trace of who reviewed it: reviewer-agent-id otherwise lives only inside reviewer-findings[], so a no-findings pass names nobody and the self-review check cannot fire on the case where an accidental self-review is easiest to miss. Still OPTIONAL here because 0 of the 130 notes on record carry one and cycle notes are historical execution records that are never rewritten — validate-cycle-note.mjs instead hard-errors on a note that names no reviewer in EITHER field, and warns when the roster is missing. Because no note on record carries a roster, reviewer-agent-id inside it is held to the strict canonical grammar ($defs/reviewer-pass-id) with none of the legacy tolerance reviewer-findings[] needs.",
       "type": "array",
       "items": {
         "type": "object",
@@ -57,7 +57,7 @@
         "required": ["pass", "reviewer-agent-id", "verdict"],
         "properties": {
           "pass": { "type": "integer", "minimum": 1 },
-          "reviewer-agent-id": { "$ref": "#/$defs/reviewer-agent-id" },
+          "reviewer-agent-id": { "$ref": "#/$defs/reviewer-pass-id" },
           "verdict": { "type": "string", "enum": ["APPROVED", "NEEDS FIX"] },
           "role": { "type": "string", "enum": ["code-reviewer", "security-reviewer"] },
           "model": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
@@ -117,14 +117,32 @@
     {
       "if": { "properties": { "security-tier": { "const": true } }, "required": ["security-tier"] },
       "then": { "required": ["threat-model"] }
+    },
+    {
+      "$comment": "Presence of review-passes[] is what marks a note NEW-style — 0 of the 130 notes on record carry the roster. So a note that carries one is held to the canonical id grammar on BOTH surfaces, not just the roster: without this, a new note could keep naming its reviewers in reviewer-findings[] free prose and the positive constraint would bind only where nobody writes. Legacy notes are untouched by construction, since they have no review-passes[] to trigger the branch.",
+      "if": { "required": ["review-passes"] },
+      "then": {
+        "properties": {
+          "reviewer-findings": {
+            "items": { "properties": { "reviewer-agent-id": { "$ref": "#/$defs/reviewer-pass-id" } } }
+          }
+        }
+      }
     }
   ],
   "$defs": {
-    "reviewer-agent-id": {
-      "description": "Identifier of the agent that performed the pass — e.g. `wf:<runId>/review-pass-<N>` when the runtime exposes a workflow run ID. The orchestrator reviewing its own work is non-compliant per cycle-orchestration.md §Permitted orchestrator-side reads, so a self-review value is rejected here mechanically rather than left to a human spotting it in a diff.",
+    "reviewer-pass-id": {
+      "description": "CANONICAL reviewer identity — the positive constraint that replaced the old `not: [Ss]elf[- _]?[Rr]eview` keyword filter. That filter never rejected anything: the token appears 0 times across the 130 notes on record, while `\"orchestrator (this session, reviewed its own GREEN output)\"` sailed straight through the minLength:1 field it guarded. Exactly one of two anchored forms, nothing else. (1) WORKFLOW-ISSUED — `wf:<runId>/review-pass-<N>`, or `security-pass-<N>` for the security-tier second pass; e.g. `wf:wf_ac45c2a0-883/review-pass-1`. This is the shape tdd-cycle.js emits mechanically (cycle-orchestration.md §Reviewer separation, `reviewerIdConvention`); <runId> is accepted as [A-Za-z0-9_.-]{1,64} rather than pinned to today's `wf_<8hex>-<3hex>` so a runtime that changes its run-ID format does not falsify every note at once. (2) MANUAL PATH — a bare Agent-tool agent ID, `a` + 16 lowercase hex, e.g. `a3c94389c274c9715`. Only 27 of the 130 notes ran via the workflow; without this branch the roster would be unfillable off-workflow and would go unused, which is the exact defect it exists to close. Role labels, verdicts and pass narration belong in `role` / `verdict` / `findings-count`, never inside the ID.",
+      "type": "string",
+      "pattern": "^(?:wf:[A-Za-z0-9_.-]{1,64}/(?:review|security)-pass-[1-9][0-9]{0,2}|a[0-9a-f]{16})$"
+    },
+    "reviewer-agent-id-legacy": {
+      "description": "Identifier of the agent that performed the pass, as recorded inside `reviewer-findings[]`. Legacy-tolerant ON PURPOSE: 146 of the 248 distinct values across the 130 notes on record are free prose (`\"Code Reviewer a03c8edf612e5dd26 (APPROVED, pass 3)\"`, `\"cr051@session-f3a1ebde\"`, `\"isc-cycle-1.6 workflow — review:1.6#1 (fresh Code Reviewer…)\"`), and cycle notes are historical execution records — they are never rewritten to satisfy a newer schema. So the canonical grammar binds here only where a value CLAIMS to be machine-issued: anything starting `wf:` must match $defs/reviewer-pass-id exactly. All 48 `wf:` values on record already conform, so this can only bite a newly hand-composed one. The `not: self-review` filter is kept as the residual floor on this surface — it is the guard cycle-orchestration.md §Reviewer separation documents as schema-enforced. The tolerance is legacy-only, not permanent: the second `allOf` branch escalates THIS field to the full canonical grammar as soon as the note carries a `review-passes[]` roster, i.e. for every new-style note.",
       "type": "string",
       "minLength": 1,
-      "not": { "pattern": "[Ss]elf[- _]?[Rr]eview" }
+      "not": { "pattern": "[Ss]elf[- _]?[Rr]eview" },
+      "if": { "pattern": "^wf:" },
+      "then": { "$ref": "#/$defs/reviewer-pass-id" }
     }
   }
 }
