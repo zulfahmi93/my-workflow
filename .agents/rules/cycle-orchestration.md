@@ -33,7 +33,7 @@ Every cycle in the project's `docs/plan-NNN.yaml` carries an `arch-review:` mapp
 - **`state: deferred`** + **`deferred-to: "<X.Y>"`** — sibling cycle inherits the prior verdict. Read the referenced cycle's `architect-verdict` from `<project>/docs/cycles/<X.Y>.yaml` before RED; do not call architect again. `deferred-to` may point at a cycle in an earlier plan of the same project (kobu-bot 004.3 → 002.10) — cycle notes are keyed by cycle id, not by plan.
 - **`state: none`** — explicitly trivial. Skip the architect call. `reason:` MUST be in the plan (e.g. "single pure-function regex normalizer"); the schema does not enforce it, this rule does.
 
-**If the `arch-review` mapping is missing → STOP. Ask the user to mark the cycle in the plan before proceeding.** No orchestrator-side judgment. No silent skip path. **Same STOP for a dangling `deferred-to`** — a target cycle that does not exist, or whose own `arch-review.state` is anything but `required`: the chain then terminates in no verdict, so there is nothing to inherit. Nothing checks this mechanically; you find out when you go read the target's `architect-verdict`, so read it before RED as the deferred branch already tells you to.
+**If the `arch-review` mapping is missing → STOP. Ask the user to mark the cycle in the plan before proceeding.** No orchestrator-side judgment. No silent skip path. **Same STOP for a dangling `deferred-to`** — a target cycle that does not exist, or whose own `arch-review.state` is anything but `required`: the chain then terminates in no verdict, so there is nothing to inherit. This one IS checked mechanically now: `npm run validate` (`generate.mjs --validate`) resolves every `deferred-to` against an index of all of the project's plans — a deferral may legitimately point backwards into an earlier plan — and fails unless the target exists with `state: required`. Validate path only; `build` does not check it. The check exists because kobu-bot 004.10, the live smoke on a paying client's production WABA, sat deferred to 001.15 (`state: none`, never run, no cycle note) through every green validate run. Still read the target's `architect-verdict` before RED as the deferred branch already tells you to — the validator proves a verdict is owed, not that it says what you assumed.
 
 This rule trades a small one-time plan-editing cost for permanent immunity to "I thought this cycle was trivial" drift.
 
@@ -58,10 +58,10 @@ If independent delegation is unavailable in the runtime — **STOP** and write `
 These are not self-review; do not confuse with the rule above:
 
 - **Post-APPROVED sanity check** — orchestrator confirms files exist at expected paths, the test gate passes (`dotnet test` / `pytest`), commit precondition holds. This is commit-precondition verification, not REVIEW.
-- **Anti-hallucination guard authoring** — orchestrator drafts the next-pass REVIEW prompt with verified-existing paths + prior gate quote (see [Reviewer hallucination guard](#reviewer-hallucination-guard)). Orchestrator filters reviewer hallucinations against independently-verified state; it does not author findings of its own.
+- **Anti-hallucination guard assembly** — orchestrator drafts the next-pass REVIEW prompt with verified-existing paths, the prior gate quote, and the refuted claims + evidence the `finding-verifier` returned (see [Reviewer hallucination guard](#reviewer-hallucination-guard)). It assembles that block; it does not make the refuted/confirmed call and does not author findings of its own.
 - **Reviewer-prompt assembly** — orchestrator picks the reviewer model + writes the prompt body. Different from authoring the findings.
 
-If a reviewer's findings appear wrong, the next pass goes to a fresh `code-reviewer` (with the anti-hallucination guard injected) — never to the orchestrator's own judgment.
+If a reviewer's findings appear wrong, the call goes to the [`finding-verifier`](#reviewer-hallucination-guard) and the next pass to a fresh `code-reviewer` (with the guard block injected) — never to the orchestrator's own judgment.
 
 The cycle-note YAML's `reviewer-findings[].reviewer-agent-id` records the reviewer agent ID per pass. If a cycle's notes show "self-review" as a reviewer-agent-id anywhere, the cycle is non-compliant; the orchestrator must STOP + write a STATUS.md. **This is now enforced by the schema** — a self-review value fails `npm run validate-cycle-note` rather than relying on a human catching it in a diff.
 
@@ -113,7 +113,7 @@ Every RED / GREEN / REVIEW / REFACTOR prompt MUST include:
 1. **Paths to read** — root `/AGENTS.md`, the nearest project-local guide, this file, [tdd.md](tdd.md), the plan's cycle entry, and relevant schema / contract / current-state files. Point at loaded guides rather than restating them.
 2. **Locked decisions** — architect verdict (paste verbatim or reference `<project>/docs/cycles/<X.Y>.yaml`), prior GREEN report, prior REVIEW findings.
 3. **Gate criteria** — what passes, what fails. Concrete (test count, exit code, file paths).
-4. **NO-DEFER reminder** — every `[BLOCKER]` / `[REFACTOR]` resolved this cycle. See [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up).
+4. **NO-DEFER reminder** — every `[BLOCKER]` / `[REFACTOR]` resolved this cycle. See [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up). On a `no-tdd` cycle, say so and state the substituted gate — the reviewer's fact-check is the only gate there, and an unverifiable claim is a `[BLOCKER]`. See [tdd.md §Cycles without RED](tdd.md#cycles-without-red-no-tdd).
 5. **Tone boundary** — caveman is chat-only; subagent writes idiomatic code / tests / commits.
 6. **Out-of-bounds** — package additions, test edits in GREEN, schema edits in implementation cycles — list explicitly.
 
@@ -121,15 +121,21 @@ Subagent returns a concise report: files touched, gate result (`Passed: N / Fail
 
 ## Reviewer hallucination guard
 
-Reviewers sometimes fabricate findings — e.g. "tests missing" when files exist in a subdirectory the reviewer skipped, or "import X is unused" when it's transitively required. (This used to be qualified "cheap-tier especially"; that tier is gone, and REVIEW runs at `top` regardless, so the guard applies to every pass.)
+Reviewers sometimes fabricate findings — e.g. "tests missing" when files exist in a subdirectory the reviewer skipped, or "import X is unused" when it's transitively required. (This used to be qualified "cheap-tier especially"; that tier is gone, and REVIEW runs at `top` regardless, so the guard applies to every pass.) Both false `[BLOCKER]`s this repo has recorded (isc-workflow-web 1.8, kobu-bot 005.3) were wrong-baseline errors: diffed against `HEAD` instead of the working tree, or blamed this cycle for a sibling cycle's files.
 
-Rule: if a reviewer finding contradicts independently-verified state, reject it. The next REVIEW pass prompt MUST inline:
+The guard is a **delegate, not an orchestrator judgement call**. After a REVIEW pass returns `NEEDS FIX`, that pass's blocking findings (`[BLOCKER]` + `[REFACTOR]`; `[NIT]`s are not verified) go to a [`finding-verifier`](../roles/finding-verifier.md) before any implementer spends a REFACTOR pass on them. It runs on every such pass, not only on disputes.
 
-- exact paths the reviewer must verify
-- prior gate result quoted (`Passed: N / Failed: 0`)
-- pre-emptive `ls <dir>` instruction so the reviewer drills into subdirectories
+- **Read-only, holding no review context.** The verifier runs commands and reads files; it never edits, creates, commits, or branches. It does not inherit the implementer clauses the other delegates get — a refuter told "every finding is resolved this cycle" is pointed at the opposite of its job — but it MUST inherit the working-directory notice, because a verifier running the gate command in the wrong tree refutes findings against code the cycle does not own. `pwd` before trusting any gate output.
+- **One verdict per finding, each judged alone.** One verifier per pass, not one per finding: the per-finding fan-out spent 16 delegates over four passes on cycle 8.3 and every refutation on record was a self-contained single-claim check. Sharing a file is not sharing a fate, and verifying one finding licenses no opinion on the others — or on the diff.
+- **`refuted: true` needs hard evidence** that the finding misstates repo state. The first check is re-running the reviewer's own stated evidence command (every finding carries one); if it does not reproduce the claim, that is a refutation. Plausible-but-unverified stays confirmed — an unverifiable finding survives, because a wasted REFACTOR pass costs less than a real defect dismissed on a hunch. Evidence is the exact command and the exact output line that decided it, never a summary of what it would show.
+- **Right for the wrong reason is confirmed, not refuted.** Where the defect is real but the stated cause is wrong, the finding stands and the failed explanation is named. kobu-bot 001.10 is the precedent: `parseCookies` did not store the space-prefixed key the reviewer blamed, but the dead double-lookup it pointed at was real — the removal shipped, only the explanation was struck.
+- **Missing verification is never refutation.** Every blocking finding needs exactly one usable verdict; a missing, duplicated, or out-of-range one halts the cycle (`finding-verification-failed`) instead of quietly dropping the finding.
 
-Reject only when state is independently verified (`ls`, `grep`, `dotnet test`, `pytest`). Genuine findings stand. NO-DEFER still applies.
+Confirmed findings go to REFACTOR under NO-DEFER, unchanged. **Refuted findings are dropped with no REFACTOR pass and recorded in the cycle note's [`hallucinations-rejected[]`](#cycle-notes-format)** — claim, evidence, mitigation. That is the one path by which a `[BLOCKER]` legitimately leaves a cycle unfixed, so the record is the audit trail: a refutation with no evidence string is indistinguishable from a finding that was ignored. Rejected claims and their evidence are inlined into every later REVIEW prompt along with the standing gate result, so the same fabrication is not re-raised — that inlining is the orchestrator's whole job here (see [Permitted orchestrator-side reads](#permitted-orchestrator-side-reads-not-review)); it assembles the prompt, it does not decide the verdict.
+
+A pass whose blocking findings are **all** refuted changed no code, so it does not consume the productive-review budget of [stop condition 5](#stop-conditions--halt--write-status): REVIEW re-runs with the guard block inlined, charged instead to `maxRefutedOnlyPasses` (default 3). Reaching that bound halts the cycle as `reviewer-hallucination-loop` — the reviewer is not converging on real defects and a human must read the rejected claims. Without the split, a hallucinating reviewer burned the budget meant for genuine convergence and the halt read as "reviewer dispute" on a cycle that had nothing wrong with it.
+
+The verifier is not a review pass and never substitutes for one: a cycle whose only independent check was verification has not been reviewed. If the runtime cannot delegate it, the orchestrator may still filter findings against independently-verified state (`ls`, `grep`, `dotnet test`, `pytest`) and must record the rejection the same way — but it never authors findings, and "I would not have flagged that" is not a refutation.
 
 ## Continuing a subagent vs spawning fresh
 
@@ -157,7 +163,7 @@ Top-level keys (full schema in `cycle-note.schema.json`):
 - `architect-verdict` (when applicable) — `{ verdict: GO|NO-GO, tier, reviewer, summary, locked-decisions[] }`.
 - `reviewer-findings[]` — one row per finding: `{ tag: BLOCKER|REFACTOR|NIT, finding, resolution, pass, reviewer-agent-id }`. The `reviewer-agent-id` per pass is the self-review guard (see [Reviewer separation](#reviewer-separation--never-self-review)).
 - `deviations[]` — `{ change, rationale }`: signature changes, scope adds.
-- `hallucinations-rejected[]` — `{ claim, evidence, mitigation }`: what the reviewer claimed was broken, proof it wasn't, the next-pass prompt mitigation.
+- `hallucinations-rejected[]` — `{ claim, evidence, mitigation? }`: what the reviewer claimed was broken, the [verifier's](#reviewer-hallucination-guard) proof it wasn't, the next-pass prompt mitigation. A dropped blocking finding appears nowhere else, so an entry with no real evidence string reads exactly like a finding that was ignored.
 - `follow-ups[]` — `{ item, tracked-in }`: deferred items, each already tracked in the plan §"Cycle follow-ups" (`cycle-followups:`).
 - `threat-model` — `{ attacker-can[], mitigation-blocks[], residual-risk[] }`. **Required** for [Security tier](#security-tier) cycles (schema enforces it when `security-tier: true`).
 
@@ -211,7 +217,7 @@ Halt the run and write `<project>/docs/AUTONOMOUS_RUN_STATUS.md` when ANY of:
 2. A cycle's `arch-review` mapping is missing from the plan, or its `deferred-to` points at a cycle with no verdict to inherit (see [§Architect gate](#architect-gate--read-from-the-plan-not-from-your-head)).
 3. A security-tier cycle whose `arch-review.tier` doesn't reflect the top-tier gate.
 4. A `[BLOCKER]`/`[REFACTOR]` finding requires genuine deferral (needs user approval per [tdd.md §Deferral policy](tdd.md#deferral-policy--fix-now-dont-pile-up)).
-5. REVIEW still `NEEDS FIX` after 3 REFACTOR passes, or a reviewer dispute survives the hallucination guard.
+5. REVIEW still `NEEDS FIX` once the review budget is spent, or a reviewer dispute survives the [hallucination guard](#reviewer-hallucination-guard). The budget is `maxReviewPasses` **productive** passes — a pass whose findings survived verification and drove a REFACTOR; refuted-only passes are charged to `maxRefutedOnlyPasses` instead and halt as `reviewer-hallucination-loop`. The [`tdd-cycle` workflow](../workflows/tdd-cycle.md) is the authority on both defaults (6 and 3 as this is written) and its halt cites this condition by number, so quote the constants here rather than a literal: this line read "after 3 REFACTOR passes" while the code ran 6, and the number in a rule nobody can run drifts silently from the one that halts the cycle.
 6. The test gate cannot reach green for a reason outside the cycle's scope.
 7. A pre-commit hook fails (fix-forward needs user eyes; never `--amend`, never `--no-verify`).
 8. The cycle's spec demands out-of-bounds changes (schema edits in an implementation cycle, package additions not in the plan).

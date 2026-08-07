@@ -2,7 +2,7 @@
 
 Shared across all TDD-disciplined projects in this repo. Project-specific extensions (cycle agent assignments, model rules) live in the project's plan file.
 
-Every cycle: `RED → GREEN → REVIEW → (REFACTOR → REVIEW)* → COMMIT`.
+Every cycle: `RED → GREEN → REVIEW → (REFACTOR → REVIEW)* → COMMIT` — except a cycle the plan marks `no-tdd: true`, which drops RED and substitutes a different gate. See [Cycles without RED (no-tdd)](#cycles-without-red-no-tdd).
 
 ```
                         ┌───────────────────────┐
@@ -23,6 +23,24 @@ REVIEW is the gate. If reviewer returns `APPROVED` (no BLOCKERs, no REFACTOR ite
 | GREEN | implementer per cycle | minimal code to pass; satisfies [GREEN gate](#green-gate-before-claiming-green-done) before REVIEW |
 | REVIEW | `code-reviewer` agent | applies the [REVIEW checklist](review-checklist.md); emits `APPROVED` or `NEEDS FIX`; never writes code |
 | REFACTOR | implementer per cycle | applies review; tests stay green; loops back to REVIEW |
+
+## Cycles without RED (no-tdd)
+
+Some cycles have no behavior to drive a failing test from: docs cycles, ADR sweeps, deploy + live-verification cycles, data curation, and the visual cycles of a plan running a per-plan no-unit-test override (landing-website 001). Forcing RED there produces a test written to fail on purpose — it passes the gate mechanically while asserting nothing, which is worse than no test.
+
+Such a cycle carries `no-tdd: true` in the plan (`plan.schema.json` `$defs.cycle`; 45 cycles across 10 plans carry it today). The flag is **read from the plan verbatim and never inferred from the spec** — a cycle skips RED because the plan said so before the cycle started, not because the orchestrator judged mid-run that a test would be awkward.
+
+Shape: `AUTHOR → REVIEW → (REFACTOR → REVIEW)* → COMMIT`.
+
+| Phase | Substitution |
+|---|---|
+| RED | **Skipped.** There is no RED report and no later phase may invent one. |
+| AUTHOR (GREEN's slot) | Make exactly the changes the cycle spec calls for. Every factual claim is verified against current source **before** it is written — open the file, read the line, cite it. Where the spec's own description disagrees with what the source now says, **the source wins**: record the discrepancy instead of propagating the spec's version. Code and tests stay untouched, and the full suite still runs and is reported unchanged, so a stray edit cannot hide. |
+| REVIEW | **The fact-check IS the gate** — no suite result stands in for it. The reviewer checks every factual claim the diff asserts against current source. A claim that cannot be verified against source is a `[BLOCKER]`, not a `[NIT]`, however plausible it reads; so are a stale cross-reference, a path that no longer resolves, and a cited line number that has moved. The test-coverage category is skipped and the reviewer says so, with the reason. |
+
+Nothing else relaxes. The architect gate, [reviewer separation](cycle-orchestration.md#reviewer-separation--never-self-review), [security tier](cycle-orchestration.md#security-tier), the [hallucination guard](cycle-orchestration.md#reviewer-hallucination-guard) and the [Deferral policy](#deferral-policy--fix-now-dont-pile-up) apply unchanged — a no-tdd cycle drops the test, not the gate. Security-tier no-tdd cycles exist (kobu-bot 006.5, 006.6) and still take the second `security-reviewer` pass.
+
+An AUTHOR pass that reports zero files touched is a broken report, not an outcome: the reviewer would be handed an empty diff and could only approve.
 
 ## Test quality
 
