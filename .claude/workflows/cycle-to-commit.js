@@ -46,19 +46,73 @@ if (!cycleResult || cycleResult.halted) {
 }
 
 // tdd-cycle approves at zero BLOCKER/REFACTOR, so NITs survive approval. Collect them from
-// EVERY pass and from the security review, not just the last pass: a NIT raised on pass 1
+// EVERY pass and from EVERY security pass, not just the last of each: a NIT raised on pass 1
 // that the approving reviewer did not restate would otherwise ship open, which is exactly
 // what this wrapper exists to prevent. Deduped on tag+file+text.
+//
+// `securityReviews` (plural) is the one to read. The singular `securityReview` is overwritten
+// per pass by tdd-cycle — which added the plural expressly to stop losing pass 1 — so reading
+// it dropped the whole first security pass: its findings never reached `open`, could not
+// trigger `close-rounds-exhausted`, and were absent from the returned record, under a workflow
+// whose entire contract is "nothing ships open, however small". Fall back to the singular only
+// for a child record old enough not to carry the plural.
+const securityPasses = cycleResult.securityReviews || [cycleResult.securityReview].filter(Boolean)
+const allPasses = [
+  ...(cycleResult.reviewLog || []).map(p => ({ ...p, refactorPass: String(p.pass) })),
+  // tdd-cycle keys a security remediation `security-<pass>`, so the two pass-1s never collide.
+  ...securityPasses.map(p => ({ ...p, refactorPass: `security-${p.pass}` })),
+]
+
+// SUBTRACT what the cycle already settled, or this loop re-opens findings that were paid for.
+// Reproduced: 3 findings handed to the closer when 1 was genuinely open — including one the
+// Finding Verifier had refuted with `git diff --stat`. CLASS_RULE below then orders a mechanical
+// sweep for every instance of a defect class already proven not to exist, rejectable "only with
+// a refuting command output", so the closer must re-derive a refutation that was already bought
+// or invent a fix for a defect that was never there.
+//
+// Settled means one of two things, both read STRUCTURALLY rather than by matching finding prose
+// (tdd-cycle carries no stable finding id; a refactor's `resolutions[].finding` is free text the
+// implementer wrote, and matching on it would drop live findings by accident — the opposite and
+// worse error):
+//   REFUTED  — the verifier rejected the claim. tdd-cycle records it in hallucinationsRejected
+//              under the same `[tag] finding` string it built the claim from, stamped with its
+//              pass. Key on both: the same text refuted on pass 1 and re-raised unrefuted on
+//              pass 3 is a live finding, not a settled one.
+//   RESOLVED — the finding was blocking, so it went to that pass's REFACTOR under NO-DEFER and
+//              a refactors[] entry for the pass exists. Whether the fix took is not this loop's
+//              call: a LATER review pass reviewed the result and re-raises anything still real.
+//              NITs are never handed to a refactor, so they stay open — the gap this wrapper
+//              exists to close.
+// The pass/claim composite key uses a printable separator, not \0. A literal NUL written into
+// this source made file(1) report the adapter as `data`, and grep then matches nothing in it
+// silently. A claim always starts with "[TAG]" and a pass is a number or "security-N", so a
+// space cannot make two different keys collide here.
+const refutedInPass = new Set()
+const refutedAnyPass = new Set()
+for (const h of cycleResult.hallucinationsRejected || []) {
+  if (h.pass === undefined || h.pass === null) refutedAnyPass.add(h.claim)
+  else refutedInPass.add(`pass ${h.pass} ${h.claim}`)
+}
+const refactoredPasses = new Set((cycleResult.refactors || []).map(r => String(r.pass)))
+
 const seen = new Set()
 let open = []
-for (const pass of [...(cycleResult.reviewLog || []), cycleResult.securityReview].filter(Boolean)) {
+const settled = { refuted: 0, resolved: 0 }
+for (const pass of allPasses) {
   for (const f of pass.findings || []) {
+    const claim = `[${f.tag}] ${f.finding}`
+    if (refutedInPass.has(`pass ${pass.pass} ${claim}`) || refutedAnyPass.has(claim)) { settled.refuted += 1; continue }
+    const blocking = f.tag === 'BLOCKER' || f.tag === 'REFACTOR'
+    if (blocking && refactoredPasses.has(pass.refactorPass)) { settled.resolved += 1; continue }
+    // Only a KEPT finding marks the dedupe key: a settled pass-1 instance must not mask an
+    // identical restatement from a later pass, which is evidence it is still open.
     const key = `${f.tag} ${f.file || ''} ${f.finding}`
     if (seen.has(key)) continue
     seen.add(key)
     open.push({ tag: f.tag, file: f.file, finding: f.finding })
   }
 }
+log(`findings: ${open.length} open (${settled.refuted} refuted by the verifier, ${settled.resolved} resolved in-cycle)`)
 
 const CLOSE_SCHEMA = {
   type: 'object', additionalProperties: false,
@@ -173,11 +227,27 @@ return {
   noTdd: cycleResult.noTdd,
   securityTier: cycleResult.securityTier,
   architectVerdict: cycleResult.architectVerdict,
+  // The child's own gate reading, under a name that does not collide with the commit gate this
+  // workflow adds below — the cycle note wants arch-review mode and the plan's spec summary.
+  cycleGate: cycleResult.gate,
+  // red/green were dropped here, which made GREEN's `deviations[]` unrecoverable: the record is
+  // the only thing the orchestrator files the cycle note from, and a deviation the implementer
+  // declared then vanished from is a deviation nobody reviews.
+  red: cycleResult.red,
+  green: cycleResult.green,
   reviewLog: cycleResult.reviewLog,
+  // `next` below tells the orchestrator to file "the full review-passes[] roster", but the roster
+  // was not forwarded — it exists only on the child's return, so the instruction named a field
+  // this record did not carry and the cycle note's review-passes[] could not be filled at all.
+  reviewPasses: cycleResult.reviewPasses,
   refactors: cycleResult.refactors,
   hallucinationsRejected: cycleResult.hallucinationsRejected,
+  // Both: the singular for existing readers and the neutral spec's "security review", the plural
+  // so the cycle note's review-passes[] roster carries pass 1 and not only whichever pass ran last.
   securityReview: cycleResult.securityReview,
+  securityReviews: securityPasses,
   closeRounds: rounds,
+  findingsSettled: settled,
   gate,
   commitReady: gate.commitReady && !gate.findings.length,
   next: `Orchestrator: cycle-orchestration.md §Definition of done — plan status, docs/cycles/${A.cycle}.yaml with the full review-passes[] roster, npm run validate-cycle-note, npm run build, then commit and integrate the worktree branch.`,

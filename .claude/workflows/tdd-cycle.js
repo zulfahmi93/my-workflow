@@ -13,7 +13,9 @@ export const meta = {
 
 // Required args: { project, projectPath, plan, cycle, greenAgent }
 // Optional: redAgent (default 'Test Engineer'), securityTier (bool), models ({top, mid} override),
-//           maxReviewPasses (default 6, productive passes only), maxRefutedOnlyPasses (default 3),
+//           maxReviewPasses (default 6, productive passes only), maxRefutedOnlyPasses (default 3,
+//           cumulative over the cycle) — both non-negative integers; 0 is honoured and halts
+//           before the first delegate rather than restoring the default,
 //           notice (extra text appended to every delegate's preamble — e.g. an isolation warning
 //           when projectPath points at a git worktree rather than the project's primary checkout)
 //
@@ -69,12 +71,70 @@ for (const [tier, model] of Object.entries(MODELS)) {
 }
 const RED_AGENT = A.redAgent || 'Test Engineer'
 const PLAN_PATH = `${A.projectPath}/docs/plan-${A.plan}.yaml`
+
+// ---- Reviewer identity ----
+// The self-review guard (cycle-orchestration.md §Reviewer separation) constrains the
+// ORCHESTRATOR, and the id it checks was being composed by that same orchestrator: this
+// workflow shipped a prose CONVENTION and no id, so every caller spelled it itself. One project
+// already carries two incompatible spellings — `wf:wf_ac45c2a0-883/review-pass-1` beside
+// `Code Reviewer (workflow agent a56e54d0f9c67c31a, sonnet) — review pass 1` — and 0 of 130
+// cycle notes carry a `review-passes[]` roster at all, because the data never left this script.
+// Emit the id here; the orchestrator transcribes it verbatim.
+//
+// The runtime's run id is NOT reachable from inside a workflow script. Read from the runtime
+// (claude 2.1.223): the run id is minted host-side in the Workflow tool's own call() —
+// `resumeFromRunId ?? \`wf_${randomUUID().slice(0,12)}\`` — and handed to the host-side hooks
+// factory as `workflowRunId`. The VM context the script runs in is built with exactly
+// { log, phase, console, budget, setTimeout, clearTimeout } plus defineProperty'd
+// { agent, parallel, pipeline, workflow, args }; the run id surfaces only in the Workflow TOOL
+// RESULT ("Run ID: wf_…"), never in scope. Nor can a unique token be minted here: Date.now(),
+// new Date() and Math.random() are all blocked in workflow scripts because they break resume.
+//
+// So the id is composed from the identity the script does hold, and every part of it is
+// cross-checkable against the very cycle note that carries it: the adapter name, the project,
+// the plan, the cycle, and the pass — the last matching the delegate `label` the harness logs
+// per subagent. That is the most machine-checkable id available in scope; a fabricated
+// runtime-looking token would only be less honest, and `tdd-cycle.<project>.p<plan>.c<cycle>`
+// cannot be mistaken for the runtime's own `wf_ac45c2a0-883`.
+const WF_NAME = 'tdd-cycle' // = meta.name, as a literal: the loader slices the meta declaration
+// off the script body before compiling it, so `meta` is not a binding at runtime.
+
+// The emitted id has to satisfy cycle-note.schema.json $defs/reviewer-pass-id, whose <runId>
+// slot is ONE `[A-Za-z0-9_.-]{1,64}` token — no slashes — so the cycle identity is packed into
+// a single dotted token rather than a path. The pattern is duplicated here deliberately: this
+// is the only place an id is minted, and a drift from the schema must fail at the binding,
+// before any delegate runs, rather than at cycle close when the note is already written and the
+// orchestrator's only way forward is to hand-compose an id again.
+const REVIEWER_ID_RE = /^wf:[A-Za-z0-9_.-]{1,64}\/(?:review|security)-pass-[1-9][0-9]{0,2}$/
+const RUN_TOKEN = [`${WF_NAME}.${A.project}.p${A.plan}.c${A.cycle}`, `${WF_NAME}.p${A.plan}.c${A.cycle}`]
+  .map(t => t.replace(/[^A-Za-z0-9_.-]/g, '-'))
+  .find(t => t.length <= 64)
+const reviewerId = (kind, pass) => `wf:${RUN_TOKEN}/${kind}-pass-${pass}`
+if (!RUN_TOKEN || !REVIEWER_ID_RE.test(reviewerId('review', 1))) {
+  throw new Error(`cannot mint a schema-valid reviewer id from project="${A.project}" plan="${A.plan}" cycle="${A.cycle}" — got ${JSON.stringify(reviewerId('review', 1))}, which cycle-note.schema.json $defs/reviewer-pass-id rejects. Shorten the identifiers or fix the args; do not let the orchestrator compose the id by hand.`)
+}
+// The cycle-note schema spells the review verdict with a space; the delegate schema spells it
+// with an underscore. Translating here is the point of "transcribe, don't compose".
+const noteVerdict = (v) => (v === 'APPROVED' ? 'APPROVED' : 'NEEDS FIX')
+
+// `||` read an explicit 0 as "unset" and silently restored the default, so a caller who passed
+// `maxReviewPasses: 0` to disable the loop got the most expensive path instead — six `top`-tier
+// review passes. `??` honours 0; the range check is what keeps `-1` or `"6"` from reading as a
+// budget. These are argument errors, so they throw: nothing has run yet.
+const budgetArg = (key, fallback) => {
+  const raw = A[key]
+  if (raw === undefined || raw === null) return fallback
+  if (!Number.isInteger(raw) || raw < 0) {
+    throw new Error(`args.${key} must be a non-negative integer, got ${JSON.stringify(raw)} — 0 means "no passes allowed" and halts before the first delegate; omit the key for the default (${fallback}).`)
+  }
+  return raw
+}
 // 4 was too low for a large cycle. Cycle 8.3 (plan-008) converged 7 → 5 → 2 → 2 blocking
 // findings across four passes with zero hallucinations rejected, then halted on the cap with two
 // documentation findings outstanding — a stop that read as "reviewer dispute" when the cycle was
 // plainly still converging. Raise the ceiling rather than teach the orchestrator to override the
 // stop condition, and let the caller lower it for small cycles.
-const MAX_REVIEW_PASSES = A.maxReviewPasses || 6
+const MAX_REVIEW_PASSES = budgetArg('maxReviewPasses', 6)
 
 const COMMON = `Project: ${A.project}. Working dir is the repo root.
 Read before acting: ${PLAN_PATH} (cycle ${A.cycle} entry only), the nearest local guide under ${A.projectPath} (AGENTS.md preferred; legacy CLAUDE.md allowed), ${RULES}/tdd.md, ${RULES}/cycle-orchestration.md §Subagent prompt skeleton.
@@ -206,7 +266,16 @@ Task: read ${PLAN_PATH} and extract cycle ${A.cycle}.
 4. securityTier: the cycle's "security-tier" field (absent → false), OR true if the spec touches any item in ${RULES}/cycle-orchestration.md §Security tier.
 5. noTdd: the cycle's "no-tdd" field, verbatim (absent → false). Report what the plan says; do not infer it from the spec.
 Return data only.`, { label: 'gate:read-plan', phase: 'Gate', schema: GATE_SCHEMA })
-if (!gate) throw new Error('gate reader died')
+// A dead delegate is a runtime halt, not a programmer error, and it was being thrown. A thrown
+// Error has no enumerable own properties — it serialises to `{}` — so everything the cycle had
+// established up to that point was discarded, and AUTONOMOUS_RUN_STATUS.md could not carry the
+// verbatim evidence cycle-orchestration.md §STATUS file format requires. Worse, the re-run was
+// not idempotent: with no record of what RED and GREEN already wrote, RED re-authors a test that
+// exists and passes, which cannot satisfy its own gate. Return structured state instead — the
+// pattern the sibling adapter cycle-to-commit.js already uses on the identical event.
+if (!gate) {
+  return { halted: 'gate-reader-delegate-died', detail: `The gate reader returned no record for cycle ${A.cycle} of ${PLAN_PATH}. Nothing has been written yet — RED and GREEN have not run — so a re-run is a clean re-run.`, delegate: { label: 'gate:read-plan', phase: 'Gate' } }
+}
 
 if (gate.mode === 'missing') {
   return { halted: 'architecture-review-field-missing', detail: `Cycle ${A.cycle} has no "arch-review" field in ${PLAN_PATH} (schema: plan.schema.json $defs.cycle requires it). Per cycle-orchestration.md §Architect gate: STOP and ask the user to mark the cycle in the plan.` }
@@ -225,7 +294,9 @@ You are the architecture gate for cycle ${A.cycle}.${securityTier ? ' SECURITY-T
 Cycle spec: ${gate.specSummary}
 Verdict ≤ 400 words. GO or NO-GO. lockedDecisions: the decisions RED/GREEN must honor verbatim.`,
     { label: 'gate:architect', phase: 'Gate', schema: ARCH_SCHEMA, agentType: 'Software Architect', model: MODELS.top })
-  if (!arch) throw new Error('architect died')
+  if (!arch) {
+    return { halted: 'architect-delegate-died', detail: `The architecture gate returned no verdict for cycle ${A.cycle}. The gate is unsatisfied, so this is NOT an approval — per §Architect gate the cycle may not proceed without one. Nothing has been written yet; a re-run is a clean re-run.`, delegate: { label: 'gate:architect', phase: 'Gate', agentType: 'Software Architect', model: MODELS.top }, gate }
+  }
   architectVerdict = { verdict: arch.verdict, summary: arch.summary, lockedDecisions: arch.lockedDecisions, tier: 'top', mode: gate.mode }
   if (arch.verdict === 'NO-GO') return { halted: 'architect-no-go', architectVerdict, gate }
 }
@@ -253,7 +324,9 @@ Cycle spec: ${gate.specSummary}
 
 RED phase per ${RULES}/tdd.md: author the failing test(s) for this cycle. The test must fail for the RIGHT reason (missing/incorrect behavior — not a typo, import error, or broken infra), with a failure message naming the expectation. Run it and quote the exact failure line.`,
     { label: 'red', phase: 'RED', schema: RED_SCHEMA, agentType: RED_AGENT, model: MODELS.mid })
-  if (!red) throw new Error('RED author died')
+  if (!red) {
+    return { halted: 'red-delegate-died', detail: `The RED author returned no record for cycle ${A.cycle}. It may still have written test files before dying — inspect the working tree at ${A.projectPath} before re-running, since RED re-authoring a test that already exists and passes cannot satisfy its own gate.`, delegate: { label: 'red', phase: 'RED', agentType: RED_AGENT, model: MODELS.mid }, gate, architectVerdict }
+  }
   log(`RED: ${red.failureLine}`)
 }
 const testFiles = (red && red.testFiles) || []
@@ -272,11 +345,20 @@ Do not edit code or tests. Run the project's full test suite anyway and report i
 
 GREEN phase per ${RULES}/tdd.md: minimal code to flip the failing test(s) green. Do NOT edit the tests. Satisfy the full GREEN gate (whole suite green, zero new warnings, no debug residue, no untested branches) before returning. gateResult format: "Passed: N / Failed: 0".`}`,
   { label: noTdd ? 'author' : 'green', phase: 'GREEN', schema: IMPL_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
-if (!green) throw new Error(`${noTdd ? 'AUTHOR' : 'GREEN'} implementer died`)
+if (!green) {
+  return { halted: 'green-delegate-died', detail: `The ${noTdd ? 'AUTHOR' : 'GREEN'} implementer returned no record for cycle ${A.cycle}. It may still have edited files before dying, and RED's tests are already on disk${red ? ` (${JSON.stringify(red.testFiles)}, failing with: ${red.failureLine})` : ''} — inspect the working tree at ${A.projectPath} before re-running; a re-run must resume at ${noTdd ? 'AUTHOR' : 'GREEN'}, not at RED.`, delegate: { label: noTdd ? 'author' : 'green', phase: 'GREEN', agentType: A.greenAgent, model: MODELS.mid }, gate, architectVerdict, red }
+}
 log(`${noTdd ? 'AUTHOR' : 'GREEN'}: ${green.gateResult}`)
 
 // ---- REVIEW ⇄ REFACTOR ----
 const reviewLog = []
+// The roster the cycle note wants, in the cycle note's own key spelling, so filing it is a
+// transcription and not a translation. Every REVIEW pass lands here including a clean APPROVED
+// one — cycle-orchestration.md §Reviewer separation: a pass with no findings names nobody
+// through `reviewer-findings[]`, which is exactly the case an accidental self-review hides in.
+// Security-tier second-pass reviewers append to the same roster below, numbered after the
+// code-review passes, because the schema keys roster entries on a unique integer `pass`.
+const reviewPasses = []
 const hallucinationsRejected = []
 const refactors = []
 let lastReport = green
@@ -305,20 +387,36 @@ let approved = false
 //                     the whole budget of `top`-tier passes and halt a cycle that had nothing
 //                     wrong with it — the stop then read as "reviewer dispute".
 //   refutedOnlyPass — bounded separately: not free, just not charged to the wrong budget.
+//                     CUMULATIVE over the cycle, not consecutive. Resetting it on every
+//                     productive pass made the real ceiling the PRODUCT of the two budgets: a
+//                     reviewer alternating two refuted passes and one real finding ran 18 REVIEW
+//                     + 18 VERIFY + 6 REFACTOR — 45 delegate spawns with the Gate/RED/GREEN
+//                     three — most of them `top`-tier, and still halted as
+//                     `review-not-approved`. Measured by rendering this script against stubbed
+//                     globals. Without the reset that same reviewer stops after 4 review passes
+//                     (12 spawns), and the worst case any cycle can reach is
+//                     MAX_REVIEW_PASSES + MAX_REFUTED_ONLY = 9 review passes.
 let attempt = 0
 let productivePasses = 0
 let refutedOnlyPasses = 0
-const MAX_REFUTED_ONLY = A.maxRefutedOnlyPasses || 3
+const MAX_REFUTED_ONLY = budgetArg('maxRefutedOnlyPasses', 3)
 
 while (!approved) {
   if (productivePasses >= MAX_REVIEW_PASSES) {
-    return { halted: 'review-not-approved', detail: `NEEDS FIX after ${productivePasses} productive review passes — autonomous stop condition 5.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+    return { halted: 'review-not-approved', detail: `NEEDS FIX after ${productivePasses} productive review passes — autonomous stop condition 5.`, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected }
   }
   if (refutedOnlyPasses >= MAX_REFUTED_ONLY) {
-    return { halted: 'reviewer-hallucination-loop', detail: `${refutedOnlyPasses} consecutive review passes produced only refuted findings. The reviewer is not converging on real defects; a human should read the rejected claims below.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+    return { halted: 'reviewer-hallucination-loop', detail: `${refutedOnlyPasses} of this cycle's ${attempt} review passes produced only refuted findings. The reviewer is not converging on real defects; a human should read the rejected claims below.`, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected }
   }
   attempt += 1
   const pass = attempt
+  // The delegate label and the reviewer id are derived together and BEFORE the call, so the id
+  // in the record names the delegate that was actually dispatched — including when it dies.
+  // The roster records the semantic tier (`top`), not MODELS.top: the cycle-note schema's
+  // `model` enum is top|mid|opus|sonnet, and a compliant override such as `claude-opus-5` would
+  // fail it. The tier is what lifecycle.md §Model capability tiers actually constrains.
+  const reviewLabel = `review:pass-${pass}`
+  const reviewerAgentId = reviewerId('review', pass)
   const guard = hallucinationsRejected.length
     ? `\nHallucination guard (${RULES}/cycle-orchestration.md §Reviewer hallucination guard): earlier passes produced findings that contradicted verified state. Verify paths with ls/grep and run the gate command BEFORE asserting anything is missing. Rejected claims + evidence:\n${hallucinationsRejected.map(h => `- "${h.claim}" — refuted: ${h.evidence}`).join('\n')}\nPrior gate result stands: ${lastReport.gateResult}.`
     : ''
@@ -334,14 +432,17 @@ ${noTdd
   ? `This is a no-tdd DOCUMENTATION cycle: there is no new test, so the fact-check IS the gate. Verify EVERY factual claim the diff asserts against current source — open the cited file, read the cited line. A claim you cannot verify against source is a BLOCKER, not a NIT, even when it reads plausibly. A stale cross-reference, a path that no longer resolves, or a cited line number that has moved is likewise a BLOCKER. Skip the test-coverage category and say so in skippedCategories.\n`
   : ''}Tag findings BLOCKER / REFACTOR / NIT per ${RULES}/tdd.md §Reviewer issue tags. verdict=APPROVED only with zero BLOCKER and zero REFACTOR findings. You never edit files.
 EVERY finding requires an \`evidence\` field: the exact command you ran and the output line that establishes it — not a description of what you expect it to show. Establish your baseline first: you are reviewing THIS cycle's diff in the working dir named above, so a failure originating in another cycle's files, or a diff taken against the wrong base, is not a finding here. If you cannot produce a command whose output shows the defect, you have not established it — do not raise it.`,
-    { label: `review:pass-${pass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.top })
-  if (!review) throw new Error(`reviewer pass ${pass} died`)
+    { label: reviewLabel, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Code Reviewer', model: MODELS.top })
+  if (!review) {
+    return { halted: 'review-delegate-died', detail: `REVIEW pass ${pass} returned no verdict for cycle ${A.cycle}. A dead reviewer is not an approval: the cycle is unreviewed at ${green.gateResult}, with ${reviewScope.size} file(s) in scope and ${refactors.length} refactor pass(es) already applied on top of GREEN.`, delegate: { label: reviewLabel, phase: 'REVIEW', agentType: 'Code Reviewer', model: MODELS.top, pass, reviewerAgentId }, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected }
+  }
   const blocking = review.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
   const claimedApproved = review.verdict === 'APPROVED'
   const mechanicallyApproved = blocking.length === 0
-  reviewLog.push({ pass, verdict: review.verdict, mechanicallyApproved, findings: review.findings, skippedCategories: review.skippedCategories })
+  reviewLog.push({ pass, label: reviewLabel, reviewerAgentId, agentType: 'Code Reviewer', tier: 'top', verdict: review.verdict, mechanicallyApproved, findings: review.findings, skippedCategories: review.skippedCategories })
+  reviewPasses.push({ pass, 'reviewer-agent-id': reviewerAgentId, verdict: noteVerdict(review.verdict), role: 'code-reviewer', model: 'top', 'findings-count': review.findings.length })
   if (claimedApproved !== mechanicallyApproved) {
-    return { halted: 'inconsistent-review-verdict', detail: `Reviewer returned ${review.verdict} with ${blocking.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+    return { halted: 'inconsistent-review-verdict', detail: `Reviewer returned ${review.verdict} with ${blocking.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected }
   }
   if (mechanicallyApproved) { approved = true; break }
 
@@ -371,7 +472,7 @@ Judge each finding on its own; sharing a file is not sharing a fate. evidence: t
     }
   }
   if (byIndex.size !== blocking.length) {
-    return { halted: 'finding-verification-failed', detail: `Verifier returned ${byIndex.size} usable verdict(s) for ${blocking.length} blocking finding(s); missing verification is never treated as refutation.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected }
+    return { halted: 'finding-verification-failed', detail: `Verifier returned ${byIndex.size} usable verdict(s) for ${blocking.length} blocking finding(s); missing verification is never treated as refutation.`, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected }
   }
 
   // Read through a default rather than indexing directly: an absent verdict must resolve to
@@ -383,8 +484,9 @@ Judge each finding on its own; sharing a file is not sharing a fate. evidence: t
     if (verdictFor(i).refuted) hallucinationsRejected.push({ claim: `[${f.tag}] ${f.finding}`, evidence: verdictFor(i).evidence, pass })
   })
   log(`REVIEW pass ${pass}: ${blocking.length} blocking — ${confirmed.length} confirmed, ${blocking.length - confirmed.length} refuted`)
-  if (!confirmed.length) { refutedOnlyPasses += 1; continue } // all refuted → fresh pass, guard inlined, budget untouched
-  refutedOnlyPasses = 0
+  if (!confirmed.length) { refutedOnlyPasses += 1; continue } // all refuted → fresh pass, guard inlined, productive budget untouched
+  // No reset here on purpose: refuted-only passes are counted for the whole cycle. See the
+  // counter comment above — resetting made the two budgets multiply instead of add.
   productivePasses += 1
 
   phase('REFACTOR')
@@ -395,7 +497,9 @@ Confirmed findings:
 ${confirmed.map(f => `- [${f.tag}] ${f.file || ''}: ${f.finding}${f.expectedRemediation ? ` → ${f.expectedRemediation}` : ''}`).join('\n')}
 Return resolutions: one entry per finding stating exactly how it was resolved. gateResult format "Passed: N / Failed: 0".`,
     { label: `refactor:p${pass}`, phase: 'REFACTOR', schema: REFACTOR_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
-  if (!refactor) throw new Error(`REFACTOR pass ${pass} died`)
+  if (!refactor) {
+    return { halted: 'refactor-delegate-died', detail: `REFACTOR pass ${pass} returned no record for cycle ${A.cycle}. It may have partially applied the ${confirmed.length} confirmed finding(s) listed in reviewLog[${reviewLog.length - 1}] before dying, so the tree at ${A.projectPath} may be mid-fix and the suite may not be green — inspect it before re-running. NO-DEFER still binds: every confirmed finding is open.`, delegate: { label: `refactor:p${pass}`, phase: 'REFACTOR', agentType: A.greenAgent, model: MODELS.mid, pass }, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected }
+  }
   refactors.push({ pass, filesTouched: refactor.filesTouched, gateResult: refactor.gateResult, resolutions: refactor.resolutions, deviations: refactor.deviations })
   refactor.filesTouched.forEach(f => reviewScope.add(f))
   lastReport = refactor
@@ -408,28 +512,43 @@ Return resolutions: one entry per finding stating exactly how it was resolved. g
 // the neutral spec's singular "security review" are unaffected.
 const securityReviews = []
 let securityReview = null
+// Roster numbering continues past the code-review passes: cycle-note.schema.json keys
+// `review-passes[]` on a unique integer `pass`, so a security pass numbered 1 would collide
+// with review pass 1 and the validator's roster/findings cross-check would read one entry as
+// the other. §Reviewer separation asks for the security pass as its own entry, not a re-number.
+const reviewPassCount = attempt
 if (securityTier) {
   for (let spass = 1; spass <= 2; spass++) {
+    const securityLabel = `security:pass-${spass}`
+    // The id carries the ROSTER number, not spass, so the note reads consistently — entry
+    // `pass: 3` is named `…/security-pass-3`. `role: security-reviewer` already says which
+    // reviewer it was, and securityReviews[] below keeps spass and the delegate label so the
+    // dispatched agent stays identifiable.
+    const rosterPass = reviewPassCount + spass
+    const securityAgentId = reviewerId('security', rosterPass)
     const sec = await agent(`${COMMON}
 SECURITY-TIER second-pass review (pass ${spass}) for cycle ${A.cycle} per ${RULES}/cycle-orchestration.md §Security tier. Review the diff against ${RULES}/review-checklist.md §Security plus threat-model completeness (attacker-can / mitigation-blocks / residual-risk).
 Files: ${JSON.stringify([...reviewScope])}; tests: ${JSON.stringify(testFiles)}; gate: ${lastReport.gateResult}.
 verdict=APPROVED only with zero BLOCKER/REFACTOR findings. You never edit files.`,
-      { label: `security:pass-${spass}`, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Security Reviewer', model: MODELS.top })
-    if (!sec) throw new Error('security reviewer died')
+      { label: securityLabel, phase: 'REVIEW', schema: VERDICT_SCHEMA, agentType: 'Security Reviewer', model: MODELS.top })
+    if (!sec) {
+      return { halted: 'security-review-delegate-died', detail: `Security review pass ${spass} returned no verdict for cycle ${A.cycle}. A dead security reviewer is not an approval, and §Security tier requires the second-pass verdict before this cycle can be filed. General REVIEW already approved at ${lastReport.gateResult}.`, delegate: { label: securityLabel, phase: 'REVIEW', agentType: 'Security Reviewer', model: MODELS.top, pass: spass, reviewerAgentId: securityAgentId }, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected, securityReview, securityReviews }
+    }
     const sblock = sec.findings.filter(f => f.tag === 'BLOCKER' || f.tag === 'REFACTOR')
     const claimedApproved = sec.verdict === 'APPROVED'
     const mechanicallyApproved = sblock.length === 0
-    securityReview = { pass: spass, verdict: sec.verdict, mechanicallyApproved, findings: sec.findings }
+    securityReview = { pass: spass, rosterPass, label: securityLabel, reviewerAgentId: securityAgentId, agentType: 'Security Reviewer', tier: 'top', verdict: sec.verdict, mechanicallyApproved, findings: sec.findings }
     securityReviews.push(securityReview)
+    reviewPasses.push({ pass: rosterPass, 'reviewer-agent-id': securityAgentId, verdict: noteVerdict(sec.verdict), role: 'security-reviewer', model: 'top', 'findings-count': sec.findings.length })
     if (claimedApproved !== mechanicallyApproved) {
-      return { halted: 'inconsistent-security-verdict', detail: `Security reviewer returned ${sec.verdict} with ${sblock.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview }
+      return { halted: 'inconsistent-security-verdict', detail: `Security reviewer returned ${sec.verdict} with ${sblock.length} blocking findings.`, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected, securityReview, securityReviews }
     }
     if (mechanicallyApproved) break
 
     // `!sblock.length` was dead here — zero blocking findings implies mechanicallyApproved,
     // which already broke out of the loop above.
     if (spass === 2) {
-      return { halted: 'security-review-not-approved', gate, architectVerdict, red, green, reviewLog, refactors, hallucinationsRejected, securityReview, securityReviews }
+      return { halted: 'security-review-not-approved', gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected, securityReview, securityReviews }
     }
     phase('REFACTOR')
     const fix = await agent(`${COMMON}
@@ -437,7 +556,9 @@ Resolve EVERY security finding below (NO-DEFER; security-tier — idiomatic, ful
 ${sblock.map(f => `- [${f.tag}] ${f.file || ''}: ${f.finding}`).join('\n')}
 Tests stay green. Return resolutions per finding. gateResult format "Passed: N / Failed: 0".`,
       { label: 'refactor:security', phase: 'REFACTOR', schema: REFACTOR_SCHEMA, agentType: A.greenAgent, model: MODELS.mid })
-    if (!fix) throw new Error('security refactor died')
+    if (!fix) {
+      return { halted: 'security-refactor-delegate-died', detail: `The security remediation for pass ${spass} of cycle ${A.cycle} returned no record. It may have partially applied the ${sblock.length} blocking security finding(s) in securityReviews[${securityReviews.length - 1}] before dying — inspect ${A.projectPath} before re-running; a partially-applied security fix is the worst state to leave unrecorded.`, delegate: { label: 'refactor:security', phase: 'REFACTOR', agentType: A.greenAgent, model: MODELS.mid, pass: spass }, gate, architectVerdict, red, green, reviewLog, reviewPasses, refactors, hallucinationsRejected, securityReview, securityReviews }
+    }
     refactors.push({ pass: `security-${spass}`, filesTouched: fix.filesTouched, gateResult: fix.gateResult, resolutions: fix.resolutions, deviations: fix.deviations })
     // The remediation's files belong in scope too: pass 2 is the gate that approves the cycle,
     // so it has to see both the original diff and what the fix did to it.
@@ -451,6 +572,12 @@ return {
   cycle: A.cycle, project: A.project, plan: A.plan, securityTier, noTdd,
   gate: { mode: gate.mode, specSummary: gate.specSummary },
   architectVerdict, red, green, refactors, reviewLog, hallucinationsRejected, securityReview, securityReviews,
-  reviewerIdConvention: 'record reviewer-agent-id as wf:<runId>/review-pass-<N> (runId is in the Workflow tool result)',
-  next: `Orchestrator: walk cycle-orchestration.md §Definition of done (1)-(8) — update plan status, file ${A.projectPath}/docs/cycles/${A.cycle}.yaml (npm run validate-cycle-note), regenerate docs (npm run build -- ${A.project}). Commit stays with the user / autonomous-run protocol.`,
+  // Paste verbatim into the cycle note's `review-passes:` — already in the schema's key
+  // spelling and verdict wording. Do not re-derive any of it, above all not the
+  // reviewer-agent-id: the orchestrator composing the id that the self-review guard checks is
+  // the party being constrained writing its own alibi, and it is what produced two
+  // incompatible id formats inside one project.
+  reviewPasses,
+  reviewerIdConvention: `reviewer-agent-id is emitted by this workflow as wf:${RUN_TOKEN}/{review|security}-pass-<N>, already in cycle-note.schema.json $defs/reviewer-pass-id form — transcribe it from reviewPasses[], do not compose one. The runtime's own run id is not reachable from inside a workflow script (it is minted host-side and appears only in the Workflow tool result), so the <runId> slot carries the cycle identity instead, every part of which the cycle note can be checked against.`,
+  next: `Orchestrator: walk cycle-orchestration.md §Definition of done (1)-(8) — update plan status, file ${A.projectPath}/docs/cycles/${A.cycle}.yaml (transcribe reviewPasses[] into review-passes:, then npm run validate-cycle-note), regenerate docs (npm run build -- ${A.project}). Commit stays with the user / autonomous-run protocol.`,
 }
