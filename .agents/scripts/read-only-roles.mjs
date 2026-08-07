@@ -29,3 +29,36 @@ export const FORBIDDEN_TOOLS = {
   'finding-verifier.md': ['Edit', 'Write', 'NotebookEdit'],
   'security-reviewer.md': ['Edit', 'NotebookEdit'],
 };
+
+// Tier floor for the same family, for the same reason `tools:` needed one: sync preserves the
+// adapter's `model:` line from disk rather than deriving it, so nothing re-checks it after the
+// first write. Measured: setting `.claude/agents/code-reviewer.md` to `model: haiku` left both
+// validate-agent-config.mjs and test-agent-config.mjs byte-identical in output and exit code —
+// the field the review family's compliance rests on was validated by nothing at all.
+//
+// Semantic tiers per .agents/rules/lifecycle.md §Model capability tiers, floors per role because
+// the three genuinely differ and a flat `top` would over-constrain the verifier:
+//   code-reviewer    — `top`. cycle-orchestration.md §Hallucination guard: "REVIEW runs at `top`
+//                      regardless"; tdd-cycle.js dispatches the REVIEW pass at MODELS.top.
+//   security-reviewer— `top`. lifecycle.md reserves `top` for security-tier reviews, and the
+//                      security second pass in tdd-cycle.js runs at MODELS.top.
+//   finding-verifier — `mid`. tdd-cycle.js runs the refutation pass at MODELS.mid, so the
+//                      adapter's `sonnet` is correct, not a floor violation to be raised away.
+export const MINIMUM_TIER = {
+  'code-reviewer.md': 'top',
+  'finding-verifier.md': 'mid',
+  'security-reviewer.md': 'top',
+};
+
+// Comparable ranks for MINIMUM_TIER, carrying lifecycle.md's legacy-alias bridge (`opus` IS `top`,
+// `sonnet` IS `mid`) so a consumer does not re-derive it and drift — the same reason READ_ONLY_ROLES
+// is single-sourced above. Anything absent ranks 0 and so fails every floor, which is what catches
+// the retired `haiku` / `cheap` tokens and a typo'd model name with one comparison instead of a
+// denylist that has to be kept in step with the tiers that no longer exist.
+export const TIER_RANK = { top: 2, opus: 2, mid: 1, sonnet: 1 };
+
+// Consumed by validate-agent-config.mjs, immediately after the FORBIDDEN_TOOLS block, which is
+// where the adapter's `model:` line is already in hand. Both maps must stay data-only here: this
+// file is imported by the validator, so a check written INTO it would validate nothing until
+// something called it — the exact "documents policy without enforcing it" state it exists to
+// prevent, and the state these two maps sat in until the consumer landed.

@@ -2,9 +2,10 @@
 
 import { access, readdir, readFile, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { READ_ONLY_ROLES, FORBIDDEN_TOOLS } from './read-only-roles.mjs';
+import { READ_ONLY_ROLES, FORBIDDEN_TOOLS, MINIMUM_TIER, TIER_RANK } from './read-only-roles.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const errors = [];
@@ -105,6 +106,25 @@ async function validateRoles() {
         if (violations.length) {
           errors.push(`.claude/agents/${filename}: must not grant ${violations.join(', ')}`);
         }
+      }
+    }
+
+    // `model:` is preserved from disk by sync-claude-adapters.mjs the same way `tools:` is,
+    // and was validated by nothing: setting code-reviewer.md to `model: haiku` left BOTH
+    // validate-agent-config.mjs and test-agent-config.mjs byte-identical in output and exit
+    // code. Per-role floors, not a flat `top`, for the same reason FORBIDDEN_TOOLS is
+    // per-role — finding-verifier legitimately runs at `mid` (tdd-cycle.js dispatches its
+    // refutation pass at MODELS.mid), so a flat floor would report a correct adapter as a
+    // violation. Rank-compare rather than a denylist so an absent or retired token ranks 0
+    // and fails every floor without a list that must track tiers that no longer exist.
+    const floor = MINIMUM_TIER[filename];
+    if (floor) {
+      const modelLine = fieldLines(adapterBlock, ['model'])[0];
+      const model = modelLine ? modelLine.replace(/^model:\s*/, '').trim() : null;
+      if (!model) {
+        errors.push(`.claude/agents/${filename}: review-family role declares no model`);
+      } else if ((TIER_RANK[model] ?? 0) < TIER_RANK[floor]) {
+        errors.push(`.claude/agents/${filename}: model ${model} is below the ${floor} floor`);
       }
     }
 
@@ -240,17 +260,40 @@ function runHook(hookPath, toolInput, cwd) {
   });
 }
 
+// DERIVED, never hand-listed. This used to be four literals, and both `block-generated-writes.sh`
+// adapters were missing from it — so the whole generated-output write policy shipped with neither
+// validator executing it even once, and #20 (`echo x >projects/…/docs/html/index.html` accepted at
+// exit 0, the hand-edit then silently gone on the next `npm run build`) was invisible here. A
+// hand-maintained list is exactly the failure that repeats: the fifth hook would have been missed
+// the same way, so nothing about this may require remembering.
+//
+// Three sources, unioned, because each catches what the others cannot:
+//   · CLAUDE_HOOKS keys — the config table above. Authoritative for the Claude side: a hook named
+//     there but absent from disk is itself the finding, which a disk walk would silently skip.
+//   · .codex/hooks.json — the Codex side has no table in this file; the wiring IS the table.
+//   · both hook directories on disk — covers an adapter added to disk before it is wired, from
+//     whichever side it lands.
+// `.sh` only: dispatch-file-policy.py takes an argv subcommand and a different payload shape, and
+// test-agent-config.mjs drives it with both.
+async function adapterHookPaths() {
+  const paths = new Set(Object.keys(CLAUDE_HOOKS).map((name) => `.claude/hooks/${name}`));
+  const wiring = await readFile(path.join(repoRoot, '.codex/hooks.json'), 'utf8').catch(() => '');
+  for (const hit of wiring.match(/\.codex\/hooks\/[\w.-]+\.sh/g) || []) paths.add(hit);
+  for (const dir of ['.claude/hooks', '.codex/hooks']) {
+    for (const name of await readdir(path.join(repoRoot, dir)).catch(() => [])) {
+      if (name.endsWith('.sh')) paths.add(`${dir}/${name}`);
+    }
+  }
+  return [...paths].sort();
+}
+
 // Every adapter hook must at minimum LOCATE its portable script and exit cleanly on a
 // benign payload. A hook that cannot find .agents/ exits non-zero (or silently no-ops),
 // and that is invisible to the substring greps above.
 async function validateAllHooksResolve(cwd) {
   const benign = { command: 'echo hello', file_path: path.join(repoRoot, 'README-nonexistent.txt') };
-  const hooks = [
-    '.claude/hooks/block-commit-flags.sh',
-    '.claude/hooks/block-generated-html.sh',
-    '.claude/hooks/validate-docs-yaml.sh',
-    '.codex/hooks/block-commit-flags.sh',
-  ];
+  const hooks = await adapterHookPaths();
+  if (hooks.length < 4) errors.push(`hook coverage: derived only ${hooks.length} adapter hooks — the derivation is broken, not the config`);
   for (const hook of hooks) {
     const { code, stderr } = await runHook(path.join(repoRoot, hook), benign, cwd);
     if (code !== 0) {
@@ -279,7 +322,7 @@ async function firstNestedRepo() {
   return null;
 }
 
-async function validateCommitHookBehaviour() {
+async function validateHookBehaviour() {
   const apostrophe = String.fromCharCode(39);
   const cases = [
     { name: 'short subject allowed', command: 'git commit -m "feat: short"', expect: 0 },
@@ -308,15 +351,41 @@ async function validateCommitHookBehaviour() {
 
   await validateAllHooksResolve(cwd);
 
-  for (const hook of ['.claude/hooks/block-commit-flags.sh', '.codex/hooks/block-commit-flags.sh']) {
-    const hookPath = path.join(repoRoot, hook);
-    for (const testCase of cases) {
-      const { code, stderr } = await runHook(hookPath, { command: testCase.command }, cwd);
-      if (code !== testCase.expect) {
-        errors.push(
-          `${hook}: ${testCase.name} — expected exit ${testCase.expect}, got ${code}` +
-          (stderr.trim() ? ` (${stderr.trim().split('\n')[0]})` : ''),
-        );
+  // Resolution is not behaviour. validateAllHooksResolve() asserts exit 0 on a benign payload,
+  // which a policy that blocks NOTHING also satisfies — a mutation making `offending()` return
+  // None unconditionally leaves it, and every substring grep above, perfectly clean. So each
+  // adapter gets one case in each direction: the exact write that #20 walked through, and the
+  // ordinary redirect that a blunter fix would break.
+  //
+  // Relative paths are deliberate: check-generated-command.py resolves them against the REPO
+  // root rather than $PWD, and these run from inside a nested project repo (see the cwd note
+  // above), so a policy that quietly switched to cwd-relative resolution fails here.
+  const generatedCases = [
+    // #20 itself. No space after the operator, so `>docs/html/index.html` lexed as ONE word,
+    // matched no redirect pattern, and the write was allowed; `npm run build` then erased the
+    // hand-edit with no trace of either event.
+    { name: 'spaceless redirect into generated output', command: 'echo x >docs/html/index.html', expect: 2 },
+    { name: 'spaced redirect into generated output', command: 'echo x > docs/html/index.html', expect: 2 },
+    // A policy that blocks `npm test > out.log 2>&1` is one an agent learns to route around, so
+    // the harmless direction is pinned as hard as the blocked one.
+    { name: 'redirect outside the generated tree allowed', command: 'npm test >/tmp/out.log 2>&1', expect: 0 },
+    { name: 'reading generated output allowed', command: 'cat docs/html/index.html', expect: 0 },
+  ];
+
+  for (const [hooks, hookCases, field] of [
+    [['.claude/hooks/block-commit-flags.sh', '.codex/hooks/block-commit-flags.sh'], cases, 'command'],
+    [['.claude/hooks/block-generated-writes.sh', '.codex/hooks/block-generated-writes.sh'], generatedCases, 'command'],
+  ]) {
+    for (const hook of hooks) {
+      const hookPath = path.join(repoRoot, hook);
+      for (const testCase of hookCases) {
+        const { code, stderr } = await runHook(hookPath, { [field]: testCase.command }, cwd);
+        if (code !== testCase.expect) {
+          errors.push(
+            `${hook}: ${testCase.name} — expected exit ${testCase.expect}, got ${code}` +
+            (stderr.trim() ? ` (${stderr.trim().split('\n')[0]})` : ''),
+          );
+        }
       }
     }
   }
@@ -494,6 +563,94 @@ async function validateCanonicalPointers() {
   }
 }
 
+// Every `projects/<group>/<name>/docs/plan-*.yaml`, in a stable order. Empty in a root-only
+// clone or a git worktree, where `projects/` is absent entirely — same shape as
+// firstNestedRepo() above, and the group/project walks filter on isDirectory() for the same
+// reason it does: `projects/` collects a `.DS_Store` on macOS, and readdir'ing that as a
+// directory throws ENOTDIR and takes the whole validator down with it.
+async function planFiles() {
+  const projects = path.join(repoRoot, 'projects');
+  const dirs = async (parent) => (await readdir(parent, { withFileTypes: true }).catch(() => []))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  const files = [];
+  for (const group of await dirs(projects)) {
+    for (const project of await dirs(path.join(projects, group))) {
+      const docs = path.join(projects, group, project, 'docs');
+      for (const entry of await readdir(docs, { withFileTypes: true }).catch(() => [])) {
+        if (entry.isFile() && /^plan-.+\.ya?ml$/.test(entry.name)) files.push(path.join(docs, entry.name));
+      }
+    }
+  }
+  return files.sort();
+}
+
+// A cycle's `primary[]` and `arch-review.reviewer` name the role that cycle dispatches to, and
+// nothing checked those names against the roles that exist. In the same schema `$def` `tier` IS
+// enum-restricted, so the asymmetry read as a design choice; it was oversight. 13 of 249
+// `primary[]` entries did not resolve: ten `ui-ux-expert` (the role is `uiux-expert`) across
+// kobu-bot/002 and isc-workflow-web 002/003/004, plus three susun-jadual entries carrying a
+// parenthetical gloss (`ai-engineer (constraint formulation)`). Each named a specialist owner
+// that no orchestrator could look up, and the gloss breaks the lookup exactly as badly as the
+// typo does — so the annotated form is normalised in the DATA (the gloss was already carried by
+// the plan's own role table and file-ownership block), never special-cased here.
+//
+// This guards the plan half only. `primary[]` is written in role FILENAME-STEM space
+// (`uiux-expert`) while the workflows dispatch on role DISPLAY-NAME space — tdd-cycle.js takes
+// `greenAgent` as a caller-supplied arg and hands it to `agentType` ("UI/UX Expert", the role's
+// `name:` frontmatter), never reading the plan itself. Nothing maps one space to the other:
+// plan-batch.js §Preflight asks an LLM step for "the owning implementation role defined in
+// .agents/roles/" against a schema that checks only `type: 'string'`. A resolvable `primary[]`
+// is therefore necessary but not sufficient — the derived display name is still unchecked.
+async function validatePlanAgentRefs() {
+  // `projects/` holds autonomous nested repositories the root repo gitignores; absent is an
+  // environment state, not a finding. See validateCanonicalPointers() for the full reasoning.
+  if (!(await access(path.join(repoRoot, 'projects')).then(() => true).catch(() => false))) return;
+
+  // `yaml` is a tools/docs-gen dependency, resolved against THAT package: `.agents/` has no
+  // node_modules and must not grow one to be validatable. Its node_modules is gitignored, so a
+  // fresh clone or worktree skips this one check with a note instead of dying on
+  // MODULE_NOT_FOUND — a missing dependency that reads as a broken commit makes `git bisect`
+  // report false failures across the whole history. Same gate as test-agent-config.mjs.
+  let YAML = null;
+  try {
+    YAML = createRequire(path.join(repoRoot, 'tools/docs-gen/package.json'))('yaml');
+  } catch {
+    console.error('note: skipping plan agent-reference check — run `npm i` in tools/docs-gen/ to enable it');
+    return;
+  }
+
+  const roleDir = path.join(repoRoot, '.agents/roles');
+  const roles = new Set((await markdownFiles(roleDir)).map((name) => name.replace(/\.md$/, '')));
+  for (const file of await planFiles()) {
+    const rel = path.relative(repoRoot, file);
+    let plan;
+    try {
+      plan = YAML.parse(await readFile(file, 'utf8'));
+    } catch (error) {
+      errors.push(`${rel}: does not parse as YAML (${error.message.split('\n')[0]})`);
+      continue;
+    }
+    for (const cycle of Array.isArray(plan?.cycles) ? plan.cycles : []) {
+      const at = `${rel}: cycle ${cycle?.id ?? '(unnamed)'}`;
+      const primary = cycle?.primary;
+      // A bare `primary: uiux-expert` would otherwise iterate as characters and report one
+      // bogus error per letter, which buries the real finding.
+      if (primary !== undefined && !Array.isArray(primary)) {
+        errors.push(`${at}: primary must be a list of role names, got ${typeof primary}`);
+      }
+      for (const name of Array.isArray(primary) ? primary : []) {
+        if (!roles.has(name)) errors.push(`${at}: primary "${name}" is not a role in .agents/roles/`);
+      }
+      const reviewer = cycle?.['arch-review']?.reviewer;
+      if (reviewer !== undefined && !roles.has(reviewer)) {
+        errors.push(`${at}: arch-review.reviewer "${reviewer}" is not a role in .agents/roles/`);
+      }
+    }
+  }
+}
+
 const claudeShim = await readFile(path.join(repoRoot, 'CLAUDE.md'), 'utf8');
 if (!claudeShim.startsWith('@AGENTS.md\n')) errors.push('CLAUDE.md: must import @AGENTS.md first');
 
@@ -502,10 +659,11 @@ await validateSkills();
 await validateClaudeSettings();
 await validateClaudeRuntimeAdapters();
 await validateCodexRuntimeAdapters();
-await validateCommitHookBehaviour();
+await validateHookBehaviour();
 await validateLinks();
 await validateCanonicalPointers();
 await validateExemptionsResolve();
+await validatePlanAgentRefs();
 
 if (errors.length) {
   for (const error of errors) console.error(error);
