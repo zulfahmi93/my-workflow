@@ -140,7 +140,7 @@
       "required": ["state"],
       "properties": {
         "state": { "type": "string", "enum": ["required", "none", "deferred"] },
-        "tier": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
+        "tier": { "type": "string", "enum": ["top", "opus"] },
         "reviewer": { "type": "string" },
         "reason": { "type": "string" },
         "deferred-to": { "type": ["string", "null"] }
@@ -158,7 +158,11 @@
       "properties": {
         "model": { "type": "string", "enum": ["top", "mid", "opus", "sonnet"] },
         "agent": { "type": "string" },
-        "meta-raw": { "type": "string" },
+        "meta-raw": {
+          "description": "Free-text phase meta line carried over from the retired MD triad — 58 of them across the corpus, 42 opening with their own declared tier (\"`opus` — `code-reviewer`\"), the rest whole prose paragraphs. It is what the site PUBLISHES: load-yaml-source.mjs prefers it over the enum-checked `agent`, so it is a second, unchecked way to name a reviewer beside `model`. 56daa74 closed `model` against the cheap tier and left this open, which is worse than it sounds — stripDeclaredTier() drops a leading tier token only when it normalizes to top|mid, so a cheap one is NOT dropped and the phase card renders \"`top` — `haiku` — `code-reviewer`\": the tier the runtime actually pays, advertised next to a reviewer lifecycle.md §Model capability tiers says may never produce a REVIEW verdict. Rejected here rather than retired because the field is live — load-yaml-source.mjs reads it and 58 phases carry it. A BACKTICKED cheap token is the target: backticks are this corpus's convention for a model designation, so `haiku` anywhere in the line is a tier declaration, while unbackticked prose (\"reviewed at top, never haiku\") stays legal.",
+          "type": "string",
+          "not": { "pattern": "`\\s*([Hh]aiku|[Cc]heap)\\s*`" }
+        },
         "body": { "type": "string" },
         "code": {
           "type": "array",
