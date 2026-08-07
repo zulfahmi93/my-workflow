@@ -549,6 +549,14 @@ def strip_heredoc_bodies(command: str) -> str:
     a single apostrophe in English prose ("doesn't") opens a quote that never closes and
     tokenizing raises ValueError. Bodies are never policy-relevant: only the command line
     around them is. Stripping them lets a `cat > notes.md <<'EOF' … EOF` call tokenize.
+
+    A body is stripped ONLY when its terminator is actually found. Dropping to end-of-input
+    instead deleted the rest of the command every time HEREDOC_OPENER fired on something that
+    was not an opener — `echo "a << b"` reads as a heredoc for delimiter `b` — so a
+    `git commit --amend` on a LATER line was deleted before anything could check it. That was
+    latent while this ran only on the unparseable path; it became a live bypass the moment
+    check_command() started stripping on the success path too. Measured: three separate
+    `--amend`/long-subject commands turned into exit 0.
     """
     lines = command.split("\n")
     kept: list[str] = []
@@ -561,11 +569,15 @@ def strip_heredoc_bodies(command: str) -> str:
         if not match:
             continue
         delimiter = match.group(2)
-        while index < len(lines) and lines[index].strip() != delimiter:
-            index += 1
-        if index < len(lines):
-            kept.append(lines[index])  # keep the terminator so structure survives
-            index += 1
+        end = index
+        while end < len(lines) and lines[end].strip() != delimiter:
+            end += 1
+        if end >= len(lines):
+            # No terminator: this is not a body we can delimit, so keep every line rather
+            # than swallow the remainder of the command line.
+            continue
+        kept.append(lines[end])  # keep the terminator so structure survives
+        index = end + 1
     return "\n".join(kept)
 
 
@@ -612,9 +624,20 @@ def heredoc_body_from_raw(command: str, delimiter: str) -> str | None:
     The shlex token cannot be used: it has already had embedded quotes consumed as quoting
     syntax and stripped, which shortened the measured subject by one per quote. The raw text
     is what git will actually receive.
+
+    The SUBSTITUTION-form opener wins over a bare one. `EOF` is the near-universal delimiter,
+    so "write the cycle note, then commit" — one command line holding `cat > note.md <<'EOF'`
+    and then `git commit -m "$(cat <<EOF …)"` — matched the DOC's opener first and measured
+    the note's first line as the commit subject. A long note line then blocked a commit whose
+    real subject was short: a false block, in the shape an autonomous run produces every
+    cycle. Only `$(cat <<…` can be the message, so prefer it and fall back to the bare
+    opener for any form this does not recognise.
     """
+    substitution = re.compile(
+        r"\$\(\s*cat\s*<<-?\s*(['\"]?)" + re.escape(delimiter) + r"\1"
+    )
     opener = re.compile(r"<<-?\s*(['\"]?)" + re.escape(delimiter) + r"\1")
-    match = opener.search(command)
+    match = substitution.search(command) or opener.search(command)
     if not match:
         return None
     after_opener = command[match.end():].split("\n")[1:]
@@ -720,18 +743,31 @@ def oversized_subject(args: list[str], command: str) -> str | None:
     return None
 
 
-def check_command(command: str, depth: int = 0) -> int:
+def check_command(command: str, depth: int = 0, raw: str | None = None) -> int:
+    """`raw` is the ORIGINAL text a heredoc body is read out of, and it stays the OUTERMOST
+    command line as this recurses into `bash -c` / `eval` payloads — once the skeleton has
+    been stripped, that is the only place the body still exists verbatim.
+    """
     if not command or depth > MAX_SHELL_NESTING:
         return 0
+    if raw is None:
+        raw = command
+    # Strip heredoc BODIES before segmenting, not only after a tokenize failure. `\n` is a
+    # segment separator, so on the successful-parse path every body LINE became its own
+    # command segment: a document whose prose began `git commit --amend …` was read as an
+    # invocation and hard-blocked, as were `git push --force` and `gh pr create` prose and any
+    # quoted over-length `-m` subject. Heredoc prose is this repo's normal authoring path
+    # (.agents/INFRA-BACKLOG.md §4) and .agents/rules/commit.md is itself such a document, so
+    # the gate blocked authoring the very rule it enforces — the false block this script's
+    # own docstring says "would stop all work". Found live: the tool call written to test it
+    # was refused by it.
+    #
+    # oversized_subject() keeps reading `raw` below: the skeleton no longer carries the
+    # message bytes git will actually receive.
     try:
-        segments = command_segments(command)
-    except ValueError as first_error:
-        # Almost always a heredoc body shlex mis-lexed — strip bodies and retry before
-        # concluding anything. Only the skeleton matters for commit policy.
-        try:
-            segments = command_segments(strip_heredoc_bodies(command))
-        except ValueError:
-            return unparseable_fallback(command, first_error)
+        segments = command_segments(strip_heredoc_bodies(command))
+    except ValueError as error:
+        return unparseable_fallback(command, error)
 
     for segment in segments:
         try:
@@ -746,10 +782,12 @@ def check_command(command: str, depth: int = 0) -> int:
                     if status:
                         return status
                     continue
-                # `command` is passed as the raw text for heredoc resolution, so the nested
-                # call gets the payload as ITS raw text — the heredoc a nested commit uses
-                # lives there.
-                status = check_command(payload, depth + 1)
+                # `raw` — NOT the payload — carries down as the heredoc source. The payload
+                # token was cut from the STRIPPED skeleton, so a heredoc body inside it is
+                # already gone; passing it as its own raw text left `bash -c 'git commit -m
+                # "$(cat <<EOF … EOF)"'` with no subject to measure, and a 74-char subject
+                # went from blocked to exit 0. The outer raw text still holds that body.
+                status = check_command(payload, depth + 1, raw)
                 if status:
                     return status
                 continue
@@ -778,7 +816,7 @@ def check_command(command: str, depth: int = 0) -> int:
         if blocked:
             print(f"Blocked by .agents/rules/commit.md: git commit flag {blocked} is forbidden.", file=sys.stderr)
             return 2
-        oversized = oversized_subject(args, command)
+        oversized = oversized_subject(args, raw)
         if oversized:
             print(
                 f"Blocked by .agents/rules/commit.md: commit subject is {len(oversized)} chars "
