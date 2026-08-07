@@ -668,11 +668,78 @@ function main() {
   }
 }
 
-// Validate every YAML-sourced plan (schema + referential integrity), no rendering.
+// ---------------------------------------------------------------------------
+// architect-gate deferral chains
+// ---------------------------------------------------------------------------
+// Index every cycle id in a project → the plan it lives in + its arch-review state.
+// A `deferred-to` may point at a cycle in an EARLIER PLAN of the same project (kobu-bot
+// 004.3 → 002.10, 004.8 → 001.14) — cycle notes are keyed by cycle id, not by plan, per
+// `.agents/rules/cycle-orchestration.md` §Architect gate — so the index spans all of the
+// project's plans, not just the file being validated. That is also why this check lives
+// here and not in validate-source.mjs: that validator only ever sees one file.
+// First plan wins on a duplicate id — a deferral points backwards, and no registered
+// project reuses a cycle id across its plans.
+function projectCycleIndex(project) {
+  const cycles = new Map();
+  const unreadable = [];
+  for (const pl of project.plans) {
+    const yamlName = pl.yaml || `plan-${pl.id}.yaml`;
+    if (!sourceExists(project.docsRoot, yamlName)) { unreadable.push(yamlName); continue; }
+    let doc;
+    try {
+      doc = parseYamlDoc(join(REPO_ROOT, project.docsRoot, yamlName));
+    } catch {
+      unreadable.push(yamlName); // that plan's own validate entry reports the parse failure
+      continue;
+    }
+    for (const c of doc.cycles || []) {
+      if (!c || c.id == null || cycles.has(c.id)) continue;
+      cycles.set(c.id, { plan: pl.id, state: (c['arch-review'] || {}).state });
+    }
+  }
+  return { cycles, unreadable };
+}
+
+// A dangling `deferred-to` is a STOP per cycle-orchestration.md §Architect gate: `state:
+// deferred` means "inherit the target cycle's verdict", so a target that does not exist —
+// or whose own state is anything but `required` — leaves the chain terminating in no
+// verdict at all. The rule said so; nothing checked it mechanically, and kobu-bot 004.10
+// (the live production smoke on a paying client's WABA) sat deferred to 001.15 —
+// `state: none`, never run, no cycle note — through every green `npm run validate`.
+function deferralErrors(doc, index) {
+  const { cycles, unreadable } = index;
+  const errors = [];
+  for (const c of doc.cycles || []) {
+    const ar = (c && c['arch-review']) || {};
+    if (ar.state !== 'deferred') continue;
+    const where = `/cycles (${c.id}) /arch-review`;
+    const target = ar['deferred-to'];
+    if (target == null || target === '') {
+      errors.push(`${where} → state "deferred" with no deferred-to target`);
+      continue;
+    }
+    const hit = cycles.get(target);
+    if (!hit) {
+      const caveat = unreadable.length ? ` — unreadable source(s) in this project: ${unreadable.join(', ')}` : '';
+      errors.push(`${where} → deferred-to "${target}" matches no cycle in any plan of this project${caveat}`);
+      continue;
+    }
+    if (hit.state !== 'required') {
+      errors.push(
+        `${where} → deferred-to "${target}" (plan-${hit.plan}) has arch-review.state ` +
+        `"${hit.state == null ? '(missing)' : hit.state}", not "required" — no verdict to inherit`
+      );
+    }
+  }
+  return errors;
+}
+
+// Validate every YAML-sourced plan (schema + referential integrity + deferral chains), no rendering.
 function validateAll(targetProject, targetPlan) {
   const projects = loadRegistry().filter((p) => !targetProject || p.name === targetProject);
   let checked = 0, skipped = 0, failed = 0;
   for (const project of projects) {
+    let index = null; // project-wide cycle index; built once, on the first plan that needs it
     for (const pl of project.plans) {
       if (targetPlan && pl.id !== targetPlan) continue;
       const yamlName = pl.yaml || `plan-${pl.id}.yaml`;
@@ -699,7 +766,17 @@ function validateAll(targetProject, targetPlan) {
       }
       checked++;
       try {
-        validateDoc(parseYamlDoc(join(REPO_ROOT, project.docsRoot, yamlName)), `${project.name}/${yamlName}`);
+        const doc = parseYamlDoc(join(REPO_ROOT, project.docsRoot, yamlName));
+        validateDoc(doc, `${project.name}/${yamlName}`);
+        index ??= projectCycleIndex(project);
+        const dangling = deferralErrors(doc, index);
+        if (dangling.length) {
+          throw new Error(
+            `Architect-gate validation FAILED for ${project.name}/${yamlName} ` +
+            `(${dangling.length} dangling deferral${dangling.length === 1 ? '' : 's'}):\n` +
+            dangling.map((e) => `  ✗ ${e}`).join('\n')
+          );
+        }
         console.log(`  ✓ ${project.name}/${yamlName} valid`);
       } catch (e) {
         failed++;
