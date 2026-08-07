@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, chmod, copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -125,6 +125,25 @@ for (const command of [
   'gh pr merge 12 --squash',
   'gh --repo owner/name pr create --title x',
   'env FOO=1 nohup gh pr create',
+  // HEREDOCS. strip_heredoc_bodies() used to run only on the `except ValueError` retry, so on a
+  // successful parse the raw command was segmented as-is — and `\n` separates segments, which
+  // made every heredoc BODY LINE its own "invocation". Writing a policy note that says
+  // "git commit --amend is forbidden" was itself blocked (see the pass list). These four are the
+  // ways the fix for that could have been bought too cheaply, and each was measured going the
+  // wrong way against a naive strip-always patch:
+  //
+  // A REAL over-length subject, taken through a heredoc substitution — the exact shape an
+  // autonomous run writes, and the one the payload token is cut from.
+  `git commit -m "$(cat <<'EOF'\nfeat(scope): ${'x'.repeat(60)}\n\nbody\nEOF\n)"`,
+  // …and the same through bash -c. `raw` has to be threaded into the recursion or the body is
+  // already gone by the time the nested call measures the subject.
+  `bash -c 'git commit -m "$(cat <<EOF\nfeat(scope): ${'x'.repeat(60)}\nEOF\n)"'`,
+  // A stray `<<` in quoted prose reads as a heredoc opener for delimiter `b`. Stripping to
+  // end-of-input when no terminator is found deleted the rest of the command — a live --amend
+  // bypass, one line below.
+  'echo "a << b"\ngit commit --amend',
+  // Genuinely unterminated: there is no delimiter line, so nothing may be swallowed.
+  "cat <<'EOF'\nprose\ngit commit --amend",
 ]) {
   expectStatus(`blocked commit command: ${command}`, run(commitPolicy, [command]), 2);
 }
@@ -185,6 +204,19 @@ for (const command of [
   'gh pr checkout 12',
   'gh repo clone x/y',
   'echo "never git push --force to main"',
+  // The blocker itself: a heredoc body is PROSE. Documenting the policy — which is what the
+  // rules, the plan YAMLs and every AUTONOMOUS_RUN_STATUS.md do — must not be an offence.
+  // Every forbidden form has to be quotable, not just the first one anybody tried.
+  "cat > /tmp/n.md <<'EOF'\ngit commit --amend is forbidden by policy\nEOF",
+  "cat > /tmp/n.md <<'EOF'\ngit push --force is forbidden by policy\ngh pr create is forbidden by policy\nEOF",
+  // Including an over-length `-m` subject: still prose, still exit 0. This is the case the
+  // brief phrased as "must still block"; measured, that reading is the false block being fixed —
+  // what must still block is a REAL heredoc-substitution commit, and that is in the block list.
+  `cat > /tmp/n.md <<'EOF'\ngit commit -m "feat(scope): ${'x'.repeat(60)}"\nEOF`,
+  // Doc-then-commit sharing one delimiter, which is what a cycle writes every time: the note's
+  // first line must not be measured as the commit's subject. heredoc_body_from_raw() took the
+  // FIRST match, so a 71-char note line convicted a short, legal commit.
+  `cat > n.md <<'EOF'\n${'x'.repeat(71)}\nEOF\ngit commit -m "$(cat <<EOF\nfix(a): short\nEOF\n)"`,
 ]) {
   expectStatus(`allowed command: ${command}`, run(commitPolicy, [command]), 0);
 }
@@ -215,6 +247,90 @@ expectStatus('canonical template path', run(generatedPolicy, ['docs/templates/ad
 expectStatus('normalized safe traversal', run(generatedPolicy, ['docs/html/../templates/adr.md']), 0);
 expectStatus('outside-repo generated-looking path', run(generatedPolicy, ['/tmp/docs/html/index.html']), 0);
 
+// The terminal half of the same policy, and it had NO behavioural test at all: the file-editing
+// hooks above guard `*/docs/html/*`, while `cat > …/docs/html/i.html` went straight past. #20 is
+// the case that named the hole — `echo x >projects/…/docs/html/index.html`, no space after the
+// operator, so shlex lexed `>docs/html/…` as ONE word, no redirect pattern matched, exit 0, and
+// `npm run build` erased the hand-edit with no record of either event. Both directions matter
+// equally: this policy fires on every Bash call an agent makes, so a false block is not a
+// nuisance, it is a thing agents learn to route around.
+const generatedCommandPolicy = path.join(repoRoot, '.agents/scripts/check-generated-command.py');
+const generatedFile = 'docs/html/index.html';
+for (const command of [
+  // #20 and its whole family — the operator forms that all lexed as one word.
+  `echo x >${generatedFile}`,
+  `echo x > ${generatedFile}`,
+  `echo x >>${generatedFile}`,
+  `echo x 1>${generatedFile}`,
+  `echo x &>${generatedFile}`,
+  `echo x >| ${generatedFile}`,
+  // Absolute, and behind a control operator: a segment separator must still separate, which is
+  // why the redirect characters are punctuation to the lexer but excluded from CONTROL.
+  `echo x >${path.join(repoRoot, generatedFile)}`,
+  `npm run build >/tmp/log 2>&1 && cp /tmp/a ${generatedFile}`,
+  // The non-redirect write positions, each with a trailing redirect so the lexer change is
+  // exercised rather than bypassed.
+  `sed -i '' s/a/b/ ${generatedFile}`,
+  `tee ${generatedFile} </tmp/x`,
+  // Lexical wrappers — the same silent write-through as #20, reached by hiding the redirect
+  // inside a quoted payload instead of by missing punctuation. All four measured at exit 0
+  // before the payload recursion landed, i.e. a complete bypass of the one rule this policy
+  // exists to enforce. The nesting case pins the recursion, not just the top level.
+  `bash -c 'echo pwned > ${generatedFile}'`,
+  `sh -c "echo pwned > ${generatedFile}"`,
+  `eval "echo hack > ${generatedFile}"`,
+  `bash -c 'bash -c "echo x > ${generatedFile}"'`,
+  // Exec wrappers hide the COMMAND WORD, not the redirect (the outer shell parses that), so
+  // these need the tee/cp/sed/truncate rules to see past the wrapper. Each was exit 0 before.
+  `nohup cp /tmp/x.html ${generatedFile}`,
+  `env FOO=bar tee ${generatedFile}`,
+  `timeout 30 cp /tmp/x.html ${generatedFile}`,
+  `nice -n 5 mv /tmp/x.html ${generatedFile}`,
+  `sudo truncate -s 0 ${generatedFile}`,
+]) {
+  expectStatus(`blocked generated write: ${command}`, run('python3', [generatedCommandPolicy, command]), 2);
+}
+for (const command of [
+  // Ordinary redirects, including the fd forms that `&`+`>` as punctuation newly fuses into one
+  // token (`>&`, `2>&1`). Blocking any of these breaks routine work.
+  'echo x >/tmp/foo',
+  'npm test >out.log 2>&1',
+  'echo boom >&2',
+  'echo x 2>&1 >/tmp/out',
+  `ls ${path.dirname(generatedFile)}/ 2>/dev/null`,
+  // READING generated output is fine, and reads are how it is inspected. `<` had to become
+  // punctuation too, or its operand fell through to the tee/cp operand rules as a write target.
+  `cat ${generatedFile}`,
+  `grep -rn foo ${path.dirname(generatedFile)}/`,
+  `cp ${generatedFile} /tmp/backup.html`,
+  `tee /tmp/copy <${generatedFile}`,
+  // Spaced, which is the form that was already false-blocking before `<` became punctuation:
+  // the operand fell through to tee's "every operand is a target" rule and a pure READ was
+  // reported as a write.
+  `tee /tmp/copy < ${generatedFile}`,
+  `truncate -s 0 /tmp/x < ${generatedFile}`,
+  // Merely NAMING the path is not writing to it, and the write here lands somewhere else.
+  `echo "see ${generatedFile}" > /tmp/notes.md`,
+  'echo x >docs/templates/adr.md',
+  // Unresolvable, so unblocked by design: the real target is not knowable statically.
+  `echo x >$OUT/${generatedFile}`,
+  `echo 'unterminated > ${generatedFile}`,
+  // The wrapper resolution above must not over-block: a wrapped READ is still a read, and a
+  // wrapped write that lands ELSEWHERE is still fine. Without these the payload recursion is
+  // satisfiable by blocking every `bash -c`, which would stop routine work outright.
+  `bash -c 'cat ${generatedFile}'`,
+  `bash -c 'npm run build'`,
+  `eval 'cat ${generatedFile}'`,
+  `bash -c 'echo "see ${generatedFile}" > /tmp/notes.md'`,
+  `nohup cp ${generatedFile} /tmp/backup.html`,
+  `timeout 30 cp ${generatedFile} /tmp/backup.html`,
+  `nohup tee /tmp/copy < ${generatedFile}`,
+  'bash --version',
+  'bash /tmp/script.sh',
+]) {
+  expectStatus(`allowed generated-path command: ${command}`, run('python3', [generatedCommandPolicy, command]), 0);
+}
+
 const hook = path.join(repoRoot, '.codex/hooks/dispatch-file-policy.py');
 const generatedPatch = JSON.stringify({
   tool_input: { command: '*** Begin Patch\n*** Update File: docs/html/index.html\n@@\n-old\n+new\n*** End Patch' },
@@ -242,6 +358,241 @@ try {
   }
 } finally {
   await rm(tempDir, { recursive: true, force: true });
+}
+
+// The PLAN branch of the same hook, which was blind for exactly the session that matters. It ran
+// a bare `npm run validate`, which walks projects.config.json — so it never opened the file that
+// had just been written unless that file was already registered, and docs-site.md §Onboarding
+// puts "author plan-NNN.yaml" at step 1 and "add { id } to projects.config.json" at step 2. A new
+// plan is unregistered for its whole authoring session: hundreds of lines written against a green
+// hook, every violation arriving at once at registration.
+//
+// The fixture lands in the root repo's own `docs/`, excluded by .gitignore:26 (`/docs/*`), so the
+// probe leaves no git dirt. It has to sit INSIDE the repo root — the hook deliberately ignores
+// anything outside it — and outside every registered docsRoot, which is what makes it the
+// unregistered case. Gated on tools/docs-gen/node_modules because the hook's own documented
+// behaviour without it is to skip loudly at exit 0.
+if (await access(path.join(repoRoot, 'tools/docs-gen/node_modules')).then(() => true).catch(() => false)) {
+  const docsValidator = path.join(repoRoot, '.agents/scripts/validate-docs-yaml.sh');
+  const probe = path.join(repoRoot, 'docs', `plan-999-hook-probe-${process.pid}.yaml`);
+  const cycle = [
+    'cycles:', '  - id: "9.9"', '    title: a cycle', '    primary: [test-engineer]',
+    '    arch-review:', '      state: none', '    status: idle', '',
+  ];
+  try {
+    await writeFile(probe, ['id: "999"', 'project: probe', 'title: probe', 'bogus-key: yes', ...cycle].join('\n'));
+    const rejected = run(docsValidator, [probe]);
+    expectStatus('unregistered plan carrying a schema violation', rejected, 2);
+    if (!rejected.stderr.includes('bogus-key')) {
+      failures.push(`unregistered plan carrying a schema violation: the report does not name it — ${JSON.stringify(rejected.stderr)}`);
+    }
+    // The counterweight, and it is what stops the fix from being "reject everything unregistered":
+    // the same file, valid, must pass. Authoring a new plan cannot become impossible.
+    await writeFile(probe, ['id: "999"', 'project: probe', 'title: probe', ...cycle].join('\n'));
+    expectStatus('unregistered plan that is valid', run(docsValidator, [probe]), 0);
+  } finally {
+    await rm(probe, { force: true });
+  }
+}
+
+// install-git-hooks.sh has claimed idempotence in its header since day one while `cat >` overwrote
+// unconditionally, so installing into a repo that already had a pre-commit (husky, lefthook, a
+// hand-rolled linter) destroyed it silently — and this installer is the only thing that arms the
+// docs-YAML gate in the nested repos, so it gets run by whoever notices, against repos they did
+// not set up.
+//
+// Driven against a throwaway root: the script resolves `root` from its OWN location and bakes it
+// into the hooks it writes, so a copy under /tmp installs into /tmp and cannot reach a live repo.
+// Nothing here stages or commits — `git init` and the hook files on disk are the whole surface.
+{
+  const fake = await mkdtemp(path.join(os.tmpdir(), 'agent-config-hooks-'));
+  try {
+    await mkdir(path.join(fake, '.agents/scripts'), { recursive: true });
+    const installer = path.join(fake, '.agents/scripts/install-git-hooks.sh');
+    await copyFile(path.join(repoRoot, '.agents/scripts/install-git-hooks.sh'), installer);
+    // Two groups, mirroring projects/<group>/<name>: the walk is `projects/*/*`, so a fixture
+    // one level shallower would pass while the real layout was skipped.
+    const keeper = path.join(fake, 'projects/personal/keeper');
+    const fresh = path.join(fake, 'projects/rintis/fresh');
+    for (const dir of [fake, keeper, fresh]) {
+      await mkdir(dir, { recursive: true });
+      run('git', ['init', '-q'], { cwd: dir });
+      // A machine with init.templateDir set would otherwise seed a pre-commit and the refusal
+      // below would fire for the wrong reason.
+      await rm(path.join(dir, '.git/hooks/pre-commit'), { force: true });
+    }
+    const foreign = '#!/bin/sh\n# my precious husky hook\nexit 0\n';
+    const keeperHook = path.join(keeper, '.git/hooks/pre-commit');
+    const freshHook = path.join(fresh, '.git/hooks/pre-commit');
+    await writeFile(keeperHook, foreign);
+
+    for (const pass of ['first run', 're-run']) {
+      const install = run('bash', [installer]);
+      expectStatus(`install-git-hooks (${pass})`, install, 0);
+      // Refusing must be a SKIP, not an abort: one foreign hook cannot cost the other repos
+      // their gate, or the fix trades a silent clobber for a silent non-install.
+      if (!install.stderr.includes('skipped')) {
+        failures.push(`install-git-hooks (${pass}): refused silently — the author is never told why ${keeperHook} was left alone`);
+      }
+      if ((await readFile(keeperHook, 'utf8')) !== foreign) {
+        failures.push(`install-git-hooks (${pass}): overwrote a pre-commit hook it did not generate`);
+      }
+      if (!(await readFile(freshHook, 'utf8').catch(() => '')).includes('Generated by .agents/scripts/install-git-hooks.sh')) {
+        failures.push(`install-git-hooks (${pass}): the foreign hook stopped the walk — ${freshHook} was never installed`);
+      }
+      if (!(await readFile(path.join(fake, '.git/hooks/pre-commit'), 'utf8').catch(() => '')).includes('validate-agent-config.mjs')) {
+        failures.push(`install-git-hooks (${pass}): the root repo's agent-config gate was not installed`);
+      }
+    }
+  } finally {
+    await rm(fake, { recursive: true, force: true });
+  }
+}
+
+// A cycle's `primary[]` and `arch-review.reviewer` name the role that cycle dispatches to, and
+// nothing checked those names against the roles that exist: 13 of 249 entries resolved to nothing
+// — ten `ui-ux-expert` for a role file called `uiux-expert`, three carrying a parenthetical gloss
+// — each naming a specialist owner no orchestrator could look up.
+//
+// validate-agent-config.mjs resolves its repo root from its own file location, so this can only be
+// driven against a TREE. Mirror the root: a real .agents/scripts holding a COPY of the validator
+// (a symlink resolves to its real path, and the validator would then check the live repo instead),
+// symlinks for everything else it reads, and a projects/ holding two fixture plans. Assert on the
+// MESSAGE, never on exit 1 alone — an exit code says nothing about which file was named, and a
+// check that cannot point at the cycle is a check nobody can act on.
+{
+  const fixture = await mkdtemp(path.join(os.tmpdir(), 'agent-config-planrefs-'));
+  try {
+    await mkdir(path.join(fixture, '.agents/scripts'), { recursive: true });
+    for (const entry of await readdir(path.join(repoRoot, '.agents'))) {
+      if (entry !== 'scripts') await symlink(path.join(repoRoot, '.agents', entry), path.join(fixture, '.agents', entry));
+    }
+    for (const entry of await readdir(path.join(repoRoot, '.agents/scripts'))) {
+      const from = path.join(repoRoot, '.agents/scripts', entry);
+      const to = path.join(fixture, '.agents/scripts', entry);
+      if (entry === 'validate-agent-config.mjs') await copyFile(from, to);
+      else await symlink(from, to);
+    }
+    // projects/ is the one thing that must NOT be symlinked: the fixture plans live there, and
+    // the real corpus would drown the assertion in its own (correct) contents.
+    for (const entry of ['.claude', '.codex', 'tools', 'wiki', 'docs', 'AGENTS.md', 'CLAUDE.md']) {
+      await symlink(path.join(repoRoot, entry), path.join(fixture, entry));
+    }
+    const fixtureDocs = path.join(fixture, 'projects/personal/fixture/docs');
+    await mkdir(fixtureDocs, { recursive: true });
+    await writeFile(path.join(fixtureDocs, 'plan-001.yaml'), [
+      'id: "001"', 'project: fixture', 'title: Agent-reference fixture', 'cycles:',
+      '  - id: "9.9"', '    title: names an implementation role that does not exist',
+      '    primary:', '      - no-such-role',
+      '    arch-review:', '      state: none', '    status: idle',
+      '  - id: "9.8"', '    title: names a reviewer that does not exist',
+      '    primary:', '      - test-engineer',
+      '    arch-review:', '      state: required', '      tier: top', '      reviewer: no-such-reviewer',
+      '    status: idle', '',
+    ].join('\n'));
+    await writeFile(path.join(fixtureDocs, 'plan-002.yaml'), [
+      'id: "002"', 'project: fixture', 'title: Every role resolves', 'cycles:',
+      '  - id: "9.7"', '    title: a well-formed cycle',
+      '    primary:', '      - uiux-expert',
+      '    arch-review:', '      state: required', '      tier: top', '      reviewer: software-architect',
+      '    status: idle', '',
+    ].join('\n'));
+
+    const refs = run('node', [path.join(fixture, '.agents/scripts/validate-agent-config.mjs')], { cwd: fixture });
+    const output = `${refs.stderr}${refs.stdout}`;
+    if (refs.status !== 1) failures.push(`plan agent refs: expected exit 1, got ${refs.status}\n${output}`);
+    for (const want of [
+      'projects/personal/fixture/docs/plan-001.yaml: cycle 9.9: primary "no-such-role" is not a role in .agents/roles/',
+      'projects/personal/fixture/docs/plan-001.yaml: cycle 9.8: arch-review.reviewer "no-such-reviewer" is not a role in .agents/roles/',
+    ]) {
+      if (!output.includes(want)) failures.push(`plan agent refs: nothing reported ${JSON.stringify(want)}\n${output}`);
+    }
+    // The other direction: `uiux-expert` is the real spelling of the role the corpus kept getting
+    // wrong, so a check that flagged it too would be worse than none.
+    if (output.includes('plan-002.yaml')) {
+      failures.push(`plan agent refs: reported a plan whose roles all resolve\n${output}`);
+    }
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+}
+
+// The review-family model floor. Same fixture shape as the plan-agent-refs block above and for
+// the same reason — validate-agent-config.mjs resolves its root from its own location, so the
+// only way to drive it against a mutated adapter is to give it a tree where that adapter is a
+// real file. `.claude/agents/<one file>` is the copy; everything else is a symlink.
+//
+// This exists because `model:` sat exactly where `tools:` sat: preserved from disk by
+// sync-claude-adapters.mjs, derived from nothing, checked by nobody. Setting code-reviewer.md to
+// `model: haiku` left BOTH gates byte-identical in output and exit code, so a REVIEW verdict
+// could be produced at a tier lifecycle.md says may never produce one and every gate stayed
+// green. Both directions are asserted: a check that rejected `sonnet` on finding-verifier too
+// would misreport the one adapter that is CORRECTLY below `top`.
+{
+  const fixture = await mkdtemp(path.join(os.tmpdir(), 'agent-config-tier-'));
+  try {
+    await mkdir(path.join(fixture, '.agents/scripts'), { recursive: true });
+    await mkdir(path.join(fixture, '.claude/agents'), { recursive: true });
+    for (const entry of await readdir(path.join(repoRoot, '.agents'))) {
+      if (entry !== 'scripts') await symlink(path.join(repoRoot, '.agents', entry), path.join(fixture, '.agents', entry));
+    }
+    for (const entry of await readdir(path.join(repoRoot, '.agents/scripts'))) {
+      const from = path.join(repoRoot, '.agents/scripts', entry);
+      const to = path.join(fixture, '.agents/scripts', entry);
+      if (entry === 'validate-agent-config.mjs') await copyFile(from, to);
+      else await symlink(from, to);
+    }
+    for (const entry of await readdir(path.join(repoRoot, '.claude'))) {
+      if (entry !== 'agents') await symlink(path.join(repoRoot, '.claude', entry), path.join(fixture, '.claude', entry));
+    }
+    // All three floored adapters are mutated in ONE validator run. The validator accumulates
+    // errors rather than exiting on the first, so one spawn covers all three floors — and a
+    // spawn costs ~1.3s here, so a run per case doubled the whole suite's wall time for no
+    // extra coverage. It also pins that the floor is wired for all three roles, not just one.
+    const floored = ['code-reviewer.md', 'security-reviewer.md', 'finding-verifier.md'];
+    for (const entry of await readdir(path.join(repoRoot, '.claude/agents'))) {
+      if (!floored.includes(entry)) await symlink(path.join(repoRoot, '.claude/agents', entry), path.join(fixture, '.claude/agents', entry));
+    }
+    // projects/ is deliberately NOT linked. This fixture is about adapters, and the validator
+    // runs four times here — pointing it at the real corpus made each run re-parse all 14 plan
+    // YAMLs and doubled the whole suite's wall time. Its absence is the documented graceful skip
+    // (root-only checkout / worktree), so leaving it out exercises that path for free.
+    for (const entry of ['.codex', 'tools', 'wiki', 'docs', 'AGENTS.md', 'CLAUDE.md']) {
+      await symlink(path.join(repoRoot, entry), path.join(fixture, entry));
+    }
+    const shipped = {};
+    for (const entry of floored) shipped[entry] = await readFile(path.join(repoRoot, '.claude/agents', entry), 'utf8');
+    const validator = path.join(fixture, '.agents/scripts/validate-agent-config.mjs');
+
+    // Unmutated first: the floor must not fire on the adapters as they ship, or every assertion
+    // below is satisfiable by a check that rejects everything. finding-verifier's `sonnet` is the
+    // one that matters here — it is CORRECTLY below `top`, and a flat floor would flag it.
+    for (const entry of floored) await writeFile(path.join(fixture, '.claude/agents', entry), shipped[entry]);
+    const clean = run('node', [validator], { cwd: fixture });
+    if (clean.status !== 0) {
+      failures.push(`model floor: shipped adapters must pass, got ${clean.status}\n${clean.stderr}${clean.stdout}`);
+    }
+
+    // One run, three shapes: a RETIRED token, a REAL tier that is simply below this role's floor,
+    // and an ABSENT line. The middle one is what separates a rank compare from a haiku denylist;
+    // the last one matters because a missing `model:` is not "no opinion", it is an unpinned tier
+    // that runs at whatever the harness defaults to.
+    await writeFile(path.join(fixture, '.claude/agents/code-reviewer.md'), shipped['code-reviewer.md'].replace(/^model: .*$/m, 'model: sonnet'));
+    await writeFile(path.join(fixture, '.claude/agents/security-reviewer.md'), shipped['security-reviewer.md'].replace(/^model: .*$/m, 'model: haiku'));
+    await writeFile(path.join(fixture, '.claude/agents/finding-verifier.md'), shipped['finding-verifier.md'].replace(/^model: .*\n/m, ''));
+    const bad = run('node', [validator], { cwd: fixture });
+    const out = `${bad.stderr}${bad.stdout}`;
+    if (bad.status !== 1) failures.push(`model floor: expected exit 1, got ${bad.status}\n${out}`);
+    for (const want of [
+      '.claude/agents/code-reviewer.md: model sonnet is below the top floor',
+      '.claude/agents/security-reviewer.md: model haiku is below the top floor',
+      '.claude/agents/finding-verifier.md: review-family role declares no model',
+    ]) {
+      if (!out.includes(want)) failures.push(`model floor: nothing reported ${JSON.stringify(want)}\n${out}`);
+    }
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
 }
 
 // docs-gen must leave NOTHING on disk when a build aborts. A registry entry whose project is
@@ -285,18 +636,22 @@ if (normalizeTier) {
 
     const presentDocs = path.join(docsGenRoot, 'projects/personal/present/docs');
     await mkdir(presentDocs, { recursive: true });
-    // Cycle 1.2 is the drift fixture: it DECLARES `tier: mid` and its session prompt restates the
-    // gate as "REQUIRED (sonnet)", while the runtime gates every required review at the top tier
-    // regardless. Both stale values have to be schema-valid to be worth testing — plan.schema.json
-    // enums `tier` to top|mid|opus|sonnet and leaves the prompt an unconstrained string, which is
-    // exactly why the drift was invisible. Same for `meta-raw`, which opens with its own declared
-    // `opus` on a phase whose runtime tier is fixed.
+    // Cycle 1.2 is the drift fixture: its session prompt restates the gate as "REQUIRED (sonnet)"
+    // while the runtime gates every required review at the top tier regardless, so the rendered
+    // declaration must follow `arch-review`, not the prose.
+    //
+    // It USED to declare `tier: mid` as well, because `tier` enumed top|mid|opus|sonnet and a
+    // below-floor value was therefore schema-valid — which is exactly how 40 real cycles came to
+    // advertise a mid-tier architect gate that never ran. That enum is now [top, opus], so
+    // structured drift is unrepresentable and only the unconstrained prompt string can still drift.
+    // `tier: opus` is the surviving half of the fixture; `meta-raw` covers the same shape on a
+    // phase whose runtime tier is likewise fixed.
     await writeFile(path.join(presentDocs, 'plan-001.yaml'), [
       'id: "001"', 'project: present', 'title: Fixture plan', 'cycles:',
       '  - id: "1.1"', '    title: A cycle', '    primary: [Test Engineer]',
       '    arch-review:', '      state: none', '    status: idle',
       '  - id: "1.2"', '    title: A gated cycle', '    primary: [Test Engineer]',
-      '    arch-review:', '      state: required', '      tier: mid', '      reviewer: Test Engineer',
+      '    arch-review:', '      state: required', '      tier: opus', '      reviewer: Test Engineer',
       '    status: idle',
       '    phases:', '      review:', '        meta-raw: "`opus` — `code-reviewer`"', '        body: review it',
       '    session:', '      title: Cycle 1.2', '      prompt: |',
@@ -358,6 +713,41 @@ if (normalizeTier) {
     publishes('the runbook session prompt', runbookHtml,
       ['Architecture review: **REQUIRED (top)**.', 'Spawn `software-architect` (sonnet) via `Agent` BEFORE RED.', 'Begin Cycle 1.2.'],
       ['REQUIRED (sonnet)']);
+    // Architect-gate deferral chains, which are cross-FILE by nature: `state: deferred` means
+    // "inherit the target cycle's verdict", and a target may live in an earlier PLAN of the same
+    // project (kobu-bot 004.3 → 002.10). validate-source.mjs only ever sees one file, so nothing
+    // could resolve a target at all — kobu-bot 004.10, the live production smoke on a paying
+    // client's WABA, sat deferred to a cycle for as long as the plan existed while `npm run
+    // validate` called the file valid. Three ways to inherit nothing, and the legitimate case
+    // that must keep passing.
+    const deferral = (target) => [
+      'id: "002"', 'project: present', 'title: Deferral fixture', 'cycles:',
+      '  - id: "2.1"', "    title: Inherits an earlier plan's verdict",
+      '    primary: [test-engineer]',
+      '    arch-review:', '      state: deferred', `      deferred-to: "${target}"`,
+      '    status: idle', '',
+    ].join('\n');
+    const plan002 = path.join(presentDocs, 'plan-002.yaml');
+    await writeFile(plan002, deferral('1.2'));
+    await writeRegistry([entry('present', [{ id: '001' }, { id: '002' }]), entry('ghost', [{ id: '001' }])]);
+    expectStatus('docs-gen validate: cross-plan deferral onto a required gate', run('node', [generate, '--validate']), 0);
+    for (const [label, target] of [
+      // The kobu-bot 004.10 shape: the target exists, and its own gate is `none` — there is no
+      // verdict there to inherit. Anything but `required` is the same nothing.
+      ['a gate marked none', '1.1'],
+      ['a cycle id that matches nothing in the project', '9.9'],
+    ]) {
+      await writeFile(plan002, deferral(target));
+      const dangling = run('node', [generate, '--validate']);
+      expectStatus(`docs-gen validate: deferral onto ${label}`, dangling, 1);
+      const said = `${dangling.stderr}${dangling.stdout}`;
+      if (!said.includes('2.1') || !said.includes(target)) {
+        failures.push(`docs-gen validate: deferral onto ${label} failed without naming the cycle and its target\n${said}`);
+      }
+    }
+    // Restore, so the registry-typo case below still fails for the typo and not for this.
+    await writeFile(plan002, deferral('1.2'));
+
     await writeRegistry([entry('present', [{ id: '001' }, { id: '999' }]), entry('ghost', [{ id: '001' }])]);
     expectStatus('docs-gen validate with a registry typo in a checked-out project', run('node', [generate, '--validate']), 1);
   } finally {
@@ -380,6 +770,42 @@ for (const [input, expected] of Object.entries({ opus: 'top', sonnet: 'mid', top
 for (const input of ['haiku', 'claude-haiku', 'cheap', 'gpt-5']) {
   if (normalizeTier && normalizeTier(input) !== input) {
     failures.push(`normalizeTier(${input}): expected the input back unchanged, got ${JSON.stringify(normalizeTier(input))} — only opus/sonnet are aliases, and none may resolve to a tier the runtime does not bind`);
+  }
+}
+
+// `phases.*.meta-raw` is what the site PUBLISHES about a phase — load-yaml-source.mjs prefers it
+// over the enum-checked `agent` — and 56daa74 closed `model` against the retired cheap tier while
+// leaving this string wide open. After 25e8613 made the tier a runtime constant that is worse than
+// a downgrade, not better: stripDeclaredTier() drops a leading token only when it normalizes to
+// top|mid, so a cheap one SURVIVES and the phase card renders "`top` — `haiku` — `code-reviewer`",
+// advertising a reviewer lifecycle.md §Model capability tiers says may never produce a REVIEW
+// verdict, right beside the tier the runtime actually pays. Driven through validate-source.mjs
+// rather than a hand-wired ajv so it reads the same schema file the build does.
+if (normalizeTier) {
+  const { validateDoc } = await import('../../tools/docs-gen/lib/validate-source.mjs');
+  const withMeta = (meta) => ({
+    id: '001', project: 'p', title: 't',
+    cycles: [{
+      id: '1.1', title: 'c', primary: ['test-engineer'], 'arch-review': { state: 'none' }, status: 'idle',
+      phases: { review: { 'meta-raw': meta } },
+    }],
+  });
+  for (const [meta, valid] of [
+    ['`haiku` — `code-reviewer`', false],
+    ['`cheap` — `code-reviewer`', false],
+    // What the renderer actually emits from the first one — the two tiers side by side.
+    ['`top` — `haiku` — `code-reviewer`', false],
+    ['`opus` — `code-reviewer`', true],
+    // Unbackticked, so not a designation. Backticks are this corpus's convention for naming a
+    // model, and prose about the policy has to stay writable — same principle as the heredoc
+    // bodies in the commit gate above.
+    ['Reviewed at top, never haiku.', true],
+  ]) {
+    let rejected = false;
+    try { validateDoc(withMeta(meta), 'meta-raw fixture'); } catch { rejected = true; }
+    if (rejected !== !valid) {
+      failures.push(`plan.schema.json meta-raw ${JSON.stringify(meta)}: expected it to ${valid ? 'validate' : 'be rejected'}`);
+    }
   }
 }
 
