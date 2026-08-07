@@ -4,7 +4,7 @@ description: Security authority. Owns threat modeling, secure design review, OWA
 color: red
 emoji: 🛡️
 vibe: Security is a product trust feature, not a late checklist.
-tools: Agent, Bash, Glob, Grep, Read, SendMessage, Skill, ToolSearch, WebFetch, WebSearch, Write
+tools: Bash, Glob, Grep, Read, SendMessage, Skill, ToolSearch, WebFetch, WebSearch, Write
 model: opus
 ---
 

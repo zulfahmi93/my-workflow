@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { access, readdir, readFile, stat } from 'node:fs/promises';
+import { access, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -25,20 +25,49 @@ function fieldLines(block, names) {
     .filter((line) => names.some((name) => line.startsWith(`${name}:`)));
 }
 
+// `\s` matches a NEWLINE, so `/^name:\s*(.+)$/m` run against a blank `name:` skipped the empty
+// value and captured the DESCRIPTION line instead — a role could ship with no display name at all
+// and still read as well-formed here. That is not a cosmetic field: it is the `agentType` the
+// runtime dispatches on (ROLE_NAMES below), so a role with no name is a role no delegate can be
+// spawned as. Measured: blanking `name:` in `.agents/roles/uiux-expert.md` and its adapter left
+// both gates at exit 0, for a role 23 `primary[]` entries name. Anchor the capture to the line the
+// key is on, and require a non-space first character.
+const roleField = (block, key) => block.match(new RegExp(`^${key}:[ \\t]*(\\S.*?)[ \\t]*$`, 'm'))?.[1];
+
 function parseRole(source, label) {
   const match = source.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) {
     errors.push(`${label}: missing YAML frontmatter or body`);
     return null;
   }
-  const name = match[1].match(/^name:\s*(.+)$/m)?.[1];
-  const description = match[1].match(/^description:\s*(.+)$/m)?.[1];
+  const name = roleField(match[1], 'name');
+  const description = roleField(match[1], 'description');
   if (!name || !description) {
     errors.push(`${label}: missing name or description`);
     return null;
   }
   return { name, description, body: match[2].trim() };
 }
+
+// The bridge between the two role vocabularies, filled by validateRoles() and read by
+// validatePlanAgentRefs(): role FILENAME STEM -> role DISPLAY NAME (the `name:` frontmatter).
+//
+// A plan cycle's `primary[]` is written in stem space (`uiux-expert`). The workflows dispatch in
+// display-name space: tdd-cycle.js hands `A.greenAgent` straight to `agentType`, and the runtime
+// matches that against the adapter's `name:` ("UI/UX Expert"). Nothing in the repo maps one to the
+// other, and a mechanical stem->Title-Case transform does NOT: over the 18 stems the live plans
+// actually use it is wrong for 9 — `uiux-expert` -> "Uiux Expert" (real "UI/UX Expert"),
+// `dotnet-expert` -> "Dotnet Expert" (real ".NET Expert"), `sre` -> "Sre" (real "SRE (Site
+// Reliability Engineer)"), plus ai-, api-, devops-, llm-, nodejs-, ux-. Each of those dispatches an
+// `agentType` matching no adapter.
+//
+// No mapping TABLE is added anywhere: the role files already carry it in their own frontmatter, and
+// `.agents/scripts/check-read-only-command.py` already reads it that way (it unions each role's
+// `name:` with its filename stem to match `agent_type` across both spaces). A second copy —
+// including one parked in read-only-roles.mjs — would be a hand-maintained duplicate of derivable
+// data, which is the exact failure that file's own header warns about. So the map is derived here,
+// from the same frontmatter the runtime reads.
+const ROLE_NAMES = new Map();
 
 function codexName(filename) {
   return filename.replace(/\.md$/, '').replaceAll('-', '_').replaceAll('.', 'dot');
@@ -80,6 +109,10 @@ async function validateRoles() {
     for (const key of keys) {
       if (!['name', 'description'].includes(key)) errors.push(`.agents/roles/${filename}: provider field ${key}`);
     }
+    // Collected BEFORE the missing-adapter `continue` below: an incomplete ROLE_NAMES would make
+    // validatePlanAgentRefs report every cycle that names the role, burying the one real finding.
+    const displayName = roleField(block, 'name');
+    if (displayName) ROLE_NAMES.set(filename.replace(/\.md$/, ''), displayName);
     const adapter = await readFile(path.join(adapterDir, filename), 'utf8').catch(() => '');
     if (!adapter) continue;
     const adapterBlock = frontmatter(adapter, `.claude/agents/${filename}`);
@@ -138,6 +171,22 @@ async function validateRoles() {
       errors.push(`.codex/agents/${codexFilename}: generated adapter is stale`);
     }
   }
+
+  // The bridge has to be REVERSIBLE, not just total. Everything that reads a delegate back —
+  // check-read-only-command.py resolving `agent_type` to a read-only role, a cycle note recording
+  // which role produced a verdict — starts from the display name and has to arrive at one role.
+  // Two roles sharing a `name:` silently merge: the runtime dispatches one of them and every
+  // consumer attributes the work to whichever the lookup happens to hit. Cheap to hold (25 roles,
+  // 25 distinct names today) and unrecoverable once a note is filed against the wrong one.
+  const byDisplayName = new Map();
+  for (const [stem, name] of [...ROLE_NAMES].sort()) {
+    const first = byDisplayName.get(name);
+    if (first) {
+      errors.push(`.agents/roles/${stem}.md: display name ${JSON.stringify(name)} is already used by ${first}.md — \`agentType\` dispatches on this field, so two roles sharing it cannot be told apart`);
+    } else {
+      byDisplayName.set(name, stem);
+    }
+  }
 }
 
 async function validateSkills() {
@@ -170,6 +219,7 @@ async function validateSkills() {
 const CLAUDE_HOOKS = {
   'block-commit-flags.sh': { target: '.agents/scripts/check-commit-command.sh', event: 'PreToolUse', matcher: 'Bash' },
   'block-generated-writes.sh': { target: '.agents/scripts/check-generated-command.py', event: 'PreToolUse', matcher: 'Bash' },
+  'block-read-only-writes.sh': { target: '.agents/scripts/check-read-only-command.py', event: 'PreToolUse', matcher: 'Bash' },
   'block-generated-html.sh': { target: '.agents/scripts/check-generated-path.sh', event: 'PreToolUse', matcher: 'Edit|Write|NotebookEdit' },
   'validate-docs-yaml.sh': { target: '.agents/scripts/validate-docs-yaml.sh', event: 'PostToolUse', matcher: 'Edit|Write' },
 };
@@ -251,12 +301,14 @@ async function validateCodexRuntimeAdapters() {
 // via `git rev-parse --show-toplevel` (which returns the NESTED project repo, so the hook was
 // never found at all), or a policy that denied every Bash call it could not tokenize. Both
 // are invisible to a grep and obvious to a single execution — so execute it.
-function runHook(hookPath, toolInput, cwd) {
+// `extra` merges TOP-LEVEL payload fields, which the read-only gate needs: it keys on
+// `agent_type`, a sibling of `tool_input` rather than a field inside it.
+function runHook(hookPath, toolInput, cwd, extra = {}) {
   return new Promise((resolve) => {
     const child = execFile(hookPath, { cwd, timeout: 20000 }, (error, stdout, stderr) => {
       resolve({ code: error?.code ?? 0, stderr: stderr ?? '' });
     });
-    child.stdin.end(JSON.stringify({ tool_name: 'Bash', tool_input: toolInput }));
+    child.stdin.end(JSON.stringify({ tool_name: 'Bash', ...extra, tool_input: toolInput }));
   });
 }
 
@@ -388,6 +440,72 @@ async function validateHookBehaviour() {
         }
       }
     }
+  }
+
+  // The read-only-role gate. Claude-side only, and deliberately: the Codex adapters carry
+  // `sandbox_mode = "read-only"` (see read-only-roles.mjs), so that runtime already denies
+  // the write at the sandbox rather than by inspecting the command.
+  //
+  // Every case pins a property the gate would otherwise lose silently, because ALL of them
+  // look identical from outside — exit 0 — when the gate stops firing:
+  //   · the two measured bypasses that opened this hole, one per review role;
+  //   · that it is SCOPED — a non-review role and the main thread must still write freely,
+  //     since a gate that blocks the implementer is one the orchestrator turns off;
+  //   · that `agent_type` is matched across BOTH naming spaces, because the workflow
+  //     dispatches display names ("Code Reviewer") while READ_ONLY_ROLES lists filenames;
+  //   · that reads and out-of-tree scratch survive, the reviewer's actual job.
+  // Relative paths again: `cwd` is a nested project repo, so these also prove the gate
+  // resolves writes against the CALLER's directory rather than the monorepo root.
+  const readOnlyCases = [
+    // Measured before the gate existed: both exited 0 through every other hook.
+    { name: 'reviewer truncating a source file', agent: 'Code Reviewer', command: "printf '' > AGENTS.md", expect: 2 },
+    // The failure in the ticket: a verifier that REPAIRS what it was asked to refute makes
+    // its own `refuted: true` true, and the workflow files that as a hallucination.
+    { name: 'verifier editing in place', agent: 'Finding Verifier', command: "sed -i '' s/x/y/ src/pay.ts", expect: 2 },
+    { name: 'reviewer reverting the diff', agent: 'Security Reviewer', command: 'git checkout -- src/pay.ts', expect: 2 },
+    { name: 'write hidden in a shell payload', agent: 'Code Reviewer', command: "bash -c 'echo x > AGENTS.md'", expect: 2 },
+    { name: 'agent_type in filename space', agent: 'code-reviewer', command: 'tee AGENTS.md', expect: 2 },
+    // A gate that blocked these would be routed around within one cycle.
+    { name: 'reviewer running the suite to /tmp', agent: 'Code Reviewer', command: 'npm test >/tmp/out.log 2>&1', expect: 0 },
+    { name: 'reviewer reading a repo file', agent: 'Code Reviewer', command: 'cat AGENTS.md', expect: 0 },
+    { name: 'reviewer inspecting the diff', agent: 'Code Reviewer', command: 'git diff --cached --name-only', expect: 0 },
+    { name: 'implementer role still writes', agent: 'Software Architect', command: 'echo x > AGENTS.md', expect: 0 },
+  ];
+  const readOnlyHook = '.claude/hooks/block-read-only-writes.sh';
+
+  // Anchor the cases to the POLICY's repo root, sent as the payload's `cwd`, rather than
+  // letting them resolve against the process cwd. The two are not always the same tree: the
+  // model-floor fixture in test-agent-config.mjs runs this validator from a temp directory
+  // whose `.agents/` and `.claude/hooks/` are symlinks back here, so a cwd-relative
+  // `AGENTS.md` resolved under /tmp — outside the repo — and three block cases silently
+  // passed as exit 0, reporting the gate broken when only the fixture was. `realpath` is
+  // what makes it robust: the script resolves its own root through the symlink, so this
+  // reads the same root the policy will. Production payloads always carry `cwd`, so this is
+  // also the shape the gate really sees.
+  const policyRoot = path.resolve(
+    path.dirname(await realpath(path.join(repoRoot, '.agents/scripts/check-read-only-command.py'))),
+    '../..',
+  );
+  for (const testCase of readOnlyCases) {
+    const { code, stderr } = await runHook(
+      path.join(repoRoot, readOnlyHook), { command: testCase.command }, cwd,
+      { agent_type: testCase.agent, cwd: policyRoot },
+    );
+    if (code !== testCase.expect) {
+      errors.push(
+        `${readOnlyHook}: ${testCase.name} — expected exit ${testCase.expect}, got ${code}` +
+        (stderr.trim() ? ` (${stderr.trim().split('\n')[0]})` : ''),
+      );
+    }
+  }
+  // `agent_type` is absent on the main thread even in `--agent` sessions, so its absence is
+  // what keeps the orchestrator out of scope. Pinned separately because it is the one case
+  // that must pass with no agent field at all.
+  const mainThread = await runHook(
+    path.join(repoRoot, readOnlyHook), { command: 'echo x > AGENTS.md' }, cwd, { cwd: policyRoot },
+  );
+  if (mainThread.code !== 0) {
+    errors.push(`${readOnlyHook}: main-thread write — expected exit 0, got ${mainThread.code}`);
   }
 }
 
@@ -596,13 +714,18 @@ async function planFiles() {
 // typo does — so the annotated form is normalised in the DATA (the gloss was already carried by
 // the plan's own role table and file-ownership block), never special-cased here.
 //
-// This guards the plan half only. `primary[]` is written in role FILENAME-STEM space
-// (`uiux-expert`) while the workflows dispatch on role DISPLAY-NAME space — tdd-cycle.js takes
-// `greenAgent` as a caller-supplied arg and hands it to `agentType` ("UI/UX Expert", the role's
-// `name:` frontmatter), never reading the plan itself. Nothing maps one space to the other:
-// plan-batch.js §Preflight asks an LLM step for "the owning implementation role defined in
-// .agents/roles/" against a schema that checks only `type: 'string'`. A resolvable `primary[]`
-// is therefore necessary but not sufficient — the derived display name is still unchecked.
+// `primary[]` is written in role FILENAME-STEM space (`uiux-expert`) while the workflows dispatch
+// on role DISPLAY-NAME space — tdd-cycle.js takes `greenAgent` as a caller-supplied arg and hands
+// it to `agentType` ("UI/UX Expert", the role's `name:` frontmatter), never reading the plan
+// itself. plan-batch.js is where the two meet, and it asks an LLM step for "the owning
+// implementation role defined in .agents/roles/" against a schema checking only `type: 'string'`.
+//
+// So resolving the stem is necessary but not sufficient: the value a delegate is actually
+// dispatched with is ROLE_NAMES.get(stem), and that is what has to exist. Checked here rather than
+// only per-role because this is the surface where it bites — the error names the cycles that would
+// dispatch to an empty `agentType`, which is the thing an orchestrator can act on. Deduped to one
+// error per unbridgeable stem: `uiux-expert` alone is named by 23 cycles, and 23 copies of one
+// finding bury every other line in the report.
 async function validatePlanAgentRefs() {
   // `projects/` holds autonomous nested repositories the root repo gitignores; absent is an
   // environment state, not a finding. See validateCanonicalPointers() for the full reasoning.
@@ -623,6 +746,14 @@ async function validatePlanAgentRefs() {
 
   const roleDir = path.join(repoRoot, '.agents/roles');
   const roles = new Set((await markdownFiles(roleDir)).map((name) => name.replace(/\.md$/, '')));
+  // stem -> the cycles that dispatch to it, for stems that resolve to a role file carrying no
+  // usable display name. Collected across every plan and reported once at the end.
+  const unbridgeable = new Map();
+  const bridge = (name, at) => {
+    if (!roles.has(name) || ROLE_NAMES.get(name)) return;
+    if (!unbridgeable.has(name)) unbridgeable.set(name, []);
+    unbridgeable.get(name).push(at);
+  };
   for (const file of await planFiles()) {
     const rel = path.relative(repoRoot, file);
     let plan;
@@ -642,13 +773,124 @@ async function validatePlanAgentRefs() {
       }
       for (const name of Array.isArray(primary) ? primary : []) {
         if (!roles.has(name)) errors.push(`${at}: primary "${name}" is not a role in .agents/roles/`);
+        else bridge(name, at);
       }
       const reviewer = cycle?.['arch-review']?.reviewer;
       if (reviewer !== undefined && !roles.has(reviewer)) {
         errors.push(`${at}: arch-review.reviewer "${reviewer}" is not a role in .agents/roles/`);
+      } else if (reviewer !== undefined) {
+        bridge(reviewer, `${at} (arch-review.reviewer)`);
       }
     }
   }
+
+  for (const [name, sites] of [...unbridgeable].sort()) {
+    errors.push(
+      `.agents/roles/${name}.md declares no display name, so the ${sites.length} cycle(s) naming it ` +
+      `cannot be bridged to an agentType — ${sites[0]}${sites.length > 1 ? ` (and ${sites.length - 1} more)` : ''}. ` +
+      'A plan names a role by filename stem; a delegate is dispatched by the role\'s `name:` frontmatter. ' +
+      'There is no mechanical transform between the two (it is wrong for 9 of the 18 stems in use), so the frontmatter is the only bridge.',
+    );
+  }
+}
+
+// The root guide's §Layout fence used to name every project one by one, and drifted exactly the way
+// .agents/rules/docs-site.md predicts a prose copy of the registry will: by 2026-08-07 five of the
+// names it listed had been deleted and four live projects had never been added — in the one file
+// CLAUDE.md imports into EVERY session, so every session paid for a wrong map. Neither gate noticed,
+// because a fence is prose.
+//
+// Checking "every name listed still exists" would close only half of it: the four that were never
+// added are invisible to that check, and requiring the full list instead is the enumeration
+// docs-site.md forbids. The invariant that closes both halves at once is that the fence must not
+// enumerate projects AT ALL — `ls projects/*/` is the live list, projects.config.json is the
+// authoritative registry of onboarded ones, and the fence stops at the two group dirs.
+//
+// Structural, so it holds in a git worktree where `projects/` is absent entirely. The two
+// disk-dependent halves below skip when it is, per validateCanonicalPointers().
+async function validateRootGuideProjects() {
+  const file = 'AGENTS.md';
+  const source = await readFile(path.join(repoRoot, file), 'utf8');
+  const lines = source.split('\n');
+
+  // The registry is readable even in a worktree, so both the group vocabulary and the
+  // known-project set below have a source there when `projects/` is gone.
+  const registered = new Set();
+  const registryGroups = new Set();
+  try {
+    const config = JSON.parse(await readFile(path.join(repoRoot, 'tools/docs-gen/projects.config.json'), 'utf8'));
+    for (const project of config?.projects || []) {
+      if (project?.name) registered.add(project.name);
+      const group = /^projects\/([^/]+)\//.exec(project?.docsRoot || '')?.[1];
+      if (group) registryGroups.add(group);
+    }
+  } catch (error) {
+    errors.push(`tools/docs-gen/projects.config.json: invalid JSON (${error.message})`);
+  }
+
+  const projects = path.join(repoRoot, 'projects');
+  const hasProjects = await access(projects).then(() => true).catch(() => false);
+  const diskGroups = hasProjects
+    ? (await readdir(projects, { withFileTypes: true }).catch(() => []))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+    : [];
+  const groupNames = new Set([...registryGroups, ...diskGroups]);
+
+  let fenced = false;
+  let subtree = null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      fenced = !fenced;
+      if (!fenced && subtree) { report(subtree); subtree = null; }
+      continue;
+    }
+    if (!fenced) continue;
+    if (/^\/projects\//.test(line)) { subtree = []; continue; }
+    if (!subtree) continue;
+    if (!line.trim()) continue;
+    // The subtree ends at the next top-level entry (`/wiki/`, `/.agents/`, …).
+    if (!/^\s/.test(line)) { report(subtree); subtree = null; continue; }
+    subtree.push({ line, number: i + 1, indent: line.length - line.trimStart().length });
+  }
+  if (subtree) report(subtree);
+
+  // Evaluated over the whole subtree rather than line by line, because the baseline is the
+  // SHALLOWEST entry: anchoring on the first one lets a block that drops the group lines and
+  // lists projects directly read as compliant. Depth is the enumeration test; the name check is
+  // what catches a subtree whose every line is a project.
+  function report(entries) {
+    if (!entries.length) return;
+    const base = Math.min(...entries.map((entry) => entry.indent));
+    for (const { line, number, indent } of entries) {
+      const name = line.trim().split(/[\s/]/)[0];
+      if (indent === base && groupNames.has(name)) continue;
+      errors.push(`${file}:${number}: §Layout enumerates project "${name}" — the fence stops at the group dirs (${[...groupNames].sort().join(', ')}); \`ls projects/*/\` is the live list and tools/docs-gen/projects.config.json the authoritative registry (.agents/rules/docs-site.md)`);
+    }
+  }
+
+  if (!hasProjects) return;
+
+  const onDisk = new Set();
+  for (const group of diskGroups) {
+    for (const entry of await readdir(path.join(projects, group), { withFileTypes: true }).catch(() => [])) {
+      if (entry.isDirectory()) onDisk.add(entry.name);
+    }
+  }
+
+  // A concrete `projects/<group>/<name>` reference outside the fence is the other way a dead
+  // project name survives here. `<group>`/`<name>` placeholders are excluded by construction —
+  // the group character class does not match `<`.
+  lines.forEach((line, index) => {
+    for (const [, group, name] of line.matchAll(/\bprojects\/([a-z][\w.-]*)\/([A-Za-z0-9][\w.-]*)/g)) {
+      if (!diskGroups.includes(group)) {
+        errors.push(`${file}:${index + 1}: names group "${group}", which is not a directory under projects/`);
+      } else if (!onDisk.has(name) && !registered.has(name)) {
+        errors.push(`${file}:${index + 1}: names project "${name}", which is neither on disk under projects/${group}/ nor in tools/docs-gen/projects.config.json`);
+      }
+    }
+  });
 }
 
 const claudeShim = await readFile(path.join(repoRoot, 'CLAUDE.md'), 'utf8');
@@ -663,6 +905,7 @@ await validateHookBehaviour();
 await validateLinks();
 await validateCanonicalPointers();
 await validateExemptionsResolve();
+await validateRootGuideProjects();
 await validatePlanAgentRefs();
 
 if (errors.length) {
