@@ -460,24 +460,79 @@ if (await access(path.join(repoRoot, 'tools/docs-gen/node_modules')).then(() => 
 // symlinks for everything else it reads, and a projects/ holding two fixture plans. Assert on the
 // MESSAGE, never on exit 1 alone — an exit code says nothing about which file was named, and a
 // check that cannot point at the cycle is a check nobody can act on.
+//
+// The same fixture also carries the primary[]/agentType BRIDGE and the root guide's project
+// enumeration, because both need exactly this tree — a mutable `.agents/roles/`, a mutable
+// `.claude/agents/`, a mutable AGENTS.md and a projects/ of its own — and a validator spawn here
+// costs ~1.3s. The validator accumulates errors rather than exiting on the first, so one run
+// covers all of them and every assertion is on the MESSAGE.
 {
   const fixture = await mkdtemp(path.join(os.tmpdir(), 'agent-config-planrefs-'));
   try {
-    await mkdir(path.join(fixture, '.agents/scripts'), { recursive: true });
-    for (const entry of await readdir(path.join(repoRoot, '.agents'))) {
-      if (entry !== 'scripts') await symlink(path.join(repoRoot, '.agents', entry), path.join(fixture, '.agents', entry));
-    }
-    for (const entry of await readdir(path.join(repoRoot, '.agents/scripts'))) {
-      const from = path.join(repoRoot, '.agents/scripts', entry);
-      const to = path.join(fixture, '.agents/scripts', entry);
-      if (entry === 'validate-agent-config.mjs') await copyFile(from, to);
-      else await symlink(from, to);
-    }
+    // A real directory whose entries are symlinks back to the repo, except `copies`, which are
+    // real files so they can be mutated without touching the live tree, and `real`, which a later
+    // call materialises the same way. A symlinked SCRIPT would be worse than useless: Node
+    // resolves a module to its realpath, so the validator would resolve its repo root back to the
+    // live repo and the fixture would quietly test nothing.
+    const mirrorDir = async (rel, { copies = [], real = [] } = {}) => {
+      await mkdir(path.join(fixture, rel), { recursive: true });
+      for (const entry of await readdir(path.join(repoRoot, rel))) {
+        if (real.includes(entry)) continue;
+        const from = path.join(repoRoot, rel, entry);
+        const to = path.join(fixture, rel, entry);
+        if (copies.includes(entry)) await copyFile(from, to);
+        else await symlink(from, to);
+      }
+    };
+    await mirrorDir('.agents', { real: ['scripts', 'roles'] });
+    await mirrorDir('.agents/scripts', { copies: ['validate-agent-config.mjs'] });
+    await mirrorDir('.agents/roles', { copies: ['technical-writer.md', 'api-designer.md'] });
+    await mirrorDir('.claude', { real: ['agents'] });
+    await mirrorDir('.claude/agents', { copies: ['technical-writer.md', 'api-designer.md'] });
     // projects/ is the one thing that must NOT be symlinked: the fixture plans live there, and
     // the real corpus would drown the assertion in its own (correct) contents.
-    for (const entry of ['.claude', '.codex', 'tools', 'wiki', 'docs', 'AGENTS.md', 'CLAUDE.md']) {
+    for (const entry of ['.codex', 'tools', 'wiki', 'docs', 'CLAUDE.md']) {
       await symlink(path.join(repoRoot, entry), path.join(fixture, entry));
     }
+
+    // The bridge mutations. Both are applied to the canonical role AND its Claude adapter, so the
+    // pre-existing routing-frontmatter parity check stays satisfied and the new checks are the
+    // only thing that can report them — a mutation another check already catches proves nothing
+    // about the one under test.
+    //   · technical-writer: `name:` blanked. That field IS the `agentType` a delegate is spawned
+    //     as, and blanking it left both gates at exit 0 (measured), because `/^name:\s*(.+)$/m`
+    //     skipped the empty value and captured the DESCRIPTION line instead.
+    //   · api-designer: given AI Engineer's display name. `agentType` dispatches on it, so two
+    //     roles sharing one cannot be told apart in either direction.
+    for (const dir of ['.agents/roles', '.claude/agents']) {
+      for (const [file, line] of [['technical-writer.md', 'name:'], ['api-designer.md', 'name: AI Engineer']]) {
+        const at = path.join(fixture, dir, file);
+        await writeFile(at, (await readFile(at, 'utf8')).replace(/^name: .*$/m, line));
+      }
+    }
+
+    // The root guide. Its §Layout fence enumerated projects until 2026-08-07 and drifted five
+    // deleted / four missing, in the file CLAUDE.md imports into every session. The prose half
+    // covers the other way a dead name survives here — a concrete path reference outside the
+    // fence — and the third line is the counterweight: a REGISTERED project that is simply not
+    // checked out is correctly named, and must not be reported.
+    const guide = (await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')).replace(
+      '  personal/               # personal projects',
+      [
+        '  personal/               # personal projects',
+        '    ai-receipt-maker/     # receipt PDF generator (.NET)',
+        '    tunas-lite/           # WhatsApp clock-in demo',
+        // At the SAME indent as the group dirs. A rule anchored on the shallowest entry's depth
+        // alone reads this as compliant, which is how a fence that drops its group lines entirely
+        // and lists projects directly would slip through.
+        '  duitnow-demo/           # DuitNow payments app',
+      ].join('\n'),
+    );
+    if (guide === await readFile(path.join(repoRoot, 'AGENTS.md'), 'utf8')) {
+      failures.push('root guide fixture: the §Layout fence no longer has a `personal/` group line to enumerate under — the mutation applied nothing and the case proves nothing');
+    }
+    await writeFile(path.join(fixture, 'AGENTS.md'), `${guide}\nSee projects/personal/ballot-counter/docs/plan-002.yaml and projects/personal/susun-jadual/docs/plan-001.yaml.\n`);
+
     const fixtureDocs = path.join(fixture, 'projects/personal/fixture/docs');
     await mkdir(fixtureDocs, { recursive: true });
     await writeFile(path.join(fixtureDocs, 'plan-001.yaml'), [
@@ -488,7 +543,12 @@ if (await access(path.join(repoRoot, 'tools/docs-gen/node_modules')).then(() => 
       '  - id: "9.8"', '    title: names a reviewer that does not exist',
       '    primary:', '      - test-engineer',
       '    arch-review:', '      state: required', '      tier: top', '      reviewer: no-such-reviewer',
-      '    status: idle', '',
+      '    status: idle',
+      // Resolves as a stem, so the pre-existing check is silent on it — and dispatches to an
+      // empty agentType, which is what the bridge check is for.
+      '  - id: "9.6"', '    title: names a role that resolves but cannot be dispatched',
+      '    primary:', '      - technical-writer',
+      '    arch-review:', '      state: none', '    status: idle', '',
     ].join('\n'));
     await writeFile(path.join(fixtureDocs, 'plan-002.yaml'), [
       'id: "002"', 'project: fixture', 'title: Every role resolves', 'cycles:',
@@ -504,6 +564,17 @@ if (await access(path.join(repoRoot, 'tools/docs-gen/node_modules')).then(() => 
     for (const want of [
       'projects/personal/fixture/docs/plan-001.yaml: cycle 9.9: primary "no-such-role" is not a role in .agents/roles/',
       'projects/personal/fixture/docs/plan-001.yaml: cycle 9.8: arch-review.reviewer "no-such-reviewer" is not a role in .agents/roles/',
+      // The bridge: a stem that resolves to a role carrying no display name, reported against the
+      // cycle that would dispatch it rather than only against the role file.
+      '.agents/roles/technical-writer.md declares no display name',
+      'projects/personal/fixture/docs/plan-001.yaml: cycle 9.6',
+      // …and the vocabulary itself: display names have to be unique to be reversible.
+      '.agents/roles/api-designer.md: display name "AI Engineer" is already used by ai-engineer.md',
+      // The root guide, both halves.
+      '§Layout enumerates project "ai-receipt-maker"',
+      '§Layout enumerates project "tunas-lite"',
+      '§Layout enumerates project "duitnow-demo"',
+      'names project "ballot-counter", which is neither on disk',
     ]) {
       if (!output.includes(want)) failures.push(`plan agent refs: nothing reported ${JSON.stringify(want)}\n${output}`);
     }
@@ -511,6 +582,11 @@ if (await access(path.join(repoRoot, 'tools/docs-gen/node_modules')).then(() => 
     // wrong, so a check that flagged it too would be worse than none.
     if (output.includes('plan-002.yaml')) {
       failures.push(`plan agent refs: reported a plan whose roles all resolve\n${output}`);
+    }
+    // A project in projects.config.json but not checked out here. Naming it is correct, and a
+    // disk-only check would report every registered project the moment `projects/` is a worktree.
+    if (output.includes('susun-jadual')) {
+      failures.push(`root guide: reported a registered project that is simply not checked out\n${output}`);
     }
   } finally {
     await rm(fixture, { recursive: true, force: true });
@@ -838,12 +914,21 @@ async function renderCycle({
   securityTier = false,
   securityScript = () => ({ verdict: 'APPROVED', findings: [], skippedCategories: [] }),
   securityFixFiles = ['sec.py'],
+  // Budget overrides (`maxReviewPasses`, `maxRefutedOnlyPasses`) reach the workflow only through
+  // args, so they cannot be probed without a channel for arbitrary caller args.
+  extraArgs = {},
+  // Labels whose delegate returns null — a subagent that dies mid-cycle. The whole point of the
+  // structured-halt work is that this is a RETURN, not a throw, so it has to be drivable.
+  dieAt = [],
 }) {
   const calls = [];
+  const dead = new Set(dieAt);
   let review = 0;
   let security = 0;
+  let verify = 0;
   let refactorPass = 0;
   const respond = (label, opts) => {
+    if (dead.has(label)) return null;
     // A security-tier cycle whose plan says arch-review "none" halts before REVIEW, so the
     // security path is only reachable with the gate marked required.
     if (label === 'gate:read-plan') return { mode: securityTier ? 'required' : 'none', specSummary: 's', securityTier, noTdd: false, lockedDecisions: [] };
@@ -854,13 +939,17 @@ async function renderCycle({
     if (label.startsWith('refactor:')) return { filesTouched: refactorFiles(refactorPass += 1), gateResult: 'Passed: 1 / Failed: 0', command: 'p', deviations: [], resolutions: [{ finding: 'x', resolution: 'y' }] };
     if (label.startsWith('review:pass-')) return reviewScript(review += 1);
     if (label.startsWith('security:pass-')) return securityScript(security += 1);
-    if (label.startsWith('verify:')) return verifyFor(opts.lastBlocking);
+    // The verifier gets the pass ordinal too: a reviewer that ALTERNATES between real and
+    // hallucinated findings is the shape the cumulative refuted budget exists for, and it cannot
+    // be scripted from the blocking count alone.
+    if (label.startsWith('verify:')) return verifyFor(opts.lastBlocking, verify += 1);
     return {};
   };
   let lastBlocking = 0;
   const stubs = {
     args: {
       project: 'p', projectPath: 'projects/personal/p', plan: '001', cycle: '9.9', greenAgent: 'Python Expert',
+      ...extraArgs,
       ...(notice ? { notice } : {}),
       // Spread on presence, not truthiness: `{ top: undefined }` is a real caller shape and the
       // one the tier guard exists for, so it must reach the workflow rather than be filtered here.
@@ -879,7 +968,8 @@ async function renderCycle({
       });
       const result = respond(label, { ...opts, lastBlocking });
       if (label.startsWith('review:pass-')) {
-        lastBlocking = (result.findings || []).filter((f) => f.tag === 'BLOCKER' || f.tag === 'REFACTOR').length;
+        // `result &&`: a dead delegate returns null, which is the case dieAt drives.
+        lastBlocking = ((result && result.findings) || []).filter((f) => f.tag === 'BLOCKER' || f.tag === 'REFACTOR').length;
       }
       return result;
     },
@@ -1000,6 +1090,101 @@ const allVerdicts = (refuted) => (count) => ({ verdicts: Array.from({ length: co
   // One verifier per pass, not one per finding, even with 2 blocking findings each pass.
   const verifiers = calls.filter((c) => c.label.startsWith('verify:')).length;
   if (verifiers !== reviews) failures.push(`TDD workflow: ${verifiers} verifier calls for ${reviews} passes — expected exactly one per pass`);
+}
+
+// The refuted-only budget must be CUMULATIVE over the cycle, not per productive pass. It was
+// reset to 0 on every pass that produced a confirmed finding, which made the two budgets multiply
+// instead of add: a reviewer alternating one real finding with one hallucinated one never
+// accumulated 3 refuted-only passes, so it ran the productive budget out at 6 and only halted at
+// `review-not-approved` — 18 REVIEW + 18 VERIFY + 6 REFACTOR = 45 delegate spawns, at `top` tier
+// for every review. The bound the workflow documents is MAX_REVIEW_PASSES + MAX_REFUTED_ONLY = 9
+// review passes, so assert the CEILING rather than an exact count: the point is that it is
+// bounded by the sum, and pinning 4 would break the moment either default moves.
+{
+  const { result, calls } = await renderCycle({
+    // Odd pass: a real finding, confirmed, which drives a REFACTOR. Even pass: a hallucination,
+    // refuted. Under the reset the even passes cost nothing and the loop runs to the far bound.
+    reviewScript: () => ({ verdict: 'NEEDS_FIX', findings: [blockingFinding(1)], skippedCategories: [] }),
+    verifyFor: (_lastBlocking, verifyPass) => allVerdicts(verifyPass % 2 === 0)(1),
+  });
+  const reviews = calls.filter((c) => c.label.startsWith('review:pass-')).length;
+  if (result.halted !== 'reviewer-hallucination-loop') {
+    failures.push(`TDD workflow: an alternating reviewer halted as ${result.halted} after ${reviews} passes, expected reviewer-hallucination-loop — the refuted-only budget is being reset by a productive pass, so the two budgets multiply instead of adding`);
+  }
+  if (reviews > 9) {
+    failures.push(`TDD workflow: an alternating reviewer ran ${reviews} review passes — the documented ceiling is maxReviewPasses + maxRefutedOnlyPasses = 9`);
+  }
+  if (calls.filter((c) => c.label.startsWith('verify:')).length !== reviews) {
+    failures.push('TDD workflow: alternating-reviewer probe did not run exactly one verifier per review pass');
+  }
+}
+
+// `0` on either budget means "no passes allowed", and it must halt BEFORE the first delegate of
+// that loop. `||` read an explicit 0 as unset and restored the default, so a caller disabling the
+// loop got the most expensive path there is — six `top`-tier review passes. Both budgets, because
+// they are read through the same helper and one of them being right proves nothing about the
+// other. The malformed shapes are argument errors and must throw: nothing has run yet.
+{
+  const approving = {
+    reviewScript: () => ({ verdict: 'APPROVED', findings: [], skippedCategories: [] }),
+    verifyFor: allVerdicts(false),
+  };
+  for (const [label, extraArgs, halted] of [
+    ['maxReviewPasses: 0', { maxReviewPasses: 0 }, 'review-not-approved'],
+    ['maxRefutedOnlyPasses: 0', { maxRefutedOnlyPasses: 0 }, 'reviewer-hallucination-loop'],
+  ]) {
+    const { result, calls } = await renderCycle({ ...approving, extraArgs });
+    if (result.halted !== halted) {
+      failures.push(`TDD workflow: ${label} halted as ${result.halted} (approved: ${result.approved}), expected ${halted} — 0 is a budget, not an unset key`);
+    }
+    const reviews = calls.filter((c) => c.label.startsWith('review:pass-')).length;
+    if (reviews !== 0) failures.push(`TDD workflow: ${label} still ran ${reviews} review pass(es)`);
+  }
+  for (const [label, extraArgs] of [
+    ['a negative budget', { maxReviewPasses: -1 }],
+    ['a fractional budget', { maxReviewPasses: 1.5 }],
+    ['a budget passed as a string', { maxReviewPasses: '6' }],
+    ['NaN', { maxRefutedOnlyPasses: NaN }],
+  ]) {
+    const error = await renderCycle({ ...approving, extraArgs }).then(() => null, (e) => e);
+    if (!error) failures.push(`TDD workflow: ${label} was accepted — a budget that is not a non-negative integer must throw before any delegate runs`);
+  }
+}
+
+// A delegate that returns nothing is a DEAD delegate, and eight phases used to answer that with a
+// bare throw. A throw loses the record: the workflow tool surfaces the message and the run's whole
+// state — the architect verdict already paid for, RED's tests already on disk, the review passes
+// already made — is gone, so the re-run starts from the top and RED re-authors a test that now
+// passes and cannot fail its own gate. Each site must RETURN a structured halt that carries the
+// state in scope, and must never read as an approval.
+{
+  const approving = {
+    reviewScript: () => ({ verdict: 'APPROVED', findings: [], skippedCategories: [] }),
+    verifyFor: allVerdicts(false),
+  };
+  for (const [dieLabel, halted, carries] of [
+    // GREEN is the case named in the brief and the worst one to lose: RED's tests are on disk and
+    // the implementer may have edited files before dying, so the record has to say resume at GREEN.
+    ['green', 'green-delegate-died', ['gate', 'red']],
+    ['review:pass-1', 'review-delegate-died', ['gate', 'red', 'green']],
+  ]) {
+    const outcome = await renderCycle({ ...approving, dieAt: [dieLabel] }).then((r) => r, (e) => e);
+    if (outcome instanceof Error) {
+      failures.push(`TDD workflow: a dead ${dieLabel} delegate threw ("${outcome.message}") instead of returning a halt — the throw discards the cycle record the re-run needs`);
+      continue;
+    }
+    const { result } = outcome;
+    if (result.halted !== halted) {
+      failures.push(`TDD workflow: a dead ${dieLabel} delegate halted as ${result.halted}, expected ${halted}`);
+    }
+    if (result.approved) failures.push(`TDD workflow: a dead ${dieLabel} delegate returned approved — a delegate that produced no record is not an approval`);
+    if (!result.detail || !result.delegate) {
+      failures.push(`TDD workflow: the ${halted} record carries no detail/delegate block, so nothing says where a re-run resumes`);
+    }
+    for (const key of carries) {
+      if (!result[key]) failures.push(`TDD workflow: the ${halted} record dropped ${key} — the phases already paid for must survive the halt`);
+    }
+  }
 }
 
 // A verdict list that does not cover every finding is never treated as refutation.
@@ -1130,6 +1315,119 @@ const sameList = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   }
 }
 
+// cycle-to-commit.js had no behavioural coverage at all — only tdd-cycle.js got the renderCycle
+// treatment — while it owns the accounting that decides what an autonomous run still has to close.
+// Two defects, opposite in direction and both live:
+//   · it re-opened findings the cycle had already settled, including one the Finding Verifier had
+//     REFUTED. CLASS_RULE then orders a mechanical sweep for every instance of a defect class
+//     proven not to exist, rejectable "only with a refuting command output" — so the closer must
+//     re-buy a refutation already paid for, or invent a fix for a defect that was never there.
+//   · it read `securityReview` (singular), which tdd-cycle overwrites per pass, so an entire
+//     security pass 1 vanished: its findings never reached `open`, could not trigger
+//     `close-rounds-exhausted`, and were absent from the returned record — under a workflow whose
+//     whole contract is "nothing ships open, however small".
+//
+// `import.meta.url` is a SyntaxError inside `new Function()`, so it is substituted — and the
+// substitution is asserted, because a silent no-op there would render a script that no longer
+// matches the file and prove nothing about it.
+async function renderCycleToCommit({ child, closeScript, verifyScript, gate }) {
+  const rel = '.claude/workflows/cycle-to-commit.js';
+  const source = await readFile(path.join(repoRoot, rel), 'utf8');
+  const stubbed = source.replace(/import\.meta\.url/g, JSON.stringify(`file://${path.join(repoRoot, rel)}`));
+  if (stubbed === source) failures.push(`${rel}: no import.meta.url to substitute — the render stub is out of step with the file`);
+  const calls = [];
+  let round = 0;
+  const stubs = {
+    args: { project: 'p', projectPath: 'projects/personal/p', plan: '001', cycle: '9.9', greenAgent: 'Python Expert' },
+    workflow: async (_target, childArgs) => { calls.push({ label: 'workflow:tdd-cycle', childArgs }); return child; },
+    agent: async (prompt, opts = {}) => {
+      const label = opts.label || '(unlabelled)';
+      calls.push({ label, prompt });
+      if (label.startsWith('close:')) return closeScript(round += 1);
+      if (label.startsWith('verify:')) return verifyScript(round);
+      if (label === 'commit-gate') return gate;
+      return {};
+    },
+    parallel: (thunks) => Promise.all(thunks.map((thunk) => thunk())),
+    phase: () => {},
+    log: () => {},
+  };
+  const render = new Function(
+    ...Object.keys(stubs),
+    `return (async () => {\n${stubbed.replace(/^export const meta/m, 'const meta')}\n})()`,
+  );
+  return { result: await render(...Object.values(stubs)), calls };
+}
+
+{
+  const nit = (finding, file) => ({ tag: 'NIT', finding, file });
+  const child = {
+    approved: true,
+    reviewLog: [
+      // Pass 1: one BLOCKER the verifier refuted, and one NIT that is genuinely open.
+      { pass: 1, findings: [{ tag: 'BLOCKER', finding: 'unbounded loop', file: 'a.py' }, nit('name reads oddly', 'a.py')] },
+      // Pass 2: a BLOCKER that WAS refactored, so the cycle settled it.
+      { pass: 2, findings: [{ tag: 'BLOCKER', finding: 'missing guard', file: 'b.py' }] },
+    ],
+    // tdd-cycle builds the claim as `[tag] finding` and stamps the pass; the wrapper rebuilds
+    // exactly that string, so the pass stamp is what stops a refutation leaking across passes.
+    hallucinationsRejected: [{ pass: 1, claim: '[BLOCKER] unbounded loop', evidence: 'ran git diff --stat' }],
+    refactors: [{ pass: 2, resolutions: [{ finding: 'missing guard', resolution: 'added' }] }],
+    securityReviews: [
+      { pass: 3, findings: [nit('error message leaks the field name', 'sec.py')] },
+      { pass: 4, findings: [] },
+    ],
+    // The singular is the LAST pass, which is precisely why reading it lost pass 3.
+    securityReview: { pass: 4, findings: [] },
+  };
+  const { result, calls } = await renderCycleToCommit({
+    child,
+    closeScript: (r) => ({ gateResult: 'Passed: 1 / Failed: 0', classes: [{ className: 'c', enumerationCommand: 'grep -rn x', instancesFound: 1, instancesFixed: 1 }] }),
+    verifyScript: () => ({ dry: true, openFindings: [], gateResult: 'Passed: 1 / Failed: 0' }),
+    gate: { worktreeConfirmed: '/tmp/wt', verdict: 'APPROVED', commitReady: true, findings: [], gateResult: 'Passed: 1 / Failed: 0', filesInDiff: ['a.py'] },
+  });
+  const closer = calls.find((c) => c.label.startsWith('close:'));
+  if (!closer) {
+    failures.push('cycle-to-commit: no close round ran — the probe left nothing open, so it asserts nothing');
+  } else {
+    if (closer.prompt.includes('unbounded loop')) {
+      failures.push('cycle-to-commit: handed the closer a finding the Finding Verifier had REFUTED — CLASS_RULE then demands a mechanical sweep for a defect class proven not to exist');
+    }
+    if (closer.prompt.includes('missing guard')) {
+      failures.push('cycle-to-commit: handed the closer a blocking finding that its pass already REFACTORED — a later review pass re-raises anything still real');
+    }
+    if (!closer.prompt.includes('error message leaks the field name')) {
+      failures.push('cycle-to-commit: a NIT from security pass 1 never reached the closer — reading the singular securityReview drops every pass but the last, under a workflow whose contract is "nothing ships open"');
+    }
+    if (!closer.prompt.includes('name reads oddly')) {
+      failures.push('cycle-to-commit: a genuinely open NIT never reached the closer');
+    }
+  }
+  if (!result.findingsSettled || result.findingsSettled.refuted !== 1 || result.findingsSettled.resolved !== 1) {
+    failures.push(`cycle-to-commit: findingsSettled is ${JSON.stringify(result.findingsSettled)}, expected { refuted: 1, resolved: 1 } — the accounting has to be readable from the record, not only inferable`);
+  }
+  if (!Array.isArray(result.securityReviews) || result.securityReviews.length !== 2) {
+    failures.push(`cycle-to-commit: the record returned ${JSON.stringify(result.securityReviews)} for securityReviews — the cycle note's roster needs every security pass, not the last`);
+  }
+  if (!result.commitReady) failures.push(`cycle-to-commit: a fully closed cycle was not commit-ready (halted: ${result.halted})`);
+
+  // The other direction, and it is what stops the subtraction from being "settle everything": a
+  // finding that is still open must still stop the run. The same security NIT, with the closer
+  // unable to clear it, has to exhaust the rounds rather than fall through to the commit gate.
+  const stubborn = await renderCycleToCommit({
+    child,
+    closeScript: () => ({ gateResult: 'Passed: 1 / Failed: 0', classes: [] }),
+    verifyScript: () => ({ dry: false, openFindings: [nit('error message leaks the field name', 'sec.py')], gateResult: 'Passed: 1 / Failed: 0' }),
+    gate: { worktreeConfirmed: '/tmp/wt', verdict: 'APPROVED', commitReady: true, findings: [], gateResult: 'Passed: 1 / Failed: 0', filesInDiff: [] },
+  });
+  if (stubborn.result.halted !== 'close-rounds-exhausted') {
+    failures.push(`cycle-to-commit: an unclosed finding halted as ${stubborn.result.halted}, expected close-rounds-exhausted — falling through downgrades a convergence failure into one reviewer's judgement call`);
+  }
+  if (stubborn.calls.some((c) => c.label === 'commit-gate')) {
+    failures.push('cycle-to-commit: the commit gate ran with a finding still open');
+  }
+}
+
 // PRE_SCHEMA is the contract between plan-batch and its own preflight delegate, and it used to
 // reject the record its neutral spec defines: .agents/workflows/plan-batch.md §Preflight record
 // names the roles greenRole / redRole, while the schema required `greenAgent` under
@@ -1198,6 +1496,104 @@ if (Ajv) {
 const cycleValidator = await readFile(path.join(repoRoot, 'tools/docs-gen/scripts/validate-cycle-note.mjs'), 'utf8');
 if (!cycleValidator.includes("projects/*/*/docs/cycles/*.{yaml,yml}")) {
   failures.push('cycle-note validator: missing grouped-project no-argument glob');
+}
+
+// Reviewer attribution in the cycle note — the record that says WHO approved a cycle, and the only
+// mechanical trace of cycle-orchestration.md §Reviewer separation. Two holes, both live:
+//   · `reviewer-agent-id` was `minLength: 1` plus a "self-review" keyword filter, so
+//     "wf:this-session/self review by the orchestrator" was rejected while
+//     "reviewed by me, looked fine" validated clean. A free-prose id names no verifiable agent.
+//   · a note whose REVIEW pass produced no findings named NOBODY at all: reviewer-agent-id lived
+//     only inside reviewer-findings[], so the clean-APPROVED case — exactly where an accidental
+//     self-review hides — left a note indistinguishable from a compliant one.
+// Both directions are asserted, and the legacy-tolerance case is asserted just as hard as the
+// rejections: cycle notes are historical execution records that are never rewritten, and 126 of the
+// 130 on record carry prose ids. A grammar that "fixed" those would falsify the corpus wholesale,
+// so tolerance on a roster-less note is a REQUIREMENT here, not an oversight to tighten later.
+if (Ajv) {
+  const noteValidator = path.join(repoRoot, 'tools/docs-gen/scripts/validate-cycle-note.mjs');
+  const notesDir = await mkdtemp(path.join(os.tmpdir(), 'agent-config-notes-'));
+  try {
+    // The filename carries the cycle id (the validator cross-checks the two), so each case gets
+    // its own directory rather than its own cycle number.
+    const writeNote = async (name, body) => {
+      const dir = path.join(notesDir, name);
+      await mkdir(dir, { recursive: true });
+      const file = path.join(dir, '9.9.yaml');
+      await writeFile(file, [
+        'project: fixture', 'cycle: "9.9"',
+        'outcome:', '  summary: a cycle', '  gate: "Passed: 1 / Failed: 0"',
+        ...body,
+      ].join('\n'));
+      return file;
+    };
+    const CANONICAL = 'wf:tdd-cycle.fixture.p001.c9.9/review-pass-1';
+    const roster = (id) => ['review-passes:', `  - pass: 1`, `    reviewer-agent-id: "${id}"`, '    verdict: APPROVED'];
+    const finding = (id) => [
+      'reviewer-findings:', '  - tag: NIT', '    finding: a nit', '    resolution: fixed',
+      '    pass: 1', `    reviewer-agent-id: "${id}"`,
+    ];
+
+    for (const [label, name, body, expect, wants] of [
+      // The shape tdd-cycle.js emits, roster and findings both canonical.
+      ['a conforming workflow-issued roster', 'ok-roster',
+        [...finding(CANONICAL), ...roster(CANONICAL)], 0, []],
+      // The manual path: a bare Agent-tool id. Without this branch the roster is unfillable off
+      // the workflow, so it would stay unused — the defect recurring, not fixed.
+      ['a bare Agent-tool id', 'ok-agent-id',
+        ['reviewer-findings: []', ...roster('a3c94389c274c9715')], 0, []],
+      ['a hand-composed prose id in review-passes[]', 'prose-roster',
+        ['reviewer-findings: []', ...roster('Code Reviewer (fresh, pass 1) — APPROVED')], 1,
+        ['/review-passes/0/reviewer-agent-id', 'expected a canonical reviewer id']],
+      // Presence of the roster marks a note NEW-style, and escalates reviewer-findings[] to the
+      // same grammar — otherwise a new note keeps writing prose where the constraint does not bind.
+      ['prose in reviewer-findings[] on a roster-bearing note', 'prose-findings',
+        [...finding('cr051@session-f3a1ebde'), ...roster(CANONICAL)], 1,
+        ['/reviewer-findings/0/reviewer-agent-id']],
+      // The legacy corpus. A roster-less note keeps its prose ids; 126 notes depend on it.
+      ['a legacy note with a prose id and no roster', 'legacy-prose',
+        finding('Code Reviewer a03c8edf612e5dd26 (APPROVED, pass 3)'), 0, []],
+      // …but the residual self-review floor still binds on that surface.
+      ['a self-review id on a legacy note', 'legacy-self-review',
+        finding('wf:this-session/self review by the orchestrator'), 1, ['reviewer-agent-id']],
+      // The clean-APPROVED hole: no findings, no roster, so the note names nobody.
+      ['a note that names no reviewer', 'no-attribution', ['reviewer-findings: []'], 1,
+        ['names no reviewer']],
+      // An empty roster names nobody either — a check keyed on the key's presence would pass it.
+      ['a note whose roster is empty', 'empty-roster',
+        ['reviewer-findings: []', 'review-passes: []'], 1, ['names no reviewer']],
+    ]) {
+      const file = await writeNote(name, body);
+      const result = run('node', [noteValidator, file], { cwd: path.join(repoRoot, 'tools/docs-gen') });
+      const said = `${result.stdout}${result.stderr}`;
+      if (result.status !== expect) {
+        failures.push(`cycle-note validator: ${label} exited ${result.status}, expected ${expect}\n${said}`);
+      }
+      for (const want of wants) {
+        if (!said.includes(want)) failures.push(`cycle-note validator: ${label} did not report ${JSON.stringify(want)}\n${said}`);
+      }
+    }
+
+    // The counterweight that keeps all of the above honest: every note the repo has ever filed
+    // must still validate. A grammar strict enough to reject prose is one keystroke away from
+    // rejecting the corpus it has to grandfather. Skipped when `projects/` is absent (root-only
+    // clone or worktree) — the validator itself reports "nothing to validate" and exits 0 there,
+    // so the assertion would be vacuous rather than wrong.
+    if (await access(path.join(repoRoot, 'projects')).then(() => true).catch(() => false)) {
+      const corpus = run('node', [noteValidator], { cwd: path.join(repoRoot, 'tools/docs-gen') });
+      const said = `${corpus.stdout}${corpus.stderr}`;
+      if (corpus.status !== 0) {
+        const shown = said.split('\n').filter((line) => line.startsWith('✗') || line.startsWith('    ')).slice(0, 12).join('\n');
+        failures.push(`cycle-note validator: the historical corpus no longer validates (exit ${corpus.status}) — a note on record is an execution record, not a draft to bring up to the current schema\n${shown}`);
+      }
+      const counted = said.match(/all (\d+) cycle-note files valid/);
+      if (counted && Number(counted[1]) < 100) {
+        failures.push(`cycle-note validator: only ${counted[1]} notes were walked — the corpus assertion is not covering what it claims`);
+      }
+    }
+  } finally {
+    await rm(notesDir, { recursive: true, force: true });
+  }
 }
 
 if (failures.length) {
