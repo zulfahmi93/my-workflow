@@ -104,6 +104,16 @@ for (const command of [
   // is how a bypass gets re-opened by anyone who adds an option to the table.
   'timeout $T git commit --amend -m x',
   'nice --frobnicate git commit --amend -m x',
+  // An executable the resolver has never heard of must fail closed the same way. The success
+  // path used to `continue` in silence whenever the executable was not `git`, so EVERY
+  // wrapper outside EXEC_WRAPPERS was a total bypass — measured: 18 of 18 unlisted wrappers
+  // returned exit 0 with EMPTY stderr. Growing the name table cannot win against an open set
+  // (`caffeinate` here stands in for all of them), so the fix is that an unrecognised
+  // executable degrades to the textual scan its sibling branches already used.
+  'caffeinate git commit --amend -m x',
+  'caffeinate -i git commit --no-verify -m x',
+  'doas git commit --amend',
+  'proxychains4 git commit --no-verify -m x',
   // §"Never, even when authorized" named five things and enforced two. These are the subset
   // that cannot be undone by pushing again — rewriting published history — plus opening or
   // merging a PR, which is outward-facing. Plain `git push` stays allowed; see the pass list.
@@ -117,6 +127,30 @@ for (const command of [
   // The force flag must still be found behind git's own options, an abbreviation, and every
   // wrapper class the table above covers.
   'git push --forc origin main',
+  // A force push does not need a force FLAG. `+main` IS `--force main`, `--mirror` rewrites
+  // every ref under refs/ (and drops the ones missing locally), and both spellings of a
+  // deletion remove a published branch. All five were measured at exit 0 with EMPTY stderr
+  // while the rule file advertised "Force pushes" as hook-enforced, so the check was
+  // decorative against anyone who typed the refspec form.
+  'git push origin +main',
+  'git push origin +refs/heads/main:refs/heads/main',
+  'git push --mirror origin',
+  'git push origin :main',
+  'git push --delete origin main',
+  'git push -d origin main',
+  // `--` ends option parsing, so what follows is a refspec — and the old walker `return
+  // None`d on it, which made `--` a one-token bypass for every form above.
+  'git push origin -- +main',
+  'git push origin -- :main',
+  // Abbreviations, the same way git resolves them. `--de` reaches only --delete (--dry-run
+  // diverges at the second letter) and `--mi` only --mirror.
+  'git push --mirr origin',
+  'git push --dele origin main',
+  // The refspec forms must survive the wrappers and git's own options too, exactly as the
+  // flag forms above do.
+  'git -C projects/rintis/kobu-bot push origin +main',
+  'timeout 60 git push --mirror origin',
+  'bash -c "git push origin :main"',
   'git -C projects/rintis/kobu-bot push --force',
   'timeout 60 git push --force',
   'bash -c "git push --force-with-lease"',
@@ -125,6 +159,76 @@ for (const command of [
   'gh pr merge 12 --squash',
   'gh --repo owner/name pr create --title x',
   'env FOO=1 nohup gh pr create',
+  // ─── Round 2. Three independent reviews attacked the block above and each returned a live
+  // bypass; every command in this group was MEASURED at exit 0 against the fixed version.
+  //
+  // ABBREVIATION FLOOR. The check used `len(long_name) >= 4` as a stand-in for git's
+  // abbreviation rule. git resolves an abbreviation when it is an unambiguous prefix of
+  // exactly ONE option — length has nothing to do with it. `--m` is the only push option
+  // starting with `m`, so git accepts it as `--mirror` and performs a real mirror push;
+  // verified in a throwaway repo pair, the remote was rewritten. Three characters, under the
+  // floor, straight through.
+  'git push --m origin',
+  'git push --mi origin',
+  // …and the same hole under every other destructive name.
+  'git push --pru origin',
+  'git push --dele origin main',
+  // PRUNE. Deletes every remote branch with no local counterpart — a published-branch deletion
+  // with no force flag, no `--delete` and no `:refspec`. Measured against the throwaway pair:
+  // a branch present only on the remote came back `- [deleted]`.
+  'git push --prune origin refs/heads/*:refs/heads/*',
+  'git push --prune origin',
+  // NO-VERIFY, the keystone. It switches OFF the pre-push hook — the layer that owns
+  // destructiveness, because only it sees resolved refs. A push that disables its own
+  // enforcement has to be stopped at the layer where that intent is still readable, and this
+  // is the only one. `-c core.hooksPath` is the same hole spelled as configuration;
+  // .agents/rules/cycle-orchestration.md §251 names the pair as what passes both layers.
+  'git push --no-verify origin main',
+  'git push --no-veri origin main',
+  'git push --no-verify=1 origin main',
+  'git -c core.hooksPath=/dev/null push origin main',
+  'git -c core.hookspath=/tmp/hooks push origin main',
+  'git --config-env=core.hooksPath=H push origin main',
+  'git -c core.hooksPath=/dev/null commit --amend',
+  // NESTED GIT. Round 1's textual fallback is gated on `name != "git"`, so a segment whose
+  // executable IS git but whose subcommand is not `commit` skipped it entirely — and
+  // `submodule foreach`, `bisect run` and `rebase --exec` all run an arbitrary command. Both
+  // operand shapes have to be covered: a bare `git` argv word and a whole command in one
+  // quoted token.
+  'git submodule foreach git commit --amend',
+  'git submodule foreach "git commit --amend"',
+  'git bisect run git commit --no-verify',
+  'git rebase --exec "git commit --amend" main',
+  'git filter-branch --tree-filter "git commit --amend" HEAD',
+  // The nested slice goes through the SAME checks, so a nested push is caught too — not just
+  // the two commit spellings that were reported.
+  'git submodule foreach git push --force',
+  'git submodule foreach git push --no-verify origin main',
+  // THE gh SURFACE. `gh api --method DELETE …/git/refs/heads/main` deletes a published branch
+  // over the REST API — the same operation as `git push origin :main`, which IS blocked —
+  // and it never touches a local repository, so the pre-push hook can never see it. PATCH
+  // against a `git/refs` path is the API spelling of a force push.
+  'gh api --method DELETE /repos/x/y/git/refs/heads/main',
+  'gh api -X DELETE /repos/x/y/git/refs/heads/main',
+  'gh api -XDELETE /repos/x/y',
+  'gh api --method=DELETE /repos/x/y',
+  'gh api --method delete /repos/x/y',
+  'gh api --method PATCH /repos/x/y/git/refs/heads/main -f sha=abc -F force=true',
+  'gh api --method POST /repos/x/y/git/refs',
+  'gh repo delete x/y',
+  'gh release delete v1',
+  // Re-points a remote, so a LATER plain `git push origin main` — deliberately allowed,
+  // because it is the zulfahmi.dev deploy — lands somewhere else entirely, with nothing in the
+  // push command for either layer to object to.
+  'git remote set-url origin git@github.com:evil/x.git',
+  'git remote set-url --push origin https://evil/x',
+  // A git alias is a forbidden command stored for later: after this, `git ca` carries no
+  // evidence of what it runs, so creation is the only moment any layer can see it.
+  'git config alias.ca "commit --amend"',
+  'git config alias.p "push --force"',
+  // The word-edge narrowing that fixed the `open docs/git-commit--amend-notes.md` false
+  // positive must not cost the leading-path case: `git` after a `/` is still an invocation.
+  'caffeinate /usr/bin/git commit --amend -m x',
   // HEREDOCS. strip_heredoc_bodies() used to run only on the `except ValueError` retry, so on a
   // successful parse the raw command was segmented as-is — and `\n` separates segments, which
   // made every heredoc BODY LINE its own "invocation". Writing a policy note that says
@@ -144,6 +248,192 @@ for (const command of [
   'echo "a << b"\ngit commit --amend',
   // Genuinely unterminated: there is no delimiter line, so nothing may be swallowed.
   "cat <<'EOF'\nprose\ngit commit --amend",
+  // ─── Round 3. The command gate can never be complete — it parses an open-ended string —
+  // so this round closes only the holes the pre-push hook CANNOT cover: fail-opens in the
+  // PARSER (which blind the gate to `--amend` and `gh api` too, neither of which ever
+  // reaches pre-push) and `core.hooksPath` (which disables pre-push itself). Every command
+  // in this group was MEASURED at exit 0 against the round-2 version.
+  //
+  // BACKSLASH LINE CONTINUATION. In POSIX shell a backslash before a newline vanishes and
+  // the logical line continues; the lexer read the newline as a separator regardless, so
+  // this split into `git push` (allowed — it is the zulfahmi.dev deploy) and an orphan
+  // `--force origin main` with no executable. Exit 0, and PROVEN DESTRUCTIVE in a sandbox
+  // pair: it rewrote published history.
+  'git push \\\n--force origin main',
+  'git push \\\n  --mirror origin',
+  'git commit \\\n--amend -m x',
+  'git \\\nconfig \\\ncore.hooksPath \\\n/dev/null',
+  // The continuation may fall mid-WORD — the two characters vanish, they do not become a
+  // token break, so this is `git push`.
+  'git pu\\\nsh --force origin main',
+  // Inside DOUBLE quotes a continuation is still a continuation, so this really is one
+  // command; the single-quote case (where it is literal) is pinned separately below, in the
+  // false-positive direction where getting it wrong actually shows.
+  'bash -c "git push \\\n--force origin main"',
+  // HEREDOC STRIPPER MATCHING INSIDE QUOTES. `<<` in a quoted string is not a heredoc
+  // operator, but the regex could not tell — so `echo "a << b"` was read as an opener for
+  // delimiter `b`, and every line up to the next line spelling `b` was DELETED. The force
+  // push in between never reached segmentation. Deleting is the fail-OPEN direction, which
+  // is exactly why the stripper must resolve every uncertainty toward keeping text.
+  'echo "a << b"\ngit push --force origin main\nb',
+  'echo "a << b "\ngit push --force origin main\nb',
+  "echo 'a << b'\ngit commit --amend\nb",
+  'echo "a <<- b"\ngit push --mirror origin\nb',
+  'printf "%s" "x << EOF"\ngit push origin :main\nEOF',
+  'echo "a << b"\ngit config core.hooksPath /dev/null\nb',
+  // `<<<` is a here-string: the word is on the same line and there is NO body, so treating
+  // it as an opener would delete lines for a body that does not exist.
+  'cat <<< notes\ngit push --force origin main\nnotes',
+  // Delimiter word unreadable (the quote never closes). Structure unknown, so nothing is
+  // removed and the push below is still scanned.
+  'echo "q << \'unterminated"\ngit push --force origin main',
+  // NESTING-DEPTH FAIL-OPEN. Exceeding the recursion bound means "cannot analyse", and that
+  // was spelled "allow" — a bypass anyone reaches on demand by adding one more `bash -c`.
+  // Measured: depths 0-3 blocked, depth >= 4 exited 0, for BOTH a force push and an amend.
+  "bash -c 'bash -c '\"'\"'bash -c \"bash -c \\\"git push --force origin main\\\"\"'\"'\"''",
+  "bash -c 'bash -c '\"'\"'bash -c \"bash -c \\\"git commit --amend -m x\\\"\"'\"'\"''",
+  // `core.hooksPath`, THE KEYSTONE. Round 2 closed the per-command `git -c core.hooksPath=`
+  // form; the form that STICKS was open. Writing the key turns hooks off for every later git
+  // command in the repo — including the pre-push hook, the layer that sees resolved refs and
+  // therefore does not care how a push was spelled. Without this, installing that hook
+  // guarantees nothing. Location and modifier flags may sit anywhere on the line.
+  'git config core.hooksPath /dev/null',
+  'git config --local core.hooksPath /dev/null',
+  'git config --global core.hooksPath /tmp/h',
+  'git config --system core.hooksPath /tmp/h',
+  'git config --worktree core.hooksPath /tmp/h',
+  'git config --file /tmp/c core.hooksPath /tmp/h',
+  'git config -f /tmp/c core.hooksPath /tmp/h',
+  'git config --add core.hooksPath /tmp/h',
+  'git config --replace-all core.hooksPath /tmp/h',
+  'git config --type=path core.hooksPath /tmp/h',
+  'git config core.hooksPath /tmp/h --global',
+  'git config --global --add core.hooksPath /tmp/h',
+  'git config -- core.hooksPath /tmp/h',
+  // Git config keys are case-insensitive, so these are the SAME key.
+  'git config Core.HooksPath /tmp/h',
+  'git config CORE.HOOKSPATH /tmp/h',
+  // DECISION: `--unset` is blocked too. Measured on git 2.54 — the installer writes into
+  // `git rev-parse --git-path hooks`, and that path HONOURS core.hooksPath (with the key set
+  // it printed /tmp/elsewhere; after `--unset` it printed .git/hooks). So in the layout the
+  // installer produces, unsetting moves git OFF the directory holding the installed hook: an
+  // unset is a disable, not a restore. Which of the two it is depends on repository state
+  // this parser never reads, so it takes the safe reading — and the restorative act keeps a
+  // spelling that stays open, namely re-running the installer.
+  'git config --unset core.hooksPath',
+  'git config --unset-all core.hooksPath',
+  'git config --local --unset core.hooksPath',
+  // …and it must survive git's own options and every wrapper class, like every other rule.
+  'git -C /tmp/repo config core.hooksPath /tmp/h',
+  "bash -c 'git config core.hooksPath /dev/null'",
+  'timeout 30 git config --global core.hooksPath /tmp/h',
+  'cd /tmp && git config core.hooksPath /tmp/h',
+  // The ENVIRONMENT spelling: no `-c`, no `git config`, nothing on the command line naming
+  // the key except an assignment — and executable_index() skips leading assignments by
+  // design, precisely so it can find the executable behind them.
+  'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git push origin main',
+  'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=Core.HooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m x',
+  'env GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git push origin main',
+  // `export` sets it for a LATER segment, so the assignment need not sit on the git command.
+  'export GIT_CONFIG_KEY_0=core.hooksPath',
+  // GIT_CONFIG_GLOBAL/SYSTEM redirect git at a config FILE this gate cannot read, which may
+  // set the key itself. Blocked when the value could be such a file — /dev/null provably
+  // cannot be, and stays open, because that is the standard test-isolation idiom.
+  'GIT_CONFIG_GLOBAL=/tmp/evil.cfg git push origin main',
+  'GIT_CONFIG_SYSTEM=/tmp/evil.cfg git push origin main',
+  'export GIT_CONFIG_GLOBAL=/tmp/evil.cfg',
+  // ─── Round 4. Three P0s, all measured at exit 0 against the round-3 version. Two of them
+  // are PARSER defects — the command was never analysed at all, so no rule could fire — and
+  // both are fixed by making the parser MORE correct about real shell semantics rather than by
+  // widening the textual fallback. Widening it was weighed and rejected: teaching
+  // FORBIDDEN_FALLBACK push and gh vocabulary would start blocking `rg 'git push --force'` and
+  // every doc that names the command, and a gate that misfires on ordinary work is one an
+  // agent learns to route around.
+  //
+  // DANGLING TRAILING ESCAPE. A backslash at end of input is a line continuation to nothing:
+  // bash drops it and runs the command unchanged (measured — `printf "[%s]" --force origin
+  // main \` printed `[--force][origin][main]`). shlex instead raises ValueError("No escaped
+  // character"), so the whole command fell through to unparseable_fallback(), whose regex knows
+  // only `git … commit … --amend|--no-verify` — it has no push arm at all, so the force push
+  // exited 0.
+  'git push --force origin main \\',
+  'git push --mirror origin \\',
+  'git commit --amend -m x \\',
+  'git config core.hooksPath /dev/null \\',
+  "bash -c 'git push --force origin main \\'",
+  // SHELL COMMENTS. This one needed NO adversarial intent: a trailing explanatory comment
+  // whose apostrophe defeats the lexer. bash discards from an unquoted `#` that begins a word
+  // to end of line; the parser modelled quotes but had no comment rule at all, so the command
+  // was unparseable and the same fallback let it through.
+  "git push --force origin main # don't",
+  'git push --force origin main # rewrite history',
+  "git commit --amend # don't keep the old message",
+  'git config core.hooksPath /dev/null   # turn the hooks off',
+  'gh pr create --title x # open it',
+  // A `#` after an OPERATOR begins a word too (`echo a;#b; echo c` printed only `a`), so the
+  // comment cannot be hidden behind one.
+  'git push --force origin main;# note',
+  // A comment is a PHYSICAL-line construct: a backslash at the end of one does NOT continue it
+  // (`echo LINE1 #foo\<nl>echo BOOM` printed BOTH). Joining continuations before stripping
+  // comments would swallow the next line, so the two passes must run in this order.
+  'echo x #foo\\\ngit push --force origin main',
+  // …and the converse, which is the fail-open the word-start rule exists for: bash GLUES
+  // `echo a\<nl>#; git push --force origin main` into `echo a#; git push …` and RUNS the push
+  // (measured). Treating that `#` as a comment start would delete a real invocation.
+  'echo a\\\n#; git push --force origin main',
+  // Mid-word `#` is literal, so the `;`-separated invocation after it is real (`echo a#b;
+  // printf RAN` printed both).
+  'echo a#b; git commit --amend',
+  // A quoted `#` is literal, so a message containing one must still be MEASURED, not truncated
+  // at the hash and then abandoned as an unterminated quote.
+  `git commit -m "feat(x): ${'a'.repeat(32)} #${'b'.repeat(9)}"`,
+  // The round-3 red team's P1, closed as a side effect: `<<` inside a COMMENT is not a heredoc
+  // operator, so it can no longer open a phantom body that deletes every line up to `b`.
+  'echo hi # a << b\ngit push --force origin main\nb',
+  // WRITING A GIT CONFIG FILE. The keystone, and the only one of the three that runs no git
+  // command at all: it sets core.hooksPath by appending text, so nothing in any command string
+  // names the key and every rule above is blind. Once set, the pre-push hook — the layer that
+  // sees resolved refs — never runs again, which is what makes installing that hook worthless
+  // without this rule.
+  "printf '[core]\\nhooksPath = /dev/null\\n' >> .git/config",
+  "printf 'x' >>.git/config",
+  "echo '[core]' > .git/config",
+  'echo x >| .git/config',
+  'echo x &> .git/config',
+  "printf 'x' >> projects/rintis/kobu-bot/.git/config",
+  "printf 'x' >> .git/modules/sub/config",
+  "printf 'x' >> .git/config.worktree",
+  // The GLOBAL files matter more, not less: one core.hooksPath there disables the hook in all
+  // nine repositories in this monorepo at once.
+  "printf 'x' >> ~/.gitconfig",
+  'printf "x" >> $XDG_CONFIG_HOME/git/config',
+  "printf 'x' >> ~/.config/git/config",
+  "printf 'x' >> /etc/gitconfig",
+  // The non-redirect write positions.
+  'tee .git/config',
+  'tee -a .git/config',
+  "sed -i '' s/x/y/ .git/config",
+  'sed -i.bak s/a/b/ ~/.gitconfig',
+  'cp /tmp/evil .git/config',
+  'mv /tmp/evil ~/.gitconfig',
+  'dd of=.git/config',
+  // …and they must survive the wrapper classes like every other rule.
+  'sudo tee .git/config',
+  'nohup cp /tmp/evil .git/config',
+  'bash -c "printf \'x\' >> .git/config"',
+  // The FILE spelling of `git config`. Round 3 blocked the KEY spellings; the key is not the
+  // only way in, because `include.path` makes git read a second file that can carry
+  // core.hooksPath itself.
+  'git config --file .git/config include.path /tmp/evil',
+  'git config -f ~/.gitconfig include.path /tmp/evil',
+  'git config --file .git/config --unset core.hooksPath',
+  // `git config --edit` names no path and still opens one, and it is only "interactive" by
+  // convention: EDITOR is a command, so `EDITOR='sed -i …' git config --global --edit` writes
+  // the file with no editor, no key on the line and no redirect anywhere.
+  'git config --edit',
+  'git config --global --edit',
+  'git config --global -e',
+  "EDITOR='sed -i 1i[core]' git config --global --edit",
 ]) {
   expectStatus(`blocked commit command: ${command}`, run(commitPolicy, [command]), 2);
 }
@@ -183,6 +473,18 @@ for (const command of [
   // line — otherwise one unparseable segment convicts its innocent siblings.
   'timeout $T npm test',
   'timeout $T npm test; echo "git commit --amend"',
+  // Routing every unrecognised executable through the textual scan is the fix above; these
+  // are the ways it could have been bought too cheaply. An argv word cannot hold whitespace
+  // unless it was QUOTED, and a quoted word is data — so a segment whose only `git commit
+  // --amend` sits inside one token is prose, not an invocation. Grepping for the policy and
+  // echoing it are things agents do while auditing this very file.
+  'grep -rn "git commit --amend" .agents/',
+  'rg "git commit --no-verify" .agents/rules',
+  'echo "git commit --amend is forbidden"',
+  'caffeinate npm test',
+  'caffeinate -i node x.js',
+  'git log --oneline',
+  'git log --oneline -- .agents/scripts/check-commit-command.py',
   // Plain `git push` is DELIBERATELY allowed: pushing zulfahmi-portfolio to main is what
   // deploys zulfahmi.dev. Blocking it would break a real workflow to close a theoretical hole.
   'git push origin main',
@@ -198,11 +500,75 @@ for (const command of [
   'git push --push-option=-f origin main',
   'git push --repo -f',
   'git push origin -- -f',
+  // The refspec check has to stay on POSITIONALS only. A `+` in an option VALUE is data —
+  // `--push-option=+ci.skip` is a real CI idiom, and reading it as a force refspec would
+  // block the ordinary deploy push, which is the outcome this whole file exists to avoid.
+  'git push --push-option=+ci.skip origin main',
+  'git push -o +ci.skip origin main',
+  'git push --push-option +ci.skip origin main',
+  // A colon is only a deletion when the SOURCE side is empty. An ssh-style remote URL and
+  // an ordinary explicit refspec both carry one and neither deletes anything.
+  'git push git@github.com:zulfahmi/portfolio.git main',
+  'git push origin main:main',
+  'git push origin HEAD:refs/heads/main',
+  'git push origin HEAD',
+  // `-d` is forbidden, but `d` inside another cluster position is not a thing to guess at:
+  // these are the neighbouring short options that must stay open.
+  'git push -u origin feature',
+  'git push -q origin main',
+  'git push --dry-run origin main',
   // Only create/merge are blocked; the read-only and checkout subcommands are ordinary work.
   'gh pr list',
   'gh pr view 12',
   'gh pr checkout 12',
   'gh repo clone x/y',
+  // ─── Round 2 false-positive guards. Every entry above buys coverage; these are the prices
+  // it must NOT charge, and each one is a spelling the new rules could plausibly over-reach on.
+  //
+  // Abbreviations that resolve to something HARMLESS. `--dr` is --dry-run (not --delete),
+  // `--fol` is --follow-tags (not --force*), `--pu` is --push-option and eats its value, and
+  // an EXACT spelling has to beat a prefix or `--verify` and `--no-verbose` — the literal
+  // opposites of the flag being blocked — would be caught by their own neighbours.
+  'git push --dr origin main',
+  'git push --fol origin main',
+  'git push --pu ci.skip origin main',
+  'git push --verify origin main',
+  'git push --no-verbose origin main',
+  'git push --no-force origin main',
+  'git push --no-mirror origin main',
+  // The round-1 false positive review reported live. An unquoted filename packs git…commit…
+  // --amend into ONE token, and `\b` treats `-` and `.` as word boundaries, so the textual
+  // scan read a path as an invocation. DECISION: narrowed rather than tolerated. A blocked
+  // `open` is individually cheap, but the same token appears as an ordinary path ARGUMENT to
+  // every tool an agent uses to read that file, and a gate that misfires on reading the notes
+  // about the gate is the kind an agent learns to route around. The narrowing is principled —
+  // argv words are delimited by whitespace, never by hyphens — and it is free: the leading
+  // edge still admits `/`, so `/usr/bin/git commit --amend` (in the block list) still matches.
+  'open docs/git-commit--amend-notes.md',
+  'cat docs/git-commit--amend-notes.md',
+  'git log -- docs/git-commit--amend-notes.md',
+  'git log --grep=amend',
+  // gh reads. A GET, or no method at all, is ordinary work; only the destructive methods and
+  // ref-writes close. POST to a non-`git/refs` path (opening an issue) stays open.
+  'gh api /repos/x/y',
+  'gh api --method GET /repos/x/y',
+  'gh api repos/x/y/issues --method POST -f title=x',
+  'gh release list',
+  'gh release view v1',
+  'gh repo view x/y',
+  // git remote/config READS carry no value operand and change nothing.
+  'git remote -v',
+  'git remote get-url origin',
+  'git config --get alias.ca',
+  'git config alias.st status',
+  // The command-running git subcommands are only a problem when what they run is forbidden.
+  // Blocking `git submodule update` or a bisect over the test suite would be the false block
+  // that makes the whole gate a nuisance.
+  'git submodule foreach git status',
+  'git submodule update --init --recursive',
+  'git bisect run npm test',
+  'git rebase --exec "npm test" main',
+  'git rebase -i main',
   'echo "never git push --force to main"',
   // The blocker itself: a heredoc body is PROSE. Documenting the policy — which is what the
   // rules, the plan YAMLs and every AUTONOMOUS_RUN_STATUS.md do — must not be an offence.
@@ -217,6 +583,112 @@ for (const command of [
   // first line must not be measured as the commit's subject. heredoc_body_from_raw() took the
   // FIRST match, so a 71-char note line convicted a short, legal commit.
   `cat > n.md <<'EOF'\n${'x'.repeat(71)}\nEOF\ngit commit -m "$(cat <<EOF\nfix(a): short\nEOF\n)"`,
+  // ─── Round 3 false-positive guards. Each entry above buys coverage; these are the prices
+  // it must NOT charge.
+  //
+  // core.hooksPath READS change nothing, and `git config --get core.hooksPath` is how you
+  // AUDIT the setting. A gate that blocks its own audit is pure cost. A key with no value is
+  // a read too — `git config core.hooksPath` PRINTS the key.
+  'git config --get core.hooksPath',
+  'git config --get-all core.hooksPath',
+  'git config --get-regexp core',
+  'git config --list',
+  'git config -l',
+  'git config --list --show-origin',
+  'git config core.hooksPath',
+  'git rev-parse --git-path hooks',
+  // Neighbouring config WRITES are ordinary work — only this one key is a policy switch.
+  'git config core.editor vim',
+  'git config --global user.email a@b.c',
+  'git config --local commit.gpgsign false',
+  // The env rule must not convict prose or an unrelated key, and it must leave the
+  // test-isolation idiom alone: /dev/null cannot contain a core.hooksPath directive, and
+  // .agents/scripts/test-git-hooks.sh:39 depends on being able to say exactly this.
+  'echo "GIT_CONFIG_KEY_0=core.hooksPath is the hole"',
+  'GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git status',
+  'export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null',
+  'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=user.name GIT_CONFIG_VALUE_0=x git commit -m ok',
+  // A continuation is a JOIN, not a licence: joining must not turn a legal push into a
+  // forbidden one, or a heredoc's prose into an invocation.
+  'git push origin main \\\n--dry-run',
+  "printf 'a\\\nb'",
+  // Heredoc prose is this repo's authoring path, and every opener spelling has to keep
+  // working — `<<-` strips leading TABS from body and terminator alike, and a quoted
+  // delimiter (three spellings) only suppresses expansion, it does not move the terminator.
+  "cat > /tmp/n.md <<'EOF'\ngit push --force is forbidden\nEOF",
+  'cat > /tmp/n.md <<-EOF\n\tgit commit --amend is forbidden\n\tEOF',
+  'cat > /tmp/n.md <<"EOF"\ngit config core.hooksPath is forbidden\nEOF',
+  'cat > /tmp/n.md <<\\EOF\ngit push --mirror is forbidden\nEOF',
+  // TWO heredocs on one command line: the old stripper took only the first opener per line,
+  // so the second body was left behind to be read as invocations.
+  "cat > /tmp/a.md <<'A'\ngit push --force\nA\ncat > /tmp/b.md <<'B'\ngit commit --amend\nB",
+  // ─── Round 4 false-positive guards. The comment rule and the config-file rule are the two
+  // with real over-reach potential, and both were scoped from measured bash behaviour rather
+  // than from a regex that "looks about right".
+  //
+  // `#` is a comment ONLY at the start of a word. Mid-word it is literal (`set -- a#b` gave
+  // `[a#b]`), inside either quote it is literal (`set -- -m "fix #42"` gave `[-m][fix #42]`),
+  // and `$#` is a parameter expansion (`set -- a$#b` gave `[a0b]`). An issue number in a commit
+  // subject is the commonest `#` in this repo, so treating it as a comment would truncate the
+  // measured subject on a large fraction of real commits.
+  'git commit -m "fix #42 in the parser"',
+  "git commit -m 'fix(a): close #42'",
+  'git commit -m "fix(a): close #42" --no-edit',
+  'echo a#b',
+  'git log --grep=#42',
+  'rg "#!/usr/bin/env" .agents/scripts',
+  // Stripping a comment must not turn prose ABOUT the policy into an offence, and must not
+  // leave a stray fragment behind either — the whole line goes.
+  '# git push --force origin main',
+  'echo hi # this mentions git push --force origin main',
+  'npm test # git commit --amend is forbidden',
+  // A `#` in a heredoc BODY is DATA, not a comment: bodies are literal text and are never
+  // comment-stripped, which is why the two passes are interleaved rather than run in sequence.
+  "cat > /tmp/n.md <<'EOF'\n# git push --force is forbidden\ngit commit --amend is too\nEOF",
+  // A trailing backslash on an ALLOWED command must stay allowed: the fix drops the escape, it
+  // does not change what the command is.
+  'git push origin main \\',
+  'npm test \\',
+  // Git config file READS are routine and are how the setting is audited; the docs generator
+  // and the validators read git state constantly. Only WRITE positions close.
+  'cat .git/config',
+  'grep hooksPath .git/config',
+  'rg core.hooksPath .git/config',
+  'wc -l .git/config',
+  'git rev-parse --git-path config',
+  // A read wearing a write command's name. `cp` writes its LAST operand, so copying the config
+  // OUT is a backup; `tee`'s `<` operand is an input, which is why the read-redirect operators
+  // are consumed with their operand instead of falling through to the tee rule.
+  'cp .git/config /tmp/backup',
+  'tee /tmp/copy < .git/config',
+  'tee /tmp/copy <.git/config',
+  'diff .git/config /tmp/x',
+  // Writes to any OTHER file, including one that merely NAMES the config.
+  "printf 'x' >> /tmp/notes.md",
+  'echo "see .git/config" > /tmp/notes.md',
+  "sed -i '' s/a/b/ /tmp/x",
+  "printf 'x' >> .git/config-backup",
+  "printf 'x' >> docs/gitconfig-notes.md",
+  // `git config --file` READS change nothing, so the file rule has to stop at the same line the
+  // key rule stops at.
+  'git config --file .git/config --get core.hooksPath',
+  'git config --file .git/config --list',
+  // The daily-work floor. `<` and `>` became lexer punctuation to make a spaceless redirect
+  // visible, and that changes how EVERY command tokenizes, so the ordinary ones are asserted.
+  'npm run build',
+  'node scripts/x.js',
+  'cd tools/docs-gen && npm run validate',
+  'npm test >out.log 2>&1',
+  'npm run build -- u60-monitor > /tmp/build.log',
+  "rg 'no-verify'",
+  'git push --dry-run origin main',
+  'git push --follow-tags',
+  // heredoc_terminator() follows the SHELL's rule — the line must BE the delimiter — and the
+  // loose `.strip()` it replaced ends the body early on an indented line the shell treats as
+  // body, which spills that body's prose into the skeleton as invocations. `<<-` strips leading
+  // TABS only; both verified against bash, where `  EOF` left the push inside the body.
+  "cat > /tmp/n.md <<'EOF'\n  EOF\ngit push --force origin main\nEOF",
+  'cat > /tmp/n.md <<-EOF\n  EOF\ngit commit --amend\n\tEOF',
 ]) {
   expectStatus(`allowed command: ${command}`, run(commitPolicy, [command]), 0);
 }
@@ -238,6 +710,398 @@ expectStatus(
   run(commitPolicy, [`eval 'git commit -m "feat: ${'x'.repeat(60)}"'`]),
   2,
 );
+
+// ── The THIRD continuation position, where the rule inverts ────────────────────────────────
+//
+// A backslash-newline is a continuation when it is unquoted or inside DOUBLE quotes, and
+// LITERAL inside single quotes. The unquoted case is pinned by `git push \<nl>--force` in the
+// block list, but the quoted pair cannot be pinned that way: a quoted word is data, so the
+// verdict does not move whichever way it is joined. The SUBJECT length is where it shows —
+// the two characters are either in the message or not.
+//
+// Both spellings were verified against real bash before being asserted here: with a 39-char
+// head and a 10-char tail, `set -- '<head>\<nl><tail>'` reported ${'1'} of length 51 and the
+// double-quoted spelling reported 49. So the gate must block the single-quoted one (51 > 50)
+// and allow the double-quoted one (49 <= 50) — and joining single quotes, or failing to join
+// double quotes, flips exactly one of them.
+{
+  const head = `feat(x): ${'a'.repeat(30)}`;
+  const tail = 'b'.repeat(10);
+  expectStatus(
+    'single-quoted backslash-newline is LITERAL, so the subject is 51 and blocks',
+    run(commitPolicy, [`git commit -m '${head}\\\n${tail}'`]),
+    2,
+  );
+  expectStatus(
+    'double-quoted backslash-newline IS a continuation, so the subject is 49 and passes',
+    run(commitPolicy, [`git commit -m "${head}\\\n${tail}"`]),
+    0,
+  );
+}
+
+// ── Each round-2 guard is LOAD-BEARING ────────────────────────────────────────────────────
+//
+// The lists above prove the commands are blocked; they do NOT prove which line does the
+// blocking. Review found exactly that gap: mutation-deleting the nested-git guard passed the
+// entire suite, because nothing pinned it. A guard nothing pins is a guard the next edit
+// deletes for free.
+//
+// So each fix is reverted in a COPY of the checker and the command it exists for is re-run: if
+// it still blocks, the guard was decorative and the mutation is reported. `find` is asserted to
+// occur exactly once first — a mutation that applies nothing proves nothing, which is the same
+// trap the plan-agent-refs fixture below guards against.
+{
+  const policyDir = await mkdtemp(path.join(os.tmpdir(), 'agent-config-commit-mutants-'));
+  try {
+    const source = await readFile(path.join(repoRoot, '.agents/scripts/check-commit-command.py'), 'utf8');
+    const mutantPolicy = path.join(policyDir, 'check-commit-command.sh');
+    await copyFile(path.join(repoRoot, '.agents/scripts/check-commit-command.sh'), mutantPolicy);
+    await chmod(mutantPolicy, 0o755);
+
+    const mutants = [
+      {
+        label: 'push long-option abbreviation resolves by PREFIX, the way git does',
+        find: 'option for option in PUSH_LONG_OPTIONS if option.startswith(name)',
+        with: 'option for option in PUSH_LONG_OPTIONS if option == name',
+        leaks: ['git push --m origin', 'git push --pru origin', 'git push --no-veri origin main'],
+      },
+      {
+        label: '--prune is a destructive push target',
+        find: 'DESTRUCTIVE_PUSH_TARGETS = ("--mirror", "--delete", "--prune")',
+        with: 'DESTRUCTIVE_PUSH_TARGETS = ("--mirror", "--delete")',
+        leaks: ['git push --prune origin', 'git push --prune origin refs/heads/*:refs/heads/*'],
+      },
+      {
+        label: '--no-verify is refused at the command layer',
+        find: 'HOOK_DISABLING_PUSH_TARGETS = ("--no-verify",)',
+        with: 'HOOK_DISABLING_PUSH_TARGETS = ()',
+        leaks: ['git push --no-verify origin main'],
+      },
+      {
+        label: '-c core.hooksPath is refused at the command layer',
+        find: 'HOOKS_PATH_OVERRIDE = re.compile(r"(?i)(?:^|=)core\\.hookspath=")',
+        with: 'HOOKS_PATH_OVERRIDE = re.compile(r"(?!x)x")',
+        leaks: ['git -c core.hooksPath=/dev/null push origin main'],
+      },
+      {
+        // THE guard review mutation-deleted. `git submodule foreach` runs an arbitrary command,
+        // and the segment's executable IS git, so check_segment()'s textual fallback — gated on
+        // `name != "git"` — never looks at it.
+        label: 'git subcommands that RUN a command have their operand checked',
+        find: 'GIT_COMMAND_RUNNING_SUBCOMMANDS = {"submodule", "bisect", "rebase", "filter-branch"}',
+        with: 'GIT_COMMAND_RUNNING_SUBCOMMANDS = set()',
+        leaks: [
+          'git submodule foreach git commit --amend',
+          'git submodule foreach "git commit --amend"',
+          'git bisect run git commit --no-verify',
+          'git rebase --exec "git commit --amend" main',
+          'git submodule foreach git push --force',
+        ],
+      },
+      {
+        label: 'a destructive gh api method is refused',
+        find: 'GH_DESTRUCTIVE_API_METHODS = {"DELETE"}',
+        with: 'GH_DESTRUCTIVE_API_METHODS = set()',
+        leaks: [
+          'gh api --method DELETE /repos/x/y/git/refs/heads/main',
+          'gh api -XDELETE /repos/x/y',
+        ],
+      },
+      {
+        label: 'gh repo/release delete are refused',
+        find: '("pr", "create"), ("pr", "merge"), ("repo", "delete"), ("release", "delete"),',
+        with: '("pr", "create"), ("pr", "merge"),',
+        leaks: ['gh repo delete x/y', 'gh release delete v1'],
+      },
+      {
+        label: 'git remote set-url is refused',
+        find: 'return "git remote set-url" if token == "set-url" else None',
+        with: 'return None',
+        leaks: ['git remote set-url origin git@github.com:evil/x.git'],
+      },
+      {
+        label: 'a forbidden command stored as a git alias is refused at creation',
+        find: 'ALIAS_KEY = re.compile(r"(?i)^alias\\.")',
+        with: 'ALIAS_KEY = re.compile(r"(?!x)x")',
+        leaks: ['git config alias.ca "commit --amend"'],
+      },
+      // ─── Round 3. One pin per fix, so none of the four can be deleted for free.
+      {
+        // FIX 1. Reverting the wiring is the whole revert: without the joiner the newline is
+        // a separator again and `git push \<nl>--force origin main` splits into an allowed
+        // plain push plus an orphan.
+        label: 'a backslash-newline is joined before the command is segmented',
+        find: 'command_segments(strip_line_continuations(strip_heredoc_bodies(command)))',
+        with: 'command_segments(strip_heredoc_bodies(command))',
+        leaks: [
+          'git push \\\n--force origin main',
+          'git commit \\\n--amend -m x',
+          'git \\\nconfig \\\ncore.hooksPath \\\n/dev/null',
+        ],
+        // …and the DOUBLE-quoted position, which only shows in the false-positive direction:
+        // real bash removes the two characters there, so the subject is 49 and the commit is
+        // legal. A gate that does not join measures 51 and blocks a commit git would accept.
+        falseBlocks: [`git commit -m "feat(x): ${'a'.repeat(30)}\\\n${'b'.repeat(10)}"`],
+      },
+      {
+        // FIX 1, bought too cheaply. Joining is correct only where the shell joins, and the
+        // shell does NOT join inside single quotes — there the backslash and the newline are
+        // both part of the message. Joining unconditionally is the one-character version of
+        // this fix, and it under-measures every such subject by exactly two.
+        label: 'a backslash-newline inside SINGLE quotes stays literal',
+        find: 'if frames[-1][1] in LITERAL_BACKSLASH_QUOTES',
+        with: 'if False',
+        leaks: [`git commit -m 'feat(x): ${'a'.repeat(30)}\\\n${'b'.repeat(10)}'`],
+      },
+      {
+        // FIX 2. Removing the quote check restores the exact defect: a `<<` inside a quoted
+        // string is read as an opener and every line up to the delimiter is deleted.
+        label: 'only an UNQUOTED << starts a heredoc body',
+        find: 'if frames[-1][1] is None and line.startswith("<<", index):',
+        with: 'if line.startswith("<<", index):',
+        leaks: [
+          'echo "a << b "\ngit push --force origin main\nb',
+          'echo "a << b "\ngit config core.hooksPath /dev/null\nb',
+        ],
+      },
+      {
+        // FIX 2, the fail-CLOSED half. An undelimitable body must leave its lines in place;
+        // swallowing to end-of-input is the deleting direction, which is the defect itself.
+        label: 'an unterminated heredoc swallows nothing',
+        find: '                # No terminator: this is not a body we can delimit, so keep every line rather\n                # than swallow the remainder of the command line.\n                break',
+        with: '                index = len(lines)\n                break',
+        leaks: ["cat <<'EOF'\nprose\ngit commit --amend"],
+      },
+      {
+        // FIX 3. The bound is reachable by anyone who types one more `bash -c`, so "cannot
+        // analyse" has to mean block. Reverting it to 0 is the fail-open being fixed.
+        label: 'exceeding the shell-nesting bound blocks rather than allows',
+        find: 'def nesting_limit_reached() -> int:',
+        with: 'def nesting_limit_reached() -> int:\n    return 0',
+        leaks: [
+          "bash -c 'bash -c '\"'\"'bash -c \"bash -c \\\"git push --force origin main\\\"\"'\"'\"''",
+          "bash -c 'bash -c '\"'\"'bash -c \"bash -c \\\"git commit --amend -m x\\\"\"'\"'\"''",
+        ],
+      },
+      {
+        // FIX 4, the persisted key. One regex governs both the `git config` form and the
+        // GIT_CONFIG_KEY_n environment form, so this pins both.
+        label: 'core.hooksPath is refused as a persisted config write',
+        find: 'HOOKS_PATH_KEY = re.compile(r"(?i)^core\\.hookspath$")',
+        with: 'HOOKS_PATH_KEY = re.compile(r"(?!x)x")',
+        leaks: [
+          'git config core.hooksPath /dev/null',
+          'git config --local core.hooksPath /dev/null',
+          'git config --global core.hooksPath /tmp/h',
+          'git config --add core.hooksPath /tmp/h',
+          'git config Core.HooksPath /tmp/h',
+          'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git push origin main',
+        ],
+      },
+      {
+        // FIX 4, the --unset DECISION. It is a judgement call, so it gets its own pin: drop
+        // it and the unset spellings walk through while every other spelling still blocks.
+        label: 'unsetting core.hooksPath is refused with the writes',
+        find: 'CONFIG_UNSET_ACTIONS = {"--unset", "--unset-all"}',
+        with: 'CONFIG_UNSET_ACTIONS = set()',
+        leaks: ['git config --unset core.hooksPath', 'git config --unset-all core.hooksPath'],
+      },
+      {
+        // FIX 4, the config-file redirection. A separate mechanism from the key match — it
+        // never sees the key at all, only a path this gate cannot read.
+        label: 'GIT_CONFIG_GLOBAL/SYSTEM pointed at a real file is refused',
+        find: 'GIT_CONFIG_FILE_ENV = re.compile(r"(?i)^(GIT_CONFIG_GLOBAL|GIT_CONFIG_SYSTEM)=(.*)$", re.DOTALL)',
+        with: 'GIT_CONFIG_FILE_ENV = re.compile(r"(?!x)x")',
+        leaks: [
+          'GIT_CONFIG_GLOBAL=/tmp/evil.cfg git push origin main',
+          'GIT_CONFIG_SYSTEM=/tmp/evil.cfg git push origin main',
+        ],
+      },
+      // ─── Round 4. One pin per fix, plus a pin on each way a fix could have been bought too
+      // cheaply, so none of them can be deleted or loosened for free.
+      {
+        // FIX A. A backslash at end of INPUT is a continuation to nothing; bash drops it and
+        // runs the command. Without this arm shlex raises "No escaped character" and the whole
+        // command routes to unparseable_fallback(), which has no push rule.
+        label: 'a dangling backslash at END OF INPUT is a line continuation',
+        find: '    if index + 1 == len(command):\n        return 1',
+        with: '    if False:\n        return 1',
+        // Only the PUSH forms leak, and that is the point: unparseable_fallback() already
+        // matches `git … commit … --amend`, so a dangling escape on an amend was caught by
+        // accident all along. The gate's blind spot is everything the fallback does not know —
+        // push, gh, core.hooksPath — which is exactly why the answer is to make the command
+        // PARSE rather than to teach the fallback more vocabulary.
+        leaks: [
+          'git push --force origin main \\',
+          'git config core.hooksPath /dev/null \\',
+          "bash -c 'git push --force origin main \\'",
+        ],
+      },
+      {
+        // FIX B. Comments. Reverting the call is the whole revert: an unstripped `# don't`
+        // leaves an unbalanced apostrophe, the lexer fails, and the fallback has no push arm.
+        label: 'shell comments are stripped before the command is lexed',
+        find: 'line, continued = strip_comment(lines[index], frames, word_start)',
+        with: 'line, continued = lines[index], False',
+        // The apostrophe is what does the damage — it is an unterminated quote to the lexer —
+        // so the leak cases carry one. A comment with no apostrophe still lexes, which is why
+        // `# rewrite history` blocks either way and is asserted in the list above instead.
+        leaks: [
+          "git push --force origin main # don't",
+          "git config core.hooksPath /dev/null # don't run the hooks",
+          // The round-3 red team's P1: a `<<` inside a comment opened a phantom heredoc whose
+          // body swallowed every line up to `b`, including the push.
+          'echo hi # a << b\ngit push --force origin main\nb',
+        ],
+      },
+      {
+        // FIX B, bought too cheaply #1. bash starts a comment only at the beginning of a WORD.
+        // Treating every unquoted `#` as one truncates real arguments — `echo a#b; git commit
+        // --amend` runs the amend (measured), and a mid-word rule deletes it from view.
+        label: 'a `#` only starts a comment at the start of a WORD',
+        find: 'return len(consumed) == 1 and consumed in COMMENT_WORD_START',
+        with: 'return True',
+        leaks: ['echo a#b; git commit --amend'],
+      },
+      // FIX B, bought too cheaply #2 — DELIBERATELY NOT A MUTANT, and this is the record of why.
+      // "a `#` inside quotes is literal" is guarded TWICE and independently: word_start_after()
+      // returns False on a non-None quote frame, and strip_comment() re-tests `scan[-1][1] is
+      // None` inline. Measured on the three cases that would leak — `git commit -m "a #b"
+      // --amend`, an over-length subject carrying a `#`, and `git push origin "main #x"
+      // --force` — every one still blocks with EITHER guard neutered alone, and all three leak
+      // only when BOTH are. So no single-point mutation can pin this property, and a mutant
+      // asserting otherwise fails honestly rather than proving something. The behaviour itself
+      // stays covered by the block/allow matrices above. Do not "fix" this by deleting one of
+      // the two guards to make a mutant possible: the redundancy is the reason the round-4
+      // escaped-delimiter P0 did not also become a quote-desync P0.
+      {
+        // FIX B, bought too cheaply #3. Column 0 is a word start only when the PREVIOUS line
+        // did not end in a continuation. bash glues `echo a\<nl>#; git push --force origin main`
+        // into `echo a#; git push …` and RUNS the push (measured), so a blanket word_start
+        // deletes a live invocation — the fail-open direction.
+        label: 'a continued line does not restart the word at column 0',
+        find: '        word_start = not continued',
+        with: '        word_start = True',
+        leaks: ['echo a\\\n#; git push --force origin main'],
+      },
+      {
+        // FIX B, ORDER. Comments must be stripped before continuations are joined, because a
+        // backslash at the end of a comment does NOT continue it (`echo LINE1 #foo\<nl>echo
+        // BOOM` printed both). Joining first collapses the next command into the comment.
+        label: 'comments are stripped before continuations are joined',
+        find: 'command_segments(strip_line_continuations(strip_heredoc_bodies(command)))',
+        with: 'command_segments(strip_heredoc_bodies(strip_line_continuations(command)))',
+        leaks: ['echo x #foo\\\ngit push --force origin main'],
+      },
+      {
+        // FIX C. Writing a git config file — the keystone, because it sets core.hooksPath with
+        // no git command anywhere on the line and therefore disables the pre-push hook that
+        // every other rule here relies on as the second layer.
+        label: 'a git config file is recognised as a write TARGET',
+        find: 'def is_git_config_path(word: str) -> bool:',
+        with: 'def is_git_config_path(word: str) -> bool:\n    return False',
+        leaks: [
+          "printf '[core]\\nhooksPath = /dev/null\\n' >> .git/config",
+          "printf 'x' >> ~/.gitconfig",
+          'printf "x" >> $XDG_CONFIG_HOME/git/config',
+          'tee -a .git/config',
+          'cp /tmp/evil .git/config',
+          'git config --file .git/config include.path /tmp/evil',
+        ],
+      },
+      {
+        // FIX C, the SPACELESS redirect. `>` had to become lexer punctuation or `>>.git/config`
+        // lexes as one word and no redirect rule can see the target — the same defect
+        // check-generated-command.py fixed for `>docs/html/…`.
+        label: '< and > are lexer punctuation, so a spaceless redirect splits',
+        find: 'PUNCTUATION = ";&|()\\n<>"',
+        with: 'PUNCTUATION = ";&|()\\n"',
+        leaks: ["printf 'x' >>.git/config", 'echo x >|.git/config'],
+      },
+      {
+        // FIX C, the redirect arm specifically — separate from the path predicate, so deleting
+        // either one on its own still fails.
+        label: 'a redirect operand is a write target',
+        find: '        if REDIRECT.fullmatch(word) and index + 1 < len(segment):',
+        with: '        if False and index + 1 < len(segment):',
+        leaks: ["printf '[core]\\nhooksPath = /dev/null\\n' >> .git/config"],
+      },
+      {
+        // FIX C, bought too cheaply. Read redirects must be consumed WITH their operand, or a
+        // pure read (`tee /tmp/copy < .git/config`) is convicted by the tee rule. This one
+        // earns its keep in the false-positive direction only.
+        label: 'a read redirect operand is not a write target',
+        find: '        if REDIRECT.fullmatch(word) or READ_REDIRECT.fullmatch(word):',
+        with: '        if REDIRECT.fullmatch(word):',
+        falseBlocks: ['tee /tmp/copy < .git/config'],
+      },
+      {
+        // FIX C, the `git config --file` spelling. A different mechanism from the path-in-a-
+        // write-position rule: it never sees a redirect, and the key need not be core.hooksPath
+        // because `include.path` pulls in a second file that can set it.
+        label: 'git config --file <a git config file> is a write',
+        find: 'def forbidden_git_config_file(segment: list[str]) -> str | None:',
+        with: 'def forbidden_git_config_file(segment: list[str]) -> str | None:\n    return None',
+        leaks: [
+          'git config --file .git/config include.path /tmp/evil',
+          'git config -f ~/.gitconfig include.path /tmp/evil',
+          'git config --global --edit',
+        ],
+      },
+      {
+        // FIX D. The one round-3 claim with NO test behind it: reverting heredoc_terminator()
+        // to the loose `.strip()` left the entire suite green. The shell's rule is that the
+        // line must BE the delimiter, and the loose one ends the body EARLY on an indented
+        // line bash treats as body — spilling that body's prose into the skeleton, where it is
+        // read as an invocation. So it shows in the false-positive direction: the mutant BLOCKS
+        // a document the real checker allows. Verified against bash — with `  EOF` inside the
+        // body, the push below it was printed as text, not run.
+        label: 'a heredoc terminator must BE the delimiter, not merely strip to it',
+        find: 'return (line.lstrip("\\t") if dash else line) == delimiter',
+        with: 'return line.strip() == delimiter',
+        falseBlocks: [
+          "cat > /tmp/n.md <<'EOF'\n  EOF\ngit push --force origin main\nEOF",
+          'cat > /tmp/n.md <<-EOF\n  EOF\ngit commit --amend\n\tEOF',
+        ],
+      },
+    ];
+
+    for (const mutant of mutants) {
+      const hits = source.split(mutant.find).length - 1;
+      if (hits !== 1) {
+        failures.push(`commit-policy mutant "${mutant.label}": anchor occurs ${hits} times, expected exactly 1 — the mutation applied nothing and the case proves nothing`);
+        continue;
+      }
+      await writeFile(
+        path.join(policyDir, 'check-commit-command.py'),
+        source.replace(mutant.find, mutant.with),
+      );
+      // `leaks ?? []`: a guard can be load-bearing purely in the FALSE-POSITIVE direction —
+      // heredoc_terminator()'s exactness and the read-redirect skip both leak nothing when
+      // reverted, they over-block. Requiring a leak case would have left those two unpinnable,
+      // which is how heredoc_terminator() came to be the one round-3 claim with no test at all.
+      for (const command of mutant.leaks ?? []) {
+        // Sanity: the command must be blocked by the REAL checker, or "the mutant lets it
+        // through" would be measuring nothing.
+        expectStatus(`commit-policy mutant baseline: ${command}`, run(commitPolicy, [command]), 2);
+        if (run(mutantPolicy, [command]).status !== 0) {
+          failures.push(`commit-policy mutant "${mutant.label}": reverting it still blocks ${JSON.stringify(command)} — the guard is not what closes this bypass, so nothing pins it`);
+        }
+      }
+      // Some guards earn their keep in the FALSE-POSITIVE direction instead: a rule bought too
+      // broadly leaks nothing, it over-blocks. The mutant must therefore block what the real
+      // checker allows, which is the mirror image of the assertion above.
+      for (const command of mutant.falseBlocks ?? []) {
+        expectStatus(`commit-policy mutant baseline (allowed): ${command}`, run(commitPolicy, [command]), 0);
+        if (run(mutantPolicy, [command]).status === 0) {
+          failures.push(`commit-policy mutant "${mutant.label}": reverting it still allows ${JSON.stringify(command)} — the guard is not what keeps this command open, so nothing pins it`);
+        }
+      }
+    }
+  } finally {
+    await rm(policyDir, { recursive: true, force: true });
+  }
+}
 
 const generatedPolicy = path.join(repoRoot, '.agents/scripts/check-generated-path.sh');
 expectStatus('relative generated path', run(generatedPolicy, ['docs/html/index.html']), 2);
