@@ -232,15 +232,22 @@ User reviews STATUS + diffs, resolves the blocker, re-authorizes with the remain
 
 ### Never, even when authorized
 
-**Hook-enforced** — the commit gate returns exit 2 on these, in interactive and autonomous runs alike:
+Two mechanisms enforce this and they fail differently. The **PreToolUse command gate** (`.agents/scripts/check-commit-command.py`, wired through `.claude/hooks/block-commit-flags.sh`) matches the command *string* before it runs — it catches intent even when no push follows, but is blind to anything it cannot read literally. Git's **`pre-push` hook** (installed by `.agents/scripts/install-git-hooks.sh`) decides on the resolved local/remote SHAs git feeds it — spelling, wrappers, aliases and variables cannot fool it, but it only fires on an actual push, and only in repos where it is installed.
 
-- `--amend` and `--no-verify` / `-n` on a commit.
-- Force pushes: `--force`, `--force-with-lease`, `--force-if-includes`, `-f`, and any unambiguous abbreviation of them.
+**Command-gate–enforced** — exit 2, interactive and autonomous runs alike:
+
+- `git commit` `--amend`, `--no-verify` / `-n`, and unambiguous abbreviations (`--am`). **Only this layer can hold these** — `--no-verify` turns git's own hooks off.
+- `git push` rewrite/remove forms: `--force`, `--force-with-lease`, `--force-if-includes`, `-f`; a leading `+` on a refspec (`origin +main`, `origin +refs/heads/main:refs/heads/main`); `--mirror`; deletions (`--delete`, `-d`, `origin :main`) — plus unambiguous abbreviations (`--mirr`, `--dele`).
 - `gh pr create` and `gh pr merge`.
+
+**pre-push–enforced** — exit 1 on a real push, whatever the command line said: non-fast-forward updates (what a force push *is*, including one spelled only in `remote.*.push` config), ref deletions (including `--prune`'s, which the command gate does **not** see), mirror pushes, and a remote tip this clone does not hold (fails closed — `git fetch` first). Fast-forwards, new branches and new tags pass.
+
+**The hook enforces nothing in a repo where it is not installed.** It is per-clone and unversioned: run `bash .agents/scripts/install-git-hooks.sh` from the repo root, again after every fresh clone. As this is written it is installed in **0 of the 7** repos (root + 6 nested), so today that layer is claim-only. It also skips any repo that already has a foreign `pre-push` (stderr notice only) — that repo gets nothing.
 
 **Advisory — not enforced, and the run is on its honour:**
 
 - Plain `git push`. Deliberately left open: pushing `zulfahmi-portfolio` to `main` is what deploys zulfahmi.dev, so a blanket block would break a real workflow to close a theoretical hole. An autonomous run still must not push.
 - Commits outside the cycle's bounded diff (code + plan `status:` + cycle note). No gate can see the cycle's bounds.
+- A destructive push that is gate-invisible **and** hook-skipped. The gate misses a shell-expanded refspec (`REF=+main; git push origin $REF`), anything behind an unrecognised wrapper (`caffeinate git push --force`), and anything inside `npm run deploy` / a Makefile / a git alias. The hook covers all of those — but `git push --no-verify` and `git -c core.hooksPath=…` skip the hook and pass the gate. One from each list, combined, passes both.
 
-The split is deliberate. These were one list, of which two items were enforced and three were not — so the unenforced ones borrowed the credibility of the enforced ones, and seven repos with live GitHub remotes were protected by nothing but compliance. If you add an item here, put it under the heading that matches reality.
+The split is deliberate. These were one list, of which two items were enforced and three were not — so the unenforced ones borrowed the credibility of the enforced ones, and the four repos with live GitHub remotes were protected by nothing but compliance. If you add an item here, put it under the heading that matches reality.

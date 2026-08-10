@@ -34,7 +34,15 @@ For ad-hoc TDD outside a plan, use the `tdd` skill instead.
 3. **Task tracking** — one task per phase: architect-gate (if required), RED, GREEN, REVIEW,
    REFACTOR, progress-update.
 
-4. **Execute the phases.** Two paths:
+4. **Execute the phases.** First read the cycle's `no-tdd` flag **verbatim from the plan, never
+   inferred**. When set: RED is skipped (a test authored to fail on purpose passes the gate
+   mechanically while asserting nothing), GREEN becomes an AUTHOR pass, and REVIEW carries the gate
+   as a source-verified fact-check where an **unverifiable claim is a `[BLOCKER]`, not a `[NIT]`**,
+   test-coverage named in `skippedCategories`. Nothing else relaxes. Contract:
+   [tdd-cycle.md §2](../../workflows/tdd-cycle.md#2-red)–[§4](../../workflows/tdd-cycle.md#4-review-and-refactor-loop),
+   [tdd.md §Cycles without RED](../../rules/tdd.md#cycles-without-red-no-tdd).
+
+   Two paths:
    - **Default — manual orchestration.** Delegate RED / GREEN / REVIEW / REFACTOR through
      the runtime's independent-agent mechanism using the plan's role + capability-tier assignments,
      prompts built per [§Subagent prompt skeleton](../../rules/cycle-orchestration.md#subagent-prompt-skeleton).
@@ -46,7 +54,24 @@ For ad-hoc TDD outside a plan, use the `tdd` skill instead.
      record `wf:<runId>/review-pass-<N>` as the `reviewer-agent-id` per
      [§Cycle notes format](../../rules/cycle-orchestration.md#cycle-notes-format).
 
-   Either path loops REFACTOR → REVIEW until `APPROVED`, under the NO-DEFER policy.
+   Either path loops REFACTOR → REVIEW until `APPROVED`, under the NO-DEFER policy — three parts of
+   which the loop may not improvise:
+
+   - **Verify before you refactor.** A `NEEDS FIX` pass's blocking findings (`[BLOCKER]`/`[REFACTOR]`;
+     `[NIT]`s are not verified) go to a read-only [`finding-verifier`](../../roles/finding-verifier.md)
+     holding no review context, BEFORE any REFACTOR is spent on them. A refuted finding earns no
+     refactor — it is dropped, recorded with evidence in `hallucinations-rejected[]`, and inlined into
+     later REVIEW prompts. Never the orchestrator's own call:
+     [§Reviewer hallucination guard](../../rules/cycle-orchestration.md#reviewer-hallucination-guard).
+   - **Budget: 6 productive passes** — ones whose findings survived verification and drove a REFACTOR.
+     An all-refuted pass is not productive and is bounded separately (3), halting as
+     `reviewer-hallucination-loop`, not as a reviewer dispute. Authority for both numbers:
+     [tdd-cycle.md §4](../../workflows/tdd-cycle.md#4-review-and-refactor-loop).
+   - **Fresh-spawn review scope.** When pass 2+ SPAWNS FRESH rather than continuing the same reviewer
+     ([§Continuing vs spawning fresh](../../rules/cycle-orchestration.md#continuing-a-subagent-vs-spawning-fresh)),
+     scope it to **every file touched since GREEN**, not the refactor diff. A continued reviewer holds
+     the earlier diff; a fresh one does not, so the narrower scope silently drops the original
+     implementation from review. (`code-reviewer.md` §Second pass assumes the continued case.)
 
 5. **After APPROVED — walk the
    [§Definition of done](../../rules/cycle-orchestration.md#definition-of-done) (1)–(8)**

@@ -26,6 +26,10 @@ rules all live there. Autonomy never relaxes a gate.
      in the plan YAML — this preflights stop condition 2 so the run doesn't die
      mid-range. Security-tier cycles must already show the top-tier gate (stop
      condition 3).
+   - Record which in-range cycles carry `no-tdd: true`, read verbatim from the plan and never
+     inferred. Those cycles run AUTHOR → REVIEW with no RED and the fact-check as the gate
+     ([cycle skill](../cycle/SKILL.md) step 4) — a run that discovers this mid-range has already
+     dispatched a RED author with nothing to fail.
    - Confirm the working tree is clean (`git status`) — each cycle's commit must be a
      bounded diff.
 
@@ -44,6 +48,14 @@ rules all live there. Autonomy never relaxes a gate.
    phase, the numbered stop condition, verbatim evidence, proposed next action). The run
    never resumes itself — the user reviews, resolves, and re-authorizes the remaining
    range.
+
+   Condition 5 is budget-shaped and bites mid-cycle, so know its split before the run starts: it
+   spends **productive** review passes only (6), while a pass whose blocking findings were all
+   refuted by the
+   [finding-verifier](../../rules/cycle-orchestration.md#reviewer-hallucination-guard) is charged
+   to a separate bound (3) and halts as `reviewer-hallucination-loop` — a different handoff, not a
+   reviewer dispute. [tdd-cycle.md §4](../../workflows/tdd-cycle.md#4-review-and-refactor-loop) is
+   the authority on both numbers.
 
 4. **End-of-run summary**: cycles completed with commit SHAs, plus anything tracked into
    the plan's §Cycle follow-ups during the run.
