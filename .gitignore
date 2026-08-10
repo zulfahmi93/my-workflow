@@ -37,3 +37,8 @@ desktop.ini
 # `private/tmp/...` tree inside the repo root instead. Commit dd57513 swept 36 such generated
 # files (19,610 lines) in via a `git add -A` that ran in the wrong working directory.
 /private/
+
+# Python bytecode. check-commit-command.py is imported by ad-hoc probes and by the mutation
+# harness, and CPython drops a __pycache__/ next to it — generated output, never source.
+__pycache__/
+*.pyc

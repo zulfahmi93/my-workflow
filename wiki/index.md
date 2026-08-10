@@ -27,7 +27,6 @@ Grouped by owner — `projects/personal/` and `projects/rintis/`.
 - [[tunas-lite]] — WhatsApp clock-in demo (Phase 5 in progress — Loom recording pending)
 - [[rintis-landing]] — _legacy_ Berdua.AI (née Rintis Tech) marketing landing on `rintis.tech` (live on dev; superseded by `landing-website/` post 2026-06-25 rebrand)
 - [[isc-workflow-web]] — Next.js port of the iSarawak Care iSC Workflow government portal (plan-001 bootstrap complete; all 8 cycles done; 1.1–1.4 committed, 1.5–1.8 pending commit)
-- _baja-dunia_ — pending ingest (Phase 2 architecture in flight; PRD locked)
 
 ## Concepts
 
