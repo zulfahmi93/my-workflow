@@ -26,6 +26,12 @@
             "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec python3 \"$root/.codex/hooks/dispatch-file-policy.py\" block-generated",
             "timeout": 30,
             "statusMessage": "Checking generated-file policy"
+          },
+          {
+            "type": "command",
+            "command": "root=\"$PWD\"; while [ ! -d \"$root/.agents\" ] && [ \"$root\" != / ]; do root=\"$(dirname \"$root\")\"; done; exec python3 \"$root/.codex/hooks/dispatch-file-policy.py\" block-git-internals",
+            "timeout": 30,
+            "statusMessage": "Checking git-internals writes"
           }
         ]
       }
