@@ -221,6 +221,7 @@ const CLAUDE_HOOKS = {
   'block-generated-writes.sh': { target: '.agents/scripts/check-generated-command.py', event: 'PreToolUse', matcher: 'Bash' },
   'block-read-only-writes.sh': { target: '.agents/scripts/check-read-only-command.py', event: 'PreToolUse', matcher: 'Bash' },
   'block-generated-html.sh': { target: '.agents/scripts/check-generated-path.sh', event: 'PreToolUse', matcher: 'Edit|Write|NotebookEdit' },
+  'block-git-internals-writes.sh': { target: '.agents/scripts/check-git-internals-path.py', event: 'PreToolUse', matcher: 'Edit|Write|NotebookEdit' },
   'validate-docs-yaml.sh': { target: '.agents/scripts/validate-docs-yaml.sh', event: 'PostToolUse', matcher: 'Edit|Write' },
 };
 
@@ -246,6 +247,46 @@ async function validateClaudeSettings() {
     }
     const wired = (group.hooks || []).some((h) => typeof h?.command === 'string' && h.command.includes(filename));
     if (!wired) errors.push(`${file}: ${event}/"${matcher}" does not invoke ${filename}`);
+  }
+
+  // THE OTHER DIRECTION, and it is the half that was missing. The loop above walks
+  // CLAUDE_HOOKS and asks settings.json about each entry, so a hook that is not IN the table
+  // is invisible to it: `block-git-internals-writes.sh` shipped wired in settings.json, with
+  // its policy and its own test suite, and `grep -c block-git-internals-writes
+  // .agents/scripts/validate-agent-config.mjs` was 0. Measured: deleting its two-line entry
+  // from settings.json left this validator at "agent config valid", exit 0 — the whole
+  // git-internals write gate could be switched off with every gate still green.
+  //
+  // Adding the table entry closes that for THIS hook only; the next hook added without one
+  // lands in exactly the same blind spot. So the wiring is also read as the authority in
+  // reverse: every `.claude/hooks/<name>` a settings.json command invokes must be a key of
+  // CLAUDE_HOOKS, and must be wired under the event and matcher the table declares. The
+  // event/matcher half matters as much as the membership half — a hook moved from
+  // PreToolUse to PostToolUse still "appears" in the file while no longer being able to deny
+  // anything, since only PreToolUse can block a call.
+  const events = settings?.hooks && typeof settings.hooks === 'object' ? settings.hooks : {};
+  for (const [event, entries] of Object.entries(events)) {
+    if (!Array.isArray(entries)) {
+      errors.push(`${file}: hooks.${event} is not an array`);
+      continue;
+    }
+    for (const group of entries) {
+      for (const hook of Array.isArray(group?.hooks) ? group.hooks : []) {
+        if (typeof hook?.command !== 'string') continue;
+        // The command is a shell string ("$CLAUDE_PROJECT_DIR"/.claude/hooks/x.sh), so the
+        // adapter is matched as a path fragment rather than parsed out of it.
+        for (const [, filename] of hook.command.matchAll(/\.claude\/hooks\/([\w.-]+)/g)) {
+          const declared = CLAUDE_HOOKS[filename];
+          if (!declared) {
+            errors.push(`${file}: ${event}/"${group?.matcher}" invokes .claude/hooks/${filename}, which has no CLAUDE_HOOKS entry — an unlisted hook is one this validator cannot check, so it can be deleted or unwired with every gate still green`);
+            continue;
+          }
+          if (declared.event !== event || declared.matcher !== group?.matcher) {
+            errors.push(`${file}: ${filename} is wired at ${event}/"${group?.matcher}" but CLAUDE_HOOKS declares ${declared.event}/"${declared.matcher}" — only PreToolUse can deny a call, so the two must agree`);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -291,8 +332,38 @@ async function validateCodexRuntimeAdapters() {
     errors.push('.codex/hooks/block-commit-flags.sh: does not delegate to portable policy');
   }
   const pathHook = await readFile(path.join(repoRoot, '.codex/hooks/dispatch-file-policy.py'), 'utf8');
-  for (const target of ['.agents/scripts/check-generated-path.sh', '.agents/scripts/validate-docs-yaml.sh']) {
+  for (const target of [
+    '.agents/scripts/check-generated-path.sh',
+    '.agents/scripts/validate-docs-yaml.sh',
+    // The Codex tool surface had no arm for this one at all: the Claude side blocked an
+    // Edit/Write aimed at `.git/config` or `.git/hooks/*` while apply_patch walked straight
+    // through. Same policy, same fail-closed contract, dispatched from the same file.
+    '.agents/scripts/check-git-internals-path.py',
+  ]) {
     if (!pathHook.includes(target)) errors.push(`.codex/hooks/dispatch-file-policy.py: missing ${target}`);
+  }
+
+  // The same reverse check validateClaudeSettings() applies to .claude/settings.json, in the
+  // shape this side has: the dispatcher's arms are selected by an argv subcommand, so an arm
+  // can exist, be tested, and be invoked by nothing. DERIVED from the dispatcher's own
+  // SUBCOMMANDS tuple rather than restated here — a second hand-maintained copy is the exact
+  // failure that let block-git-internals-writes.sh ship unlisted on the Claude side.
+  const declared = /^SUBCOMMANDS\s*=\s*\(([^)]*)\)/m.exec(pathHook)?.[1];
+  if (!declared) {
+    errors.push('.codex/hooks/dispatch-file-policy.py: no SUBCOMMANDS tuple to derive the wiring check from');
+  } else {
+    // The raw command strings, not `serialized`: the commands embed escaped quotes
+    // (`exec python3 \"$root/…/dispatch-file-policy.py\" block-generated`), so JSON.stringify
+    // of the parsed object re-escapes them and a literal substring probe misses every arm.
+    const commands = Object.values(hooks?.hooks || {})
+      .flatMap((entries) => (Array.isArray(entries) ? entries : []))
+      .flatMap((group) => (Array.isArray(group?.hooks) ? group.hooks : []))
+      .map((hook) => (typeof hook?.command === 'string' ? hook.command : ''));
+    for (const [, name] of declared.matchAll(/"([\w-]+)"/g)) {
+      if (!commands.some((command) => new RegExp(`dispatch-file-policy\\.py\\\\?"?\\s+${name}(\\s|$)`).test(command))) {
+        errors.push(`.codex/hooks.json: dispatch-file-policy.py subcommand "${name}" is wired by nothing — an arm nothing invokes is a policy that never runs`);
+      }
+    }
   }
 }
 
